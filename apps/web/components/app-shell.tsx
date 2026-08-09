@@ -73,16 +73,8 @@ export function AppShell({ children }: AppShellProps) {
             overflowY: "auto",
           }}>
             {/* Logo */}
-            <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #e8e8e8" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: 6,
-                  background: "#111", display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <span style={{ color: "#fff", fontSize: 13, fontWeight: 700 }}>A</span>
-                </div>
-                <span style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>Agent Platform</span>
-              </div>
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid #e8e8e8" }}>
+              <span style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>Dashboard</span>
             </div>
 
             {/* Nav */}

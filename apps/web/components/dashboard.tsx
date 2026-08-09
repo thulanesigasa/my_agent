@@ -2,7 +2,7 @@
 
 import React, { useContext, useState } from "react";
 import {
-  AreaChart, Area, BarChart, Bar,
+  AreaChart, Area, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import {
@@ -39,6 +39,16 @@ const AREA_DATA = [
   { day: "Fri", sent: 48, replied: 16 },
   { day: "Sat", sent: 62, replied: 20 },
   { day: "Sun", sent: 71, replied: 24 },
+];
+
+const STEP_DATA = [
+  { day: "Mon", direct: 15, outreach: 8  },
+  { day: "Tue", direct: 35, outreach: 18 },
+  { day: "Wed", direct: 32, outreach: 25 },
+  { day: "Thu", direct: 48, outreach: 30 },
+  { day: "Fri", direct: 45, outreach: 40 },
+  { day: "Sat", direct: 58, outreach: 44 },
+  { day: "Sun", direct: 62, outreach: 52 },
 ];
 
 const BAR_DATA = [
