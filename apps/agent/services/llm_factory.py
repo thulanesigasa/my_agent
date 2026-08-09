@@ -13,13 +13,25 @@ try:
 except ImportError:
     BaseChatModel = Any  # type: ignore
 
+
+class _DummyChatOpenAI:
+    """Fallback dummy class for static typing and environment safety when langchain is uninstalled."""
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    async def ainvoke(self, *args: Any, **kwargs: Any) -> Any:
+        class _DummyResponse:
+            content = "AI Provider unavailable."
+        return _DummyResponse()
+
+
 try:
     from langchain_openai import ChatOpenAI  # type: ignore
 except ImportError:
     try:
         from langchain_community.chat_models import ChatOpenAI  # type: ignore
     except ImportError:
-        ChatOpenAI = Any  # type: ignore
+        ChatOpenAI = _DummyChatOpenAI  # type: ignore
 
 from config import settings
 
@@ -39,9 +51,9 @@ def _create_openai_compatible_chat(
     Helper function to instantiate ChatOpenAI seamlessly across both langchain_openai
     and langchain_community parameter contracts.
     """
-    if ChatOpenAI is object or not callable(ChatOpenAI):
+    if ChatOpenAI is _DummyChatOpenAI:
         logger.warning("ChatOpenAI class is unavailable.")
-        return None
+        return _DummyChatOpenAI()
 
     try:
         return ChatOpenAI(
@@ -62,7 +74,7 @@ def _create_openai_compatible_chat(
             )
         except Exception as e:
             logger.error(f"Failed to instantiate ChatOpenAI model '{model}': {e}")
-            return None
+            return _DummyChatOpenAI()
 
 
 def load_system_context(knowledge_dir: Optional[str] = None) -> str:
