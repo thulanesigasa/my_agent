@@ -24,7 +24,8 @@ from core.security import limiter, verify_api_key, verify_websocket_api_key
 from services.audio_service import audio_service
 from services.whatsapp_service import whatsapp_service
 from agents.human_approval import get_pending_approvals, approve_draft, reject_or_edit_draft
-from routers import health
+from routers import health, webhooks
+from scheduler import agent_scheduler
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -36,8 +37,33 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Mount Health check router
+# Mount Health check and Webhooks routers
 app.include_router(health.router)
+app.include_router(webhooks.router)
+
+
+@app.on_event("startup")
+async def on_startup():
+    """
+    Startup lifecycle: Starts APScheduler background worker for 2-min polling & weekly Excel report cron.
+    """
+    logger.info("Initializing application startup services...")
+    try:
+        agent_scheduler.start()
+    except Exception as e:
+        logger.warning(f"Failed to start background scheduler: {e}")
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    """
+    Shutdown lifecycle: Gracefully stops background scheduler worker.
+    """
+    logger.info("Shutting down background services...")
+    try:
+        agent_scheduler.shutdown()
+    except Exception as e:
+        logger.warning(f"Error shutting down scheduler: {e}")
 
 # Attach SlowAPI limiter state and error handler
 app.state.limiter = limiter

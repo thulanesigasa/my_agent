@@ -1,6 +1,6 @@
 """
 Human Approval Agent Node & Helper Functions for Human-in-the-Loop workflows.
-Triggers priority notifications to admin via notification_service.
+Triggers priority notifications to admin via notification_service and updates CRM status.
 """
 import logging
 from typing import Dict, Any, Optional, List
@@ -8,6 +8,7 @@ from core.state import AgentState
 from services.email_service import email_service
 from services.whatsapp_service import whatsapp_service
 from services.notification_service import notify_admin_approval_needed
+from services.crm_service import update_project_status, upsert_client
 from core.memory import memory_manager
 
 logger = logging.getLogger("agent.node.human_approval")
@@ -21,6 +22,7 @@ async def human_approval_node(state: AgentState) -> AgentState:
     LangGraph Approval Node:
     Pauses or intercepts execution for high-risk client inquiries or external dispatches.
     Sends priority notification email & push alert to admin.
+    Automatically updates CRM project pipeline when approved.
     """
     logger.info("Executing Human Approval Node...")
     approval_status = state.get("approval_status")
@@ -30,15 +32,25 @@ async def human_approval_node(state: AgentState) -> AgentState:
 
     thread_id = email_input.get("thread_id") or "session_001"
     client_name = email_input.get("sender") or email_input.get("company") or "Prospect/Client"
+    recipient_email = email_input.get("sender", "client@enterprise.com")
 
     # If action has been approved by human
     if approval_status == "approved":
         logger.info(f"Human Approval Granted for thread '{thread_id}'. Executing action...")
         if intent in ("sales", "client_inquiry", "quote_request"):
-            recipient = email_input.get("sender", "client@enterprise.com")
             subject = f"Re: {email_input.get('subject', 'Inquiry Response')}"
-            await email_service.send_email(to=recipient, subject=subject, body=draft, thread_id=thread_id)
-            state["final_output"] = f"✅ Approved & Sent Email to {recipient}."
+            await email_service.send_email(to=recipient_email, subject=subject, body=draft, thread_id=thread_id)
+
+            # Update CRM sales pipeline to 'Quoted' or 'In Progress'
+            crm_status = "Quoted" if intent == "quote_request" else "In Progress"
+            await update_project_status(
+                client_email=recipient_email,
+                status=crm_status,
+                scope_summary=draft[:150]
+            )
+
+            state["final_output"] = f"✅ Approved & Sent Email to {recipient_email}. Updated CRM status to '{crm_status}'."
+
         state["needs_human_approval"] = False
         if thread_id in PENDING_APPROVAL_QUEUE:
             del PENDING_APPROVAL_QUEUE[thread_id]
@@ -65,6 +77,10 @@ async def human_approval_node(state: AgentState) -> AgentState:
         "created_at": "Just now"
     }
     PENDING_APPROVAL_QUEUE[thread_id] = pending_item
+
+    # Upsert client in CRM as Lead
+    await upsert_client(name=client_name, email=recipient_email)
+    await update_project_status(client_email=recipient_email, status="Lead")
 
     # Send priority alert to Admin (Pharez) with direct approval link
     try:
