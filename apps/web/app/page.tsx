@@ -3,9 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
-  Plus, ChevronDown, Mic, MicOff, Square, X,
-  PenSquare, LayoutDashboard, ArrowUp, Sparkles,
-  Volume2, VolumeX, Bot, User
+  Plus, ChevronDown, MicOff, Square, X,
+  LayoutDashboard, Bot, User, ArrowUp, Sparkles
 } from "lucide-react";
 import SiriOrb from "@/components/ui/siri-orb";
 import { AudioStreamManager, SiriOrbState } from "@/lib/audio";
@@ -24,7 +23,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [modelDropdown, setModelDropdown] = useState(false);
 
-  // Voice / Full-screen Orb Live mode state
+  // Voice / Full-screen White Orb Live mode state
   const [voiceActive, setVoiceActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [orbState, setOrbState] = useState<SiriOrbState>("idle");
@@ -91,7 +90,7 @@ export default function Home() {
     }
   };
 
-  // Interrupt / Stop voice streaming and return to Gemini Home UI
+  // Interrupt / Stop voice streaming
   const interruptVoiceMode = () => {
     audioManagerRef.current?.stopStreaming();
     setVoiceActive(false);
@@ -191,12 +190,12 @@ export default function Home() {
       position: "fixed", inset: 0, overflow: "hidden",
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     }}>
-      {/* ── FULL SCREEN ORB VOICE MODE (When Voice Active) ───────────── */}
+      {/* ── FULL SCREEN WHITE ORB VOICE MODE (When Voice Active) ──────── */}
       {voiceActive ? (
         <div style={{
           position: "fixed", inset: 0, zIndex: 100,
           background: "#ffffff", display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "between", padding: "32px 24px",
+          alignItems: "center", justifyContent: "space-between", padding: "32px 24px",
         }}>
           {/* Top Controls */}
           <div style={{ width: "100%", maxWidth: 600, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -256,7 +255,7 @@ export default function Home() {
                 transition: "all 150ms",
               }}
             >
-              {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
+              {isMuted ? <MicOff size={16} /> : <SiriOrb size={18} />}
               <span>{isMuted ? "Unmute Mic" : "Mute Mic"}</span>
             </button>
 
@@ -278,10 +277,10 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        /* ── GEMINI HOME UI (Default View) ───────────────────────────── */
+        /* ── CLIENT HOME UI (White Faded Background) ─────────────────── */
         <div style={{
           position: "fixed", inset: 0, display: "flex", flexDirection: "column",
-          backgroundImage: "url('/gemini-bg.png'), radial-gradient(circle at 50% 40%, rgba(224, 242, 254, 0.6) 0%, rgba(243, 232, 255, 0.4) 50%, #f8fafc 100%)",
+          backgroundImage: "linear-gradient(to bottom, rgba(255,255,255,0.85), rgba(255,255,255,0.95)), url('/gemini-bg.png')",
           backgroundSize: "cover", backgroundPosition: "center",
           color: "#1e293b",
         }}>
@@ -293,20 +292,12 @@ export default function Home() {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <button
-                onClick={() => setMessages([])}
-                title="New Chat"
-                style={{ background: "rgba(255,255,255,0.8)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "50%", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }}
-              >
-                <PenSquare size={16} />
-              </button>
-
               <Link
                 href="/dashboard"
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "7px 14px", fontSize: 12, fontWeight: 600, color: "#0f172a",
-                  background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)",
+                  background: "#ffffff", border: "1px solid rgba(0,0,0,0.1)",
                   borderRadius: 999, textDecoration: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
                 }}
               >
@@ -319,13 +310,13 @@ export default function Home() {
           {/* Main Area */}
           <main style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px", overflowY: "auto" }}>
             {messages.length === 0 ? (
-              /* ── Gemini Centered Hero Title ── */
+              /* ── Centered Hero Title ── */
               <div style={{ textAlign: "center", marginBottom: 36, maxWidth: 640 }}>
                 <h1 style={{ fontSize: 38, fontWeight: 400, color: "#0f172a", letterSpacing: "-0.02em", margin: "0 0 8px" }}>
-                  What's next, THULANE?
+                  What's next, sir?
                 </h1>
                 <p style={{ fontSize: 14, color: "#64748b", margin: 0 }}>
-                  Ask my_agent or click the mic to switch to speech mode.
+                  Ask my_agent or click the Orb to switch to speech mode.
                 </p>
               </div>
             ) : (
@@ -341,9 +332,10 @@ export default function Home() {
                     <div style={{
                       maxWidth: "80%", padding: "12px 16px", fontSize: 13, lineHeight: 1.6,
                       borderRadius: 18,
-                      background: msg.sender === "user" ? "#0f172a" : "rgba(255,255,255,0.9)",
+                      background: msg.sender === "user" ? "#0f172a" : "#ffffff",
                       color: msg.sender === "user" ? "#ffffff" : "#0f172a",
-                      boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+                      border: "1px solid rgba(0,0,0,0.08)",
+                      boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
                     }}>
                       <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
                     </div>
@@ -366,14 +358,14 @@ export default function Home() {
               </div>
             )}
 
-            {/* ── Large Gemini Floating Input Bar ── */}
+            {/* ── Large Floating Input Bar ── */}
             <div style={{ width: "100%", maxWidth: 680, position: "relative" }}>
               <div style={{
                 display: "flex", alignItems: "center", gap: 12,
                 background: "#ffffff", borderRadius: 999,
                 padding: "8px 12px 8px 18px",
-                boxShadow: "0 10px 30px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)",
-                border: "1px solid rgba(226, 232, 240, 0.8)",
+                boxShadow: "0 10px 30px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.05)",
+                border: "1px solid rgba(226, 232, 240, 0.9)",
               }}>
                 {/* Plus Icon */}
                 <button title="Add attachment" style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", padding: 2 }}>
@@ -390,7 +382,7 @@ export default function Home() {
                       handleSendText();
                     }
                   }}
-                  placeholder="Ask Gemini"
+                  placeholder="Ask my_agent..."
                   style={{
                     flex: 1, border: "none", outline: "none",
                     fontSize: 15, color: "#0f172a", background: "transparent",
@@ -426,19 +418,19 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Microphone / SiriOrb Button to start voice mode */}
+                {/* SiriOrb Button to start voice mode */}
                 <button
                   onClick={startVoiceMode}
-                  title="Click to start speech mode"
+                  title="Click to switch to speech mode"
                   style={{
                     background: "none", border: "none", cursor: "pointer",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    padding: 4, borderRadius: "50%", transition: "transform 150ms",
+                    padding: 2, borderRadius: "50%", transition: "transform 150ms",
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
                   onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
                 >
-                  <Mic size={20} style={{ color: "#475569" }} />
+                  <SiriOrb size={26} animationDuration={20} />
                 </button>
               </div>
             </div>
