@@ -7,12 +7,20 @@ import os
 import logging
 from pathlib import Path
 from typing import Any, Optional
-from langchain_core.language_models.chat_models import BaseChatModel
 
 try:
-    from langchain_openai import ChatOpenAI
+    from langchain_core.language_models.chat_models import BaseChatModel  # type: ignore
 except ImportError:
-    from langchain_community.chat_models import ChatOpenAI  # type: ignore
+    BaseChatModel = Any  # type: ignore
+
+try:
+    from langchain_openai import ChatOpenAI  # type: ignore
+except ImportError:
+    try:
+        from langchain_community.chat_models import ChatOpenAI  # type: ignore
+    except ImportError:
+        ChatOpenAI = Any  # type: ignore
+
 from config import settings
 
 logger = logging.getLogger("agent.llm_factory")
@@ -97,7 +105,7 @@ def get_drafting_llm() -> BaseChatModel:
     """
     if settings.GEMINI_API_KEY:
         try:
-            from langchain_google_genai import ChatGoogleGenerativeAI
+            from langchain_google_genai import ChatGoogleGenerativeAI  # type: ignore
             return ChatGoogleGenerativeAI(
                 model=settings.GEMINI_MODEL,
                 google_api_key=settings.GEMINI_API_KEY,
@@ -122,15 +130,17 @@ def get_fallback_llm() -> BaseChatModel:
                 model=settings.OPENROUTER_MODEL,
                 openai_api_key=settings.OPENROUTER_API_KEY,
                 openai_api_base="https://openrouter.ai/api/v1",
-                temperature=0.5,
+                temperature=0.7,
+                max_tokens=2048,
             )
         except Exception as e:
-            logger.error(f"Failed to initialize OpenRouter LLM: {e}")
+            logger.error(f"OpenRouter Fallback LLM error: {e}")
 
+    # Default baseline instance
     return ChatOpenAI(
         model="gpt-3.5-turbo",
-        openai_api_key="mock-key",
-        temperature=0.3
+        openai_api_key=settings.OPENAI_API_KEY or "dummy_key",
+        temperature=0.7
     )
 
 
@@ -165,27 +175,26 @@ class LLMFactory:
                 logger.error(f"Fallback LLM failed: {fb_err}")
                 return '{"intent": "general", "needs_human_approval": false, "reason": "Fallback mode"}'
 
-    async def invoke_drafter(self, prompt: str, node_system_prompt: str = "") -> str:
+    async def invoke_drafter(self, prompt: str, system_override: Optional[str] = None) -> str:
         """
         Execute drafting invocation using Gemini 1.5 Pro with T.s Industries knowledge context injection.
         """
-        company_context = load_system_context()
-        combined_system = f"{company_context}\n\n{node_system_prompt}".strip()
-
-        messages = []
-        if combined_system:
-            messages.append({"role": "system", "content": combined_system})
-        messages.append({"role": "user", "content": prompt})
-
+        system = system_override if system_override else load_system_context()
         try:
             llm = get_drafting_llm()
-            res = await llm.ainvoke(messages)
+            res = await llm.ainvoke([
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt}
+            ])
             return res.content if hasattr(res, "content") else str(res)
         except Exception as e:
             logger.error(f"Primary drafting LLM failed: {e}. Executing fallback LLM...")
             try:
                 fallback_llm = get_fallback_llm()
-                res = await fallback_llm.ainvoke(messages)
+                res = await fallback_llm.ainvoke([
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt}
+                ])
                 return res.content if hasattr(res, "content") else str(res)
             except Exception as fb_err:
                 logger.error(f"Fallback LLM failed: {fb_err}")

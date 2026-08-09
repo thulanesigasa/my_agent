@@ -7,7 +7,7 @@ import logging
 from typing import List, Dict, Any, TypedDict, Optional
 
 try:
-    from langgraph.graph import StateGraph, END
+    from langgraph.graph import StateGraph, END  # type: ignore
 except ImportError as e:
     logging.warning(f"LangGraph import warning in outreach_agent: {e}.")
     StateGraph = object
