@@ -88,10 +88,9 @@ export function AppShell({ children }: AppShellProps) {
             {/* Inner fixed-width wrapper to prevent text overflow during slide */}
             <div style={{ width: 210, display: "flex", flexDirection: "column", height: "100%" }}>
               {/* Brand Logo */}
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid #e8e8e8", display: "flex", alignItems: "center", gap: 10 }}>
-                <img src="/favicon.png" alt="my_agent Logo" style={{ width: 22, height: 22, objectFit: "contain" }} />
-                <span style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>my_agent</span>
-              </div>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e8e8e8" }}>
+              <span style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>Dashboard</span>
+            </div>
 
               {/* Nav */}
               <div style={{ flex: 1, padding: "14px 10px", overflowY: "auto" }}>

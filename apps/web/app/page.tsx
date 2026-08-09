@@ -287,7 +287,6 @@ export default function Home() {
           {/* Top Bar Header */}
           <header style={{ height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <img src="/favicon.png" alt="my_agent" style={{ width: 24, height: 24, objectFit: "contain" }} />
               <span style={{ fontWeight: 700, fontSize: 16, color: "#0f172a" }}>my_agent</span>
             </div>
 
@@ -390,33 +389,7 @@ export default function Home() {
                   }}
                 />
 
-                {/* Model Selector Badge */}
-                <div style={{ position: "relative" }}>
-                  <button
-                    onClick={() => setModelDropdown(!modelDropdown)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 4,
-                      fontSize: 13, fontWeight: 500, color: "#475569",
-                      background: "#f1f5f9", border: "none", borderRadius: 999,
-                      padding: "4px 10px", cursor: "pointer",
-                    }}
-                  >
-                    <span>Pro</span>
-                    <ChevronDown size={14} />
-                  </button>
 
-                  {modelDropdown && (
-                    <div style={{
-                      position: "absolute", bottom: 36, right: 0, width: 140,
-                      background: "#ffffff", border: "1px solid #e2e8f0",
-                      borderRadius: 12, boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
-                      padding: 6, zIndex: 50, fontSize: 12,
-                    }}>
-                      <div onClick={() => setModelDropdown(false)} style={{ padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontWeight: 600, color: "#0f172a", background: "#f1f5f9" }}>Pro (FastAPI)</div>
-                      <div onClick={() => setModelDropdown(false)} style={{ padding: "6px 10px", borderRadius: 6, cursor: "pointer", color: "#64748b" }}>Flash (Groq)</div>
-                    </div>
-                  )}
-                </div>
 
                 {/* SiriOrb Button to start voice mode */}
                 <button
