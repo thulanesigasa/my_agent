@@ -153,7 +153,7 @@ async def websocket_audio_endpoint(websocket: WebSocket):
                 
             elif "text" in message and message["text"]:
                 data = json.loads(message["text"])
-                if data.get("type") === "ping":
+                if data.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
 
     except WebSocketDisconnect:
