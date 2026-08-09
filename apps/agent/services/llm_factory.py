@@ -39,6 +39,10 @@ def _create_openai_compatible_chat(
     Helper function to instantiate ChatOpenAI seamlessly across both langchain_openai
     and langchain_community parameter contracts.
     """
+    if ChatOpenAI is object or not callable(ChatOpenAI):
+        logger.warning("ChatOpenAI class is unavailable.")
+        return None
+
     try:
         return ChatOpenAI(
             model=model,
@@ -47,14 +51,18 @@ def _create_openai_compatible_chat(
             temperature=temperature,
             max_tokens=max_tokens,
         )
-    except Exception:
-        return ChatOpenAI(
-            model=model,
-            openai_api_key=api_key,
-            openai_api_base=base_url,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+    except (TypeError, Exception):
+        try:
+            return ChatOpenAI(
+                model=model,
+                openai_api_key=api_key,
+                openai_api_base=base_url,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except Exception as e:
+            logger.error(f"Failed to instantiate ChatOpenAI model '{model}': {e}")
+            return None
 
 
 def load_system_context(knowledge_dir: Optional[str] = None) -> str:
