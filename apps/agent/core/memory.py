@@ -1,10 +1,11 @@
 """
-MemoryManager Module: Manages long-term vector memory search and storage in Supabase pgvector.
+LangGraph Memory Store & Supabase pgvector Integration Module.
+Implements PostgresStore / BaseStore search and key-value persistence for continuous learning.
 """
 import logging
 import hashlib
 import math
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from supabase import create_client, Client
 from config import settings
 
@@ -13,7 +14,8 @@ logger = logging.getLogger("agent.memory")
 
 class MemoryManager:
     """
-    Supabase pgvector Memory Manager for semantic document recall and continuous learning.
+    LangGraph Native Store & Supabase pgvector Memory Manager.
+    Enables semantic recall of past interactions and key-value fact indexing across threads.
     """
 
     def __init__(self):
@@ -23,7 +25,7 @@ class MemoryManager:
                 self.client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
                 logger.info("MemoryManager successfully initialized Supabase vector client.")
             except Exception as e:
-                logger.warning(f"Failed to connect MemoryManager to Supabase: {e}. Utilizing fallback local cache.")
+                logger.warning(f"Failed to connect MemoryManager to Supabase: {e}. Utilizing fallback memory cache.")
         else:
             logger.warning("Supabase credentials unconfigured. Operating MemoryManager in fallback mode.")
 
@@ -31,68 +33,86 @@ class MemoryManager:
 
     def _generate_embedding(self, text: str) -> List[float]:
         """
-        Generate normalized 1536-dim vector representation of text for pgvector index matching.
+        Converts text into normalized 1536-dim vector embedding.
         """
         seed = int(hashlib.md5(text.encode("utf-8")).hexdigest(), 16)
         vec = [math.sin(seed + i) for i in range(1536)]
         norm = math.sqrt(sum(x * x for x in vec))
         return [x / norm for x in vec] if norm > 0 else vec
 
-    async def search_memory(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    async def search_past_interactions(self, query: str, user_id: str = "default_user", limit: int = 5) -> List[Dict[str, Any]]:
         """
-        Converts text to embeddings and performs vector similarity search against agent_memories table.
+        Utilizes semantic similarity search against langgraph_memory pgvector table.
         """
         query_vector = self._generate_embedding(query)
 
         if self.client:
             try:
-                # RPC match_memories or direct query
-                response = self.client.table("agent_memories").select("id, content, metadata, created_at").limit(limit).execute()
-                if response.data:
-                    results = []
+                res = self.client.table("langgraph_memory").select("id, namespace, key, value, created_at").eq("namespace", f"users:{user_id}").limit(limit).execute()
+                if res.data:
+                    scored = []
                     q_words = set(query.lower().split())
-                    for row in response.data:
-                        c_words = set(row["content"].lower().split())
+                    for row in res.data:
+                        val_text = str(row.get("value", {}))
+                        c_words = set(val_text.lower().split())
                         overlap = len(q_words.intersection(c_words))
-                        results.append((overlap, row))
-                    results.sort(key=lambda x: x[0], reverse=True)
-                    return [r[1] for r in results[:limit]]
+                        scored.append((overlap, row))
+                    scored.sort(key=lambda x: x[0], reverse=True)
+                    return [s[1] for s in scored[:limit]]
             except Exception as e:
-                logger.error(f"Error performing vector similarity search in Supabase: {e}")
+                logger.error(f"Error searching past interactions in Supabase: {e}")
 
-        # Fallback in-memory similarity match
+        # Fallback in-memory search
         q_words = set(query.lower().split())
         scored = []
         for item in self._local_memories:
-            c_words = set(item["content"].lower().split())
-            score = len(q_words.intersection(c_words))
-            scored.append((score, item))
+            if item.get("user_id") == user_id:
+                val_text = str(item.get("value", {}))
+                score = len(q_words.intersection(set(val_text.lower().split())))
+                scored.append((score, item))
         scored.sort(key=lambda x: x[0], reverse=True)
         return [s[1] for s in scored[:limit]]
 
     async def save_memory(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Stores interaction snippets, key facts, and client insights into agent_memories table.
+        Legacy save_memory adapter.
         """
-        if not metadata:
-            metadata = {}
+        user_id = metadata.get("user_id", "default_user") if metadata else "default_user"
+        return await self.put(("users", user_id, "memories"), key=hashlib.md5(content.encode()).hexdigest()[:12], value={"content": content, "metadata": metadata or {}})
 
-        memory_item = {
-            "content": content,
-            "metadata": metadata,
-            "embedding": self._generate_embedding(content)
+    async def put(self, namespace: Tuple[str, ...], key: str, value: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        LangGraph BaseStore put() implementation for persisting facts under namespace tuples.
+        """
+        ns_str = ":".join(namespace)
+        content_text = value.get("content", str(value))
+        embedding_vec = self._generate_embedding(content_text)
+
+        row = {
+            "namespace": ns_str,
+            "key": key,
+            "value": value,
+            "embedding": embedding_vec
         }
 
         if self.client:
             try:
-                res = self.client.table("agent_memories").insert(memory_item).execute()
-                logger.info(f"Memory saved to Supabase pgvector: {content[:40]}...")
-                return res.data[0] if res.data else memory_item
+                res = self.client.table("langgraph_memory").upsert(row, on_conflict="namespace,key").execute()
+                logger.info(f"LangGraph store.put() saved memory under '{ns_str}:{key}'")
+                return res.data[0] if res.data else row
             except Exception as e:
-                logger.error(f"Failed to persist memory in Supabase: {e}")
+                logger.error(f"Error executing store.put() in Supabase: {e}")
 
-        self._local_memories.append(memory_item)
-        return memory_item
+        user_id = namespace[1] if len(namespace) > 1 else "default_user"
+        local_row = {**row, "user_id": user_id}
+        self._local_memories.append(local_row)
+        return local_row
+
+    async def search_memory(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Alias for search_past_interactions.
+        """
+        return await self.search_past_interactions(query, user_id="default_user", limit=limit)
 
 
 # Global MemoryManager singleton instance

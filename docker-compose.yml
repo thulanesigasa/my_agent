@@ -5,6 +5,7 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: agent_postgres
+    restart: always
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
@@ -19,31 +20,50 @@ services:
       timeout: 5s
       retries: 5
 
-  # Python LangGraph & FastAPI Backend Agent Service
+  # Python LangGraph & FastAPI Backend Agent API
   agent:
     build:
-      context: ./apps/agent
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.agent
     container_name: agent_backend
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    restart: always
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     env_file:
       - .env.example
     environment:
       - SUPABASE_DB_URL=postgresql://postgres:password@postgres:5432/postgres
-    volumes:
-      - ./apps/agent:/app
     depends_on:
       postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # 24/7 Background Scheduler Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: agent_worker
+    restart: always
+    command: python worker.py
+    env_file:
+      - .env.example
+    depends_on:
+      agent:
         condition: service_healthy
 
   # Next.js App Router Web Frontend
   web:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.web
     container_name: agent_web
+    restart: always
     ports:
       - "3000:3000"
     environment:

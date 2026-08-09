@@ -1,11 +1,15 @@
 """
 FastAPI Backend Entrypoint featuring real-time WebSocket audio endpoints, HTTP API handlers,
-Twilio WhatsApp webhooks, and Human-in-the-Loop approval endpoints.
+Twilio WhatsApp webhooks, OpenTelemetry observability, and Human-in-the-Loop approval endpoints.
 """
 import logging
 import json
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, Form
+
+# Initialize Telemetry Tracing first before framework startup
+import core.telemetry
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 

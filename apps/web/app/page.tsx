@@ -58,7 +58,7 @@ export default function Demo(props: Partial<typeof settings>) {
         </div>
 
         <div className="flex flex-col items-center justify-center w-full text-center">
-          <span className="text-xs font-semibold tracking-wide text-slate-600 block text-center w-full">
+          <span className="text-xs font-semibold tracking-wide text-slate-600 block text-center w-full translate-x-2 pl-2">
             {orbState === "idle"
               ? "Click Orb to Speak"
               : orbState === "listening"
