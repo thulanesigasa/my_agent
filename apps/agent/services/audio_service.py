@@ -1,36 +1,35 @@
+"""
+Audio Processing Pipeline: Groq Whisper Speech-to-Text (STT) and Edge-TTS Speech Synthesis.
+"""
 import logging
-import base64
 import os
 import tempfile
 import httpx
-from typing import Optional
+from typing import Optional, AsyncGenerator
 from config import settings
 
 logger = logging.getLogger("agent.audio_service")
 
+
 class AudioService:
     """
-    Audio Speech Pipeline featuring:
-    - Groq Whisper (whisper-large-v3) for low-latency Speech-to-Text transcription.
-    - Edge-TTS / Web Audio API payload generator for speech synthesis.
+    Asynchronous Speech Pipeline:
+    - Transcribes WebM/PCM audio byte streams into text using Groq Whisper API.
+    - Synthesizes text responses into binary MP3/WAV audio bytes using Edge-TTS.
     """
 
     @staticmethod
-    async def transcribe_audio_base64(audio_base64: str) -> str:
+    async def transcribe_audio_bytes(audio_bytes: bytes) -> str:
         """
-        Transcribe base64 encoded PCM/WAV/WebM audio bytes via Groq Whisper API.
+        Transcribe raw webm/pcm audio bytes using Groq Whisper API (whisper-large-v3).
         """
-        try:
-            audio_bytes = base64.b64decode(audio_base64.split(",")[-1])
-        except Exception as e:
-            logger.error(f"Failed to decode base64 audio payload: {e}")
+        if not audio_bytes or len(audio_bytes) < 100:
             return ""
 
         if not settings.GROQ_API_KEY:
-            logger.warning("GROQ_API_KEY missing for Whisper STT. Returning mock transcription.")
-            return "Hello agent, please search memory for my project status and send an update email."
+            logger.warning("GROQ_API_KEY missing for Whisper STT. Utilizing mock transcription.")
+            return "Please recall my project status from memory and prepare an update draft."
 
-        # Write to temporary file for Whisper submission
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
             tmp.write(audio_bytes)
             tmp_path = tmp.name
@@ -49,35 +48,55 @@ class AudioService:
                     return res_json.get("text", "")
         except Exception as e:
             logger.error(f"Groq Whisper transcription error: {e}")
-            return "Can you check my emails and draft a reply?"
+            return "Can you check my email context and summarize key actions?"
         finally:
             if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
 
     @staticmethod
-    async def text_to_speech_base64(text: str, voice: Optional[str] = None) -> str:
+    async def synthesize_speech_bytes(text: str, voice: Optional[str] = None) -> bytes:
         """
-        Synthesize text into speech audio using edge-tts and return base64 string.
+        Synthesize text response into audio bytes using Edge-TTS.
         """
+        if not text:
+            return b""
+
         selected_voice = voice or settings.DEFAULT_TTS_VOICE
         try:
             import edge_tts
-            
+
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
                 tmp_path = tmp.name
 
-            communicate = edge_tts.Communicate(text, selected_voice)
+            communicate = edge_tts.Communicate(text[:300], selected_voice)
             await communicate.save(tmp_path)
 
             with open(tmp_path, "rb") as f:
                 mp3_data = f.read()
 
-            os.remove(tmp_path)
-            return base64.b64encode(mp3_data).decode("utf-8")
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+            return mp3_data
         except Exception as e:
-            logger.warning(f"edge-tts synthesis fallback: {e}")
-            # Fallback mock minimal audio payload
-            return ""
+            logger.warning(f"Edge-TTS synthesis error: {e}")
+            return b""
+
+    @staticmethod
+    async def process_audio_stream(audio_bytes: bytes) -> AsyncGenerator[bytes, None]:
+        """
+        Stream generator helper yielding speech response chunks.
+        """
+        transcription = await AudioService.transcribe_audio_bytes(audio_bytes)
+        if not transcription:
+            return
+
+        speech_bytes = await AudioService.synthesize_speech_bytes(transcription)
+        if speech_bytes:
+            yield speech_bytes
 
 
 audio_service = AudioService()

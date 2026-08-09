@@ -1,6 +1,8 @@
+"""
+FastAPI Backend Entrypoint featuring real-time WebSocket audio endpoints and HTTP API handlers.
+"""
 import logging
 import json
-import base64
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,7 +47,6 @@ class VoiceRequest(BaseModel):
 class ApprovalRequest(BaseModel):
     approved: bool
     thread_id: Optional[str] = "session_001"
-    proposed_action: Optional[Dict[str, Any]] = None
 
 
 @app.get("/health")
@@ -81,14 +82,13 @@ async def chat_endpoint(payload: ChatRequest):
     try:
         final_state = await agent_workflow.ainvoke(initial_state, config=config)
         output_text = final_state.get("final_output") or final_state.get("draft_response") or "Request processed."
-        audio_b64 = await audio_service.text_to_speech_base64(str(output_text)[:250])
+        audio_b64 = await audio_service.synthesize_speech_bytes(str(output_text)[:250])
 
         return {
             "status": "success",
             "sender": final_state.get("sender"),
             "intent": final_state.get("intent"),
             "response": output_text,
-            "audio_payload": audio_b64,
             "needs_human_approval": final_state.get("needs_human_approval", False),
             "approval_status": final_state.get("approval_status"),
             "retrieved_context": final_state.get("retrieved_context", []),
@@ -99,131 +99,113 @@ async def chat_endpoint(payload: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/voice")
-async def voice_endpoint(payload: VoiceRequest):
+@app.websocket("/ws/audio")
+async def websocket_audio_endpoint(websocket: WebSocket):
     """
-    Process voice audio input: Groq Whisper STT -> LangGraph agent -> Edge-TTS voice synthesis.
+    Real-time Bidirectional Audio Streaming WebSocket Endpoint:
+    Receives incoming WebM audio chunks, runs Groq Whisper STT -> LangGraph Workflow -> Edge-TTS synthesis,
+    and returns speech audio bytes directly over the socket connection.
     """
-    transcription = await audio_service.transcribe_audio_base64(payload.audio_base64)
-    if not transcription:
-        raise HTTPException(status_code=400, detail="Failed to transcribe audio.")
+    await websocket.accept()
+    logger.info("Real-time Audio WebSocket connected at /ws/audio.")
 
-    config = {"configurable": {"thread_id": "voice_thread"}}
-    initial_state: AgentState = {
-        "messages": [{"role": "user", "content": transcription}],
-        "approval_status": "none"
-    }
+    try:
+        while True:
+            # Receive raw binary audio bytes or JSON frame from client
+            message = await websocket.receive()
+            
+            if "bytes" in message and message["bytes"]:
+                audio_bytes = message["bytes"]
+                
+                # 1. State change: Listening -> Processing
+                await websocket.send_json({"type": "state_change", "state": "processing"})
+                
+                # 2. Transcribe audio via Whisper STT
+                transcription = await audio_service.transcribe_audio_bytes(audio_bytes)
+                if transcription:
+                    await websocket.send_json({"type": "transcription", "text": transcription})
+                    
+                    # 3. Execute LangGraph agent workflow
+                    config = {"configurable": {"thread_id": "ws_audio_thread"}}
+                    state: AgentState = {
+                        "messages": [{"role": "user", "content": transcription}],
+                        "approval_status": "none"
+                    }
+                    
+                    final_state = await agent_workflow.ainvoke(state, config=config)
+                    output_text = final_state.get("final_output") or final_state.get("draft_response") or "Audio request complete."
+                    
+                    # 4. State change: Processing -> Speaking
+                    await websocket.send_json({"type": "state_change", "state": "speaking"})
+                    await websocket.send_json({
+                        "type": "text_response",
+                        "text": output_text,
+                        "intent": final_state.get("intent")
+                    })
+                    
+                    # 5. Synthesize speech bytes and stream back over socket
+                    speech_bytes = await audio_service.synthesize_speech_bytes(str(output_text))
+                    if speech_bytes:
+                        await websocket.send_bytes(speech_bytes)
 
-    final_state = await agent_workflow.ainvoke(initial_state, config=config)
-    output_text = final_state.get("final_output") or final_state.get("draft_response") or "Voice request processed."
-    audio_b64 = await audio_service.text_to_speech_base64(str(output_text)[:250])
+                # 6. Revert state to Idle
+                await websocket.send_json({"type": "state_change", "state": "idle"})
+                
+            elif "text" in message and message["text"]:
+                data = json.loads(message["text"])
+                if data.get("type") === "ping":
+                    await websocket.send_json({"type": "pong"})
 
-    return {
-        "status": "success",
-        "transcription": transcription,
-        "response": output_text,
-        "audio_payload": audio_b64,
-        "intent": final_state.get("intent")
-    }
-
-
-@app.get("/api/memory")
-async def get_memories(query: Optional[str] = None):
-    """
-    Query long-term memories stored in Supabase pgvector.
-    """
-    q = query or "user preferences project status"
-    memories = await memory_manager.search_memory(q, limit=10)
-    return {"status": "success", "query": q, "memories": memories}
-
-
-@app.post("/api/approve")
-async def approve_action(payload: ApprovalRequest):
-    """
-    Human-in-the-Loop Endpoint: Grant or reject pending agent tool actions.
-    """
-    config = {"configurable": {"thread_id": payload.thread_id or "session_001"}}
-    approval_status = "approved" if payload.approved else "rejected"
-    
-    initial_state: AgentState = {
-        "messages": [{"role": "user", "content": "Execute approved action."}],
-        "intent": "client_inquiry",
-        "approval_status": approval_status,
-        "needs_human_approval": False
-    }
-
-    final_state = await agent_workflow.ainvoke(initial_state, config=config)
-
-    return {
-        "status": "success",
-        "approval_status": approval_status,
-        "response": final_state.get("final_output") or final_state.get("draft_response")
-    }
+    except WebSocketDisconnect:
+        logger.info("Audio WebSocket client disconnected from /ws/audio.")
+    except Exception as e:
+        logger.error(f"Error in Audio WebSocket stream: {e}")
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
 
 
 @app.websocket("/ws/agent")
 async def agent_websocket(websocket: WebSocket):
     """
-    Real-time WebSocket endpoint: Handles continuous audio streaming, live agent state visualizer events, and TTS payloads.
+    Control & JSON WebSocket Endpoint for SiriOrb state visualizer & chat events.
     """
     await websocket.accept()
-    logger.info("WebSocket connection established with client.")
+    logger.info("Agent Control WebSocket connected at /ws/agent.")
 
     try:
         while True:
-            raw_data = await websocket.receive_text()
-            data = json.loads(raw_data)
+            raw_text = await websocket.receive_text()
+            data = json.loads(raw_text)
 
-            msg_type = data.get("type", "message")
-            await websocket.send_json({"type": "state_change", "state": "listening"})
-
-            user_text = ""
-            if msg_type == "audio_stream":
-                audio_b64 = data.get("payload", "")
-                user_text = await audio_service.transcribe_audio_base64(audio_b64)
-                await websocket.send_json({"type": "transcription", "text": user_text})
-            else:
-                user_text = data.get("text", "")
-
+            user_text = data.get("text", "")
             if not user_text:
                 continue
 
             await websocket.send_json({"type": "state_change", "state": "processing"})
-
-            config = {"configurable": {"thread_id": "ws_session"}}
+            config = {"configurable": {"thread_id": "ws_agent_thread"}}
             state: AgentState = {
                 "messages": [{"role": "user", "content": user_text}],
                 "approval_status": "none"
             }
-            
-            await websocket.send_json({"type": "node_execution", "node": "triage"})
+
             final_state = await agent_workflow.ainvoke(state, config=config)
-            
-            await websocket.send_json({"type": "node_execution", "node": "drafter"})
+            output_text = final_state.get("final_output") or final_state.get("draft_response") or "Complete."
+
             await websocket.send_json({"type": "state_change", "state": "speaking"})
-
-            output_text = final_state.get("final_output") or final_state.get("draft_response") or "Processing complete."
-            audio_b64 = await audio_service.text_to_speech_base64(str(output_text)[:250])
-
-            response_payload = {
+            await websocket.send_json({
                 "type": "agent_response",
                 "text": output_text,
-                "audio_payload": audio_b64,
                 "intent": final_state.get("intent"),
-                "needs_human_approval": final_state.get("needs_human_approval", False),
-                "memories": final_state.get("retrieved_context", [])
-            }
-            await websocket.send_json(response_payload)
+                "needs_human_approval": final_state.get("needs_human_approval", False)
+            })
             await websocket.send_json({"type": "state_change", "state": "idle"})
 
     except WebSocketDisconnect:
-        logger.info("Client disconnected from WebSocket.")
+        logger.info("Agent Control WebSocket client disconnected.")
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-        try:
-            await websocket.send_json({"type": "error", "message": str(e)})
-        except:
-            pass
+        logger.error(f"Agent WebSocket error: {e}")
 
 
 if __name__ == "__main__":
