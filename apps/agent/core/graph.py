@@ -1,3 +1,7 @@
+"""
+LangGraph Multi-Agent State Machine Orchestrator.
+Flow: TriageNode (Groq Llama 3.3 70B) -> HumanApprovalGate -> DrafterNode (Gemini 1.5 Pro) -> LearnerNode (Supabase pgvector) -> OutputDispatcherNode (Edge-TTS)
+"""
 import logging
 from typing import Dict, Any, Literal
 from langgraph.graph import StateGraph, END
