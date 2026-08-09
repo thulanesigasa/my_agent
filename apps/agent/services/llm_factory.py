@@ -28,6 +28,35 @@ logger = logging.getLogger("agent.llm_factory")
 _SYSTEM_CONTEXT_CACHE: Optional[str] = None
 
 
+def _create_openai_compatible_chat(
+    model: str,
+    api_key: str,
+    base_url: str,
+    temperature: float = 0.7,
+    max_tokens: int = 2048
+) -> Any:
+    """
+    Helper function to instantiate ChatOpenAI seamlessly across both langchain_openai
+    and langchain_community parameter contracts.
+    """
+    try:
+        return ChatOpenAI(
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+    except Exception:
+        return ChatOpenAI(
+            model=model,
+            openai_api_key=api_key,
+            openai_api_base=base_url,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+
 def load_system_context(knowledge_dir: Optional[str] = None) -> str:
     """
     Reads all Markdown files in the knowledge/ directory and concatenates them into a single
@@ -85,10 +114,10 @@ def get_triage_llm() -> BaseChatModel:
     """
     if settings.GROQ_API_KEY:
         try:
-            return ChatOpenAI(
+            return _create_openai_compatible_chat(
                 model=settings.GROQ_MODEL,
-                openai_api_key=settings.GROQ_API_KEY,
-                openai_api_base="https://api.groq.com/openai/v1",
+                api_key=settings.GROQ_API_KEY,
+                base_url="https://api.groq.com/openai/v1",
                 temperature=0.1,
                 max_tokens=1024,
             )
@@ -126,10 +155,10 @@ def get_fallback_llm() -> BaseChatModel:
     """
     if settings.OPENROUTER_API_KEY:
         try:
-            return ChatOpenAI(
+            return _create_openai_compatible_chat(
                 model=settings.OPENROUTER_MODEL,
-                openai_api_key=settings.OPENROUTER_API_KEY,
-                openai_api_base="https://openrouter.ai/api/v1",
+                api_key=settings.OPENROUTER_API_KEY,
+                base_url="https://openrouter.ai/api/v1",
                 temperature=0.7,
                 max_tokens=2048,
             )
@@ -137,10 +166,12 @@ def get_fallback_llm() -> BaseChatModel:
             logger.error(f"OpenRouter Fallback LLM error: {e}")
 
     # Default baseline instance
-    return ChatOpenAI(
+    return _create_openai_compatible_chat(
         model="gpt-3.5-turbo",
-        openai_api_key=settings.OPENAI_API_KEY or "dummy_key",
-        temperature=0.7
+        api_key=settings.OPENAI_API_KEY or "dummy_key",
+        base_url="https://api.openai.com/v1",
+        temperature=0.7,
+        max_tokens=2048
     )
 
 
