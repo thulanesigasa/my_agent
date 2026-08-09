@@ -1,8 +1,19 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Admin Dashboard – Agent Platform",
-  description: "Email outreach command centre and agent monitoring dashboard.",
+  title: "Admin Command Centre – Efferd Agent Platform",
+  description: "Secure outreach management, vector memory inspector, and human approval queue.",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    noarchive: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+    },
+  },
 };
 
 export default function DashboardLayout({
@@ -15,8 +26,8 @@ export default function DashboardLayout({
       style={{
         position: "fixed",
         inset: 0,
-        background: "#0f1117",
-        color: "#fff",
+        background: "#ffffff",
+        color: "#111111",
         fontFamily:
           "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         overflow: "hidden",

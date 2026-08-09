@@ -73,7 +73,8 @@ export function AppShell({ children }: AppShellProps) {
             overflowY: "auto",
           }}>
             {/* Logo */}
-            <div style={{ padding: "14px 16px", borderBottom: "1px solid #e8e8e8" }}>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e8e8e8", display: "flex", alignItems: "center", gap: 10 }}>
+              <img src="/favicon.png" alt="Dashboard Icon" style={{ width: 22, height: 22, objectFit: "contain" }} />
               <span style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>Dashboard</span>
             </div>
 

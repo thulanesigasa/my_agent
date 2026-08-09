@@ -57,7 +57,7 @@ export default function Demo(props: Partial<typeof settings>) {
           />
         </div>
 
-        <div className="flex flex-col items-center justify-center text-center w-full mx-auto">
+        <div className="flex flex-col items-center justify-center text-center w-full mx-auto" style={{ transform: "translateX(100px)" }}>
           <span className="text-xs font-semibold tracking-wide text-slate-600 text-center block w-full">
             {orbState === "idle"
               ? "Click Orb to Speak"
