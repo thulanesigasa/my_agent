@@ -41,7 +41,7 @@ const SiriOrb: React.FC<SiriOrbProps> = ({
 
   return (
     <div
-      className={cn("siri-orb", className)}
+      className={cn("siri-orb mx-auto", className)}
       style={
         {
           width: sizeStr,
@@ -69,6 +69,7 @@ const SiriOrb: React.FC<SiriOrbProps> = ({
           overflow: hidden;
           border-radius: 50%;
           position: relative;
+          margin: 0 auto;
           background: radial-gradient(
             circle,
             rgba(0, 0, 0, 0.08) 0%,

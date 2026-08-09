@@ -1,0 +1,105 @@
+"""
+Human Approval Agent Node & Helper Functions for Human-in-the-Loop workflows.
+"""
+import logging
+from typing import Dict, Any, Optional, List
+from core.state import AgentState
+from services.email_service import email_service
+from services.whatsapp_service import whatsapp_service
+from core.memory import memory_manager
+
+logger = logging.getLogger("agent.node.human_approval")
+
+# In-memory approval queue (persisted via Supabase/MemorySaver in production)
+PENDING_APPROVAL_QUEUE: Dict[str, Dict[str, Any]] = {}
+
+
+async def human_approval_node(state: AgentState) -> AgentState:
+    """
+    LangGraph Approval Node:
+    Pauses or intercepts execution for high-risk client inquiries or external dispatches.
+    """
+    logger.info("Executing Human Approval Node...")
+    approval_status = state.get("approval_status")
+    intent = state.get("intent", "general")
+    draft = state.get("draft_response", "")
+    email_input = state.get("email_input") or {}
+
+    thread_id = email_input.get("thread_id") or "session_001"
+
+    # If action has been approved by human
+    if approval_status == "approved":
+        logger.info(f"Human Approval Granted for thread '{thread_id}'. Executing action...")
+        if intent == "sales" or intent == "client_inquiry":
+            recipient = email_input.get("sender", "client@enterprise.com")
+            subject = f"Re: {email_input.get('subject', 'Inquiry Response')}"
+            await email_service.send_email(to=recipient, subject=subject, body=draft, thread_id=thread_id)
+            state["final_output"] = f"✅ Approved & Sent Email to {recipient}."
+        state["needs_human_approval"] = False
+        if thread_id in PENDING_APPROVAL_QUEUE:
+            del PENDING_APPROVAL_QUEUE[thread_id]
+        return state
+
+    # If action was edited or rejected
+    if approval_status == "rejected":
+        logger.info(f"Action rejected by human for thread '{thread_id}'.")
+        state["final_output"] = "❌ Action rejected by human review."
+        state["needs_human_approval"] = False
+        if thread_id in PENDING_APPROVAL_QUEUE:
+            del PENDING_APPROVAL_QUEUE[thread_id]
+        return state
+
+    # Otherwise flag as pending approval in queue
+    state["approval_status"] = "pending"
+    state["sender"] = "human_approval"
+    pending_item = {
+        "thread_id": thread_id,
+        "intent": intent,
+        "email_input": email_input,
+        "draft_response": draft,
+        "status": "pending",
+        "created_at": "Just now"
+    }
+    PENDING_APPROVAL_QUEUE[thread_id] = pending_item
+
+    # Persist pending item in Supabase for audit trail
+    await memory_manager.save_memory(
+        f"Pending Human Approval [{intent}]: {draft[:80]}...",
+        metadata={"type": "approval_pending", "thread_id": thread_id}
+    )
+
+    return state
+
+
+async def approve_draft(thread_id: str) -> Dict[str, Any]:
+    """
+    Helper function to approve pending action and resume workflow.
+    """
+    if thread_id in PENDING_APPROVAL_QUEUE:
+        item = PENDING_APPROVAL_QUEUE[thread_id]
+        item["status"] = "approved"
+        return {"status": "approved", "item": item}
+    return {"status": "not_found", "thread_id": thread_id}
+
+
+async def reject_or_edit_draft(thread_id: str, new_content: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Helper function to edit or reject a pending draft.
+    """
+    if thread_id in PENDING_APPROVAL_QUEUE:
+        item = PENDING_APPROVAL_QUEUE[thread_id]
+        if new_content:
+            item["draft_response"] = new_content
+            item["status"] = "edited"
+            return {"status": "edited", "new_content": new_content}
+        else:
+            item["status"] = "rejected"
+            return {"status": "rejected"}
+    return {"status": "not_found", "thread_id": thread_id}
+
+
+def get_pending_approvals() -> List[Dict[str, Any]]:
+    """
+    Returns list of all active pending actions requiring human review.
+    """
+    return list(PENDING_APPROVAL_QUEUE.values())
