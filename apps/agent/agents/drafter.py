@@ -1,12 +1,13 @@
 """
-Drafter Agent Node: Synthesizes responses using Gemini 1.5 Pro, T.S Industries knowledge base, and retrieved vector memories.
-Uses runtime dynamic reading of knowledge/*.md files.
+Drafter Agent Node: Synthesizes responses using Gemini 1.5 Pro, T.S Industries knowledge base,
+unbreakable business rules, and procedural skills.
 """
 import logging
 from core.state import AgentState
 from services.llm_factory import llm_factory
 from core.memory import memory_manager
 from tools.knowledge_tools import read_company_knowledge
+from tools.procedural_tools import load_unbreakable_rules, fetch_skill
 
 logger = logging.getLogger("agent.node.drafter")
 
@@ -16,15 +17,15 @@ You are the official representative of T.S Industries, a high-performance softwa
 Follow these core directives strictly:
 1. Speak as a representative of T.S Industries. Never say "I am an AI."
 2. Always drive traffic to the website ts-industries.co.za for more details, portfolio showcases, or case studies.
-3. Never quote exact pricing. Encourage the client to book a discovery call or request a formal quotation.
+3. Never quote exact pricing without established scope. Encourage booking a discovery call.
 4. Maintain a professional yet approachable tone.
 5. Use short, punchy paragraphs and bullet points. Never use em dashes (—).
 """
 
 async def drafter_node(state: AgentState) -> AgentState:
     """
-    Drafter Node function for deep reasoning and response drafting.
-    Dynamically loads knowledge/*.md files at runtime for every task.
+    Drafter Node function for deep reasoning, skill execution, and response drafting.
+    Dynamically loads knowledge/*.md, unbreakable rules, and procedural skills at runtime.
     """
     logger.info("Executing Drafter Node for T.S Industries...")
     messages = state.get("messages", [])
@@ -32,8 +33,11 @@ async def drafter_node(state: AgentState) -> AgentState:
     email_input = state.get("email_input")
     context = state.get("retrieved_context", [])
 
-    # Read company knowledge dynamically at runtime for this specific execution
+    # Read company knowledge dynamically at runtime
     company_knowledge = read_company_knowledge()
+
+    # Load unbreakable rules and procedural skills
+    unbreakable_rules = load_unbreakable_rules()
 
     user_input = ""
     if email_input and isinstance(email_input, dict):
@@ -42,23 +46,36 @@ async def drafter_node(state: AgentState) -> AgentState:
         last_msg = messages[-1]
         user_input = last_msg.get("content", "") if isinstance(last_msg, dict) else str(getattr(last_msg, "content", last_msg))
 
+    # Fetch matching procedural skill if applicable (e.g. quote, onboarding)
+    task_keyword = "quote" if "quote" in user_input.lower() or "pricing" in user_input.lower() else intent
+    skill_procedure = fetch_skill(task_keyword)
+
     # Additional query if context empty
     if not context:
         context = await memory_manager.search_memory(user_input, limit=3)
 
     context_str = "\n".join([f"- {c['content']}" for c in context]) if context else "No prior memory context."
 
-    combined_system = f"{company_knowledge}\n\n{DRAFTER_SYSTEM_PROMPT}".strip()
+    combined_system = f"""
+{company_knowledge}
+
+CRITICAL CONSTRAINTS:
+{unbreakable_rules}
+
+{DRAFTER_SYSTEM_PROMPT}
+""".strip()
 
     prompt = f"""
 Current Intent: {intent}
 User Request:
 {user_input}
 
+{skill_procedure}
+
 Retrieved Memory Context:
 {context_str}
 
-Please generate a detailed, polished response or draft message representing T.S Industries.
+Please generate a detailed, polished response or draft message representing T.S Industries following all procedures and critical constraints.
 """
 
     draft_output = await llm_factory.invoke_drafter(prompt, combined_system)

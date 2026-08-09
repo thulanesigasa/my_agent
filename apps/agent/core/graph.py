@@ -1,7 +1,7 @@
 """
 LangGraph Multi-Agent Workflow State Machine.
-Orchestrates Triage (Groq), Knowledge Manager (Dynamic Reader/Writer), Admin Tools,
-Human Approval Gate, Drafter (Gemini), Learner (Supabase pgvector), and Outreach Sub-Graph.
+Orchestrates Triage (Groq), Knowledge Manager (Dynamic Knowledge Base), Skill Learner (Procedural Memory),
+Admin Tools, Human Approval Gate, Drafter (Gemini), Learner (Supabase pgvector), and Outreach Sub-Graph.
 """
 import logging
 import re
@@ -21,6 +21,7 @@ from agents.triage import triage_node
 from agents.drafter import drafter_node
 from agents.learner import learner_node
 from agents.knowledge_manager import knowledge_updater_node
+from agents.skill_learner import skill_learner_node
 from tools.admin_tools import unlearn_memory, get_sent_emails
 
 logger = logging.getLogger("agent.graph")
@@ -133,10 +134,11 @@ async def human_approval_node(state: AgentState) -> AgentState:
 
 
 # ── Routing Logic ─────────────────────────────────────────────────────
-def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval", "drafter", "admin_tools", "outreach_bridge", "knowledge_updater"]:
+def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval", "drafter", "admin_tools", "outreach_bridge", "knowledge_updater", "skill_learner"]:
     """
     Conditional routing after Triage Node:
     - spam → END
+    - skill_learning → skill_learner
     - knowledge_update → knowledge_updater
     - admin_command → admin_tools
     - lead_generation / outreach → outreach_bridge
@@ -150,6 +152,10 @@ def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval"
     if intent == "spam":
         logger.info("Routing spam intent to END.")
         return END
+
+    if intent == "skill_learning":
+        logger.info("Routing skill learning request to skill_learner node.")
+        return "skill_learner"
 
     if intent == "knowledge_update":
         logger.info("Routing knowledge update request to knowledge_updater node.")
@@ -173,7 +179,7 @@ def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval"
 # ── Graph Builder ─────────────────────────────────────────────────────
 def build_agent_graph(checkpointer: Any = None) -> Any:
     """
-    Constructs and compiles the full StateGraph with knowledge updater, admin tools, and outreach sub-graph routing.
+    Constructs and compiles the full StateGraph with skill learner, knowledge updater, admin tools, and outreach sub-graph routing.
     """
     if StateGraph is object:
         logger.error("LangGraph is not installed. Install dependencies using: pip install -r requirements.txt")
@@ -183,6 +189,7 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
 
     # Register Nodes
     builder.add_node("triage", triage_node)
+    builder.add_node("skill_learner", skill_learner_node)
     builder.add_node("knowledge_updater", knowledge_updater_node)
     builder.add_node("admin_tools", admin_tools_node)
     builder.add_node("outreach_bridge", outreach_bridge_node)
@@ -199,6 +206,7 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
         route_after_triage,
         {
             END: END,
+            "skill_learner": "skill_learner",
             "knowledge_updater": "knowledge_updater",
             "admin_tools": "admin_tools",
             "outreach_bridge": "outreach_bridge",
@@ -208,6 +216,7 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
     )
 
     # Edge connections
+    builder.add_edge("skill_learner", END)
     builder.add_edge("knowledge_updater", END)
     builder.add_edge("admin_tools", END)
     builder.add_edge("outreach_bridge", END)

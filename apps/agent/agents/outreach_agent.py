@@ -1,12 +1,14 @@
 """
 Autonomous Outreach Sub-Graph.
 Multi-node LangGraph sub-workflow for: lead discovery -> contact enrichment -> pitch composition -> approval queue.
+Enforces T.S Industries unbreakable business rules on all generated pitches.
 """
 import logging
 from typing import List, Dict, Any, TypedDict, Optional
 from core.memory import memory_manager
 from services.llm_factory import llm_factory
 from tools.lead_finder import search_businesses_without_websites, find_contact_email
+from tools.procedural_tools import load_unbreakable_rules
 from agents.human_approval import PENDING_APPROVAL_QUEUE
 
 logger = logging.getLogger("agent.outreach")
@@ -24,14 +26,15 @@ class OutreachState(TypedDict, total=False):
 
 
 PITCH_SYSTEM_PROMPT = """
-You are an expert sales copywriter for a web development and AI automation agency.
-Write a concise, friendly, and personalized cold outreach email to a local business owner who currently has no website.
+You are an expert sales copywriter for T.S Industries.
+Write a concise, friendly, and personalized cold outreach email to a local business owner.
 The email should:
-- Address the business owner by their business name (not "Dear Sir/Madam").
+- Address the business owner by their business name.
 - Empathize with the challenge of being invisible online.
 - Highlight a clear value proposition: professional website + local SEO + mobile-first design.
-- Include a clear CTA: "Reply to this email to claim your free 30-minute strategy call."
-- Be under 120 words, professional but warm.
+- Include a clear CTA: "Reply to this email to claim your free 30-minute strategy call or request a custom quotation on ts-industries.co.za."
+- Include T.S Industries contact email (pharezsigasa@gmail.com) and phone (+447544357979).
+- Be under 120 words, professional but warm, short punchy paragraphs. Never use em dashes (—).
 
 Return ONLY the email body text, no subject line.
 """
@@ -73,10 +76,14 @@ async def enrich_leads_node(state: OutreachState) -> OutreachState:
 
 async def compose_pitch_node(state: OutreachState) -> OutreachState:
     """
-    Node 3: Generates personalized pitch emails using Gemini + recalled portfolio context.
+    Node 3: Generates personalized pitch emails using Gemini + unbreakable rules context.
     """
     enriched = state.get("enriched_leads", [])
     logger.info(f"[OutreachGraph] compose_pitch_node: drafting {len(enriched)} pitch emails...")
+
+    # Load unbreakable rules dynamically
+    rules_text = load_unbreakable_rules()
+    combined_system = f"CRITICAL CONSTRAINTS:\n{rules_text}\n\n{PITCH_SYSTEM_PROMPT}".strip()
 
     # Pull portfolio and case study context from memory store
     portfolio_context = await memory_manager.search_memory(
@@ -97,14 +104,14 @@ async def compose_pitch_node(state: OutreachState) -> OutreachState:
         )
 
         try:
-            body = await llm_factory.invoke_drafter(prompt, PITCH_SYSTEM_PROMPT)
+            body = await llm_factory.invoke_drafter(prompt, combined_system)
         except Exception as e:
             logger.warning(f"LLM pitch generation failed for '{biz_name}': {e}")
             body = (
                 f"Hi {biz_name} team,\n\n"
-                f"We help local businesses like yours get a professional online presence quickly and affordably. "
-                f"If you're ready to attract more customers online, reply and we'll set up a free 30-min strategy call.\n\n"
-                f"Best,\nThe Web Dev Team"
+                f"We help local businesses get a professional online presence quickly and affordably. "
+                f"If you are ready to attract more customers online, reply or visit ts-industries.co.za to set up a strategy call.\n\n"
+                f"Best,\nT.S Industries Team\npharezsigasa@gmail.com | +447544357979"
             )
 
         drafted.append({

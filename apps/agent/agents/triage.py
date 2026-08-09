@@ -1,6 +1,6 @@
 """
 Triage Agent Node: Classifies incoming user messages or emails into intent categories for T.S Industries.
-Uses runtime dynamic reading of knowledge/*.md files.
+Uses runtime dynamic reading of knowledge/*.md files, unbreakable rules, and procedural skills.
 """
 import json
 import logging
@@ -8,6 +8,7 @@ from core.state import AgentState
 from services.llm_factory import llm_factory
 from core.memory import memory_manager
 from tools.knowledge_tools import read_company_knowledge
+from tools.procedural_tools import load_unbreakable_rules, fetch_skill
 
 logger = logging.getLogger("agent.node.triage")
 
@@ -15,8 +16,10 @@ TRIAGE_SYSTEM_PROMPT = """
 You are an expert Triage Agent representing T.S Industries, a high-performance software engineering firm led by Pharez (Thulane).
 
 Analyze incoming user messages or email inputs and classify them into one of these intents:
-- "knowledge_update": Admin or user teaching a new fact, rule, tech stack capability, service offering, or business guideline for T.S Industries.
-- "sales": Inquiries regarding pricing, quotes, product upgrades, or project scope.
+- "skill_learning": User or admin teaching a new step-by-step procedure/skill or declaring a strict business rule.
+- "knowledge_update": Admin or user teaching a new fact, tech stack capability, or company guideline.
+- "quote_request": Client requesting pricing estimates, proposals, or project quotations.
+- "sales": Inquiries regarding pricing options, product upgrades, or purchase intentions.
 - "support": Bug reports, platform issues, or technical help requests.
 - "client_inquiry": High-priority client questions, contract requests, or custom engineering work.
 - "general": General questions, greeting, or status checks.
@@ -28,7 +31,7 @@ Directives:
 
 Respond strictly with a JSON object matching:
 {
-    "intent": "knowledge_update|sales|support|client_inquiry|general|spam",
+    "intent": "skill_learning|knowledge_update|quote_request|sales|support|client_inquiry|general|spam",
     "needs_human_approval": true|false,
     "reason": "<brief justification>"
 }
@@ -37,14 +40,15 @@ Respond strictly with a JSON object matching:
 async def triage_node(state: AgentState) -> AgentState:
     """
     Triage Node function for intent classification and initial context routing.
-    Dynamically loads knowledge/*.md files at runtime for every task.
+    Dynamically loads knowledge/*.md and unbreakable rules at runtime for every task.
     """
     logger.info("Executing Triage Node for T.S Industries...")
     messages = state.get("messages", [])
     email_input = state.get("email_input")
 
-    # Read company knowledge dynamically at runtime for this specific execution
+    # Read company knowledge and rules dynamically at runtime
     company_knowledge = read_company_knowledge()
+    unbreakable_rules = load_unbreakable_rules()
 
     input_text = ""
     if email_input and isinstance(email_input, dict):
@@ -56,7 +60,15 @@ async def triage_node(state: AgentState) -> AgentState:
     # Recall relevant context memories
     memories = await memory_manager.search_memory(input_text, limit=3)
 
-    combined_system = f"{company_knowledge}\n\n{TRIAGE_SYSTEM_PROMPT}".strip()
+    combined_system = f"""
+{company_knowledge}
+
+CRITICAL CONSTRAINTS:
+{unbreakable_rules}
+
+{TRIAGE_SYSTEM_PROMPT}
+""".strip()
+
     prompt = f"User Input:\n{input_text}"
     output_str = await llm_factory.invoke_triage(prompt, combined_system)
 
@@ -73,13 +85,19 @@ async def triage_node(state: AgentState) -> AgentState:
     except Exception as e:
         logger.warning(f"Triage JSON extraction warning: {e}")
         text_lower = input_text.lower()
-        if "remember that" in text_lower or "update knowledge" in text_lower or "new service" in text_lower or "we now offer" in text_lower:
+        if "how to" in text_lower or "step by step" in text_lower or "procedure:" in text_lower:
+            intent = "skill_learning"
+        elif "quote" in text_lower or "pricing" in text_lower or "estimate" in text_lower:
+            intent = "quote_request"
+        elif "remember that" in text_lower or "update knowledge" in text_lower:
             intent = "knowledge_update"
-        elif "client" in text_lower or "contract" in text_lower:
-            intent = "client_inquiry"
-            needs_approval = True
 
-    # Sensitive client inquiries always trigger human approval gate
+    # Fetch skill procedure if specific job requested
+    if intent in ("quote_request", "sales"):
+        skill_text = fetch_skill("quote")
+        if skill_text:
+            logger.info("Found procedural skill for quote generation.")
+
     if intent == "client_inquiry":
         needs_approval = True
 
