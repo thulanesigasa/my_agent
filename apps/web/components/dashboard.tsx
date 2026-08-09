@@ -184,13 +184,14 @@ function OverviewPanel() {
           <p style={S.sectionSub}>Responses by status, last 7 days.</p>
           <div style={{ marginTop:16 }}>
             <ResponsiveContainer width="100%" height={170}>
-              <BarChart data={BAR_DATA} margin={{ top:4, right:4, bottom:0, left:-28 }} barSize={28}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                <XAxis dataKey="status" tick={{ fontSize:9, fill:"#bbb" }} axisLine={false} tickLine={false} />
+              <LineChart data={STEP_DATA} margin={{ top:4, right:4, bottom:0, left:-24 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize:10, fill:"#bbb" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize:10, fill:"#bbb" }} axisLine={false} tickLine={false} />
                 <Tooltip content={<ChartTip />} />
-                <Bar dataKey="count" fill="#ccc" radius={[3, 3, 0, 0]} />
-              </BarChart>
+                <Line type="stepAfter" dataKey="direct" stroke="#111" strokeWidth={1.5} dot={false} />
+                <Line type="stepAfter" dataKey="outreach" stroke="#999" strokeWidth={1.5} dot={false} />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
