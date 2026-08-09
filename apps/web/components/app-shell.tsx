@@ -25,12 +25,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#0f1117] font-sans">
+    <div
+      style={{
+        display: "flex",
+        position: "fixed",
+        inset: 0,
+        overflow: "hidden",
+        background: "#0f1117",
+        color: "#fff",
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      }}
+    >
       {/* ── Sidebar ─────────────────────────────────────────────── */}
       <aside
-        className={`relative flex flex-col border-r border-white/[0.06] bg-[#13151c] transition-all duration-300 ${
-          collapsed ? "w-[68px]" : "w-[220px]"
-        }`}
+        className={`relative flex flex-col transition-all duration-300 ${collapsed ? "w-[68px]" : "w-[220px]"}`}
+        style={{ background: "#13151c", borderRight: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}
       >
         {/* Logo */}
         <div className={`flex items-center gap-3 px-4 py-5 ${collapsed ? "justify-center" : ""}`}>
@@ -108,7 +117,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       {/* ── Main Area ──────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.06] bg-[#13151c]/80 px-6 backdrop-blur-sm">
+        <header className="flex h-14 shrink-0 items-center justify-between px-6" style={{ background: "rgba(19,21,28,0.92)", borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(8px)", flexShrink: 0 }}>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2">
               <Search className="h-3.5 w-3.5 text-white/30" />
@@ -134,7 +143,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
           {children(activeTab, setActiveTab)}
         </main>
       </div>

@@ -66,7 +66,7 @@ const STATUS_CFG = {
 
 // ─── Shared Primitives ────────────────────────────────────────────
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => (
-  <div className={`rounded-2xl border border-white/[0.06] bg-[#1a1d27] p-5 ${className}`}>{children}</div>
+  <div className={`rounded-2xl p-5 ${className}`} style={{ background: "#1a1d27", border: "1px solid rgba(255,255,255,0.06)" }}>{children}</div>
 );
 
 const SectionTitle: React.FC<{ icon: React.ElementType; title: string; sub: string; accent?: string }> = ({ icon: Icon, title, sub, accent = "text-indigo-400 bg-indigo-400/10 border-indigo-400/20" }) => (
@@ -79,24 +79,25 @@ const SectionTitle: React.FC<{ icon: React.ElementType; title: string; sub: stri
 // ─── Overview Metrics ──────────────────────────────────────────────
 const MetricCards: React.FC = () => {
   const cards = [
-    { label: "Total Emails Sent", val: METRICS.totalEmailsSent.toLocaleString(), delta: "+14.2%", icon: Mail, color: "from-blue-500/20 to-blue-600/5 border-blue-500/20", dot: "bg-blue-400" },
-    { label: "Responses Received", val: METRICS.totalResponsesReceived.toLocaleString(), delta: "+8.5%", icon: Reply, color: "from-emerald-500/20 to-emerald-600/5 border-emerald-500/20", dot: "bg-emerald-400" },
-    { label: "Response Rate", val: `${METRICS.responseRatePercent}%`, delta: "vs 21% avg", icon: TrendingUp, color: "from-violet-500/20 to-violet-600/5 border-violet-500/20", dot: "bg-violet-400" },
-    { label: "Active Leads", val: METRICS.activeLeadsInPipeline.toLocaleString(), delta: "In pipeline", icon: Users, color: "from-amber-500/20 to-amber-600/5 border-amber-500/20", dot: "bg-amber-400" },
+    { label: "Total Emails Sent", val: METRICS.totalEmailsSent.toLocaleString(), delta: "+14.2%", icon: Mail, bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.25)", dot: "#60a5fa" },
+    { label: "Responses Received", val: METRICS.totalResponsesReceived.toLocaleString(), delta: "+8.5%", icon: Reply, bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.25)", dot: "#34d399" },
+    { label: "Response Rate", val: `${METRICS.responseRatePercent}%`, delta: "vs 21% avg", icon: TrendingUp, bg: "rgba(139,92,246,0.12)", border: "rgba(139,92,246,0.25)", dot: "#a78bfa" },
+    { label: "Active Leads", val: METRICS.activeLeadsInPipeline.toLocaleString(), delta: "In pipeline", icon: Users, bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.25)", dot: "#fbbf24" },
   ];
   return (
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
       {cards.map((c, i) => {
         const Icon = c.icon;
         return (
-          <div key={i} className={`rounded-2xl border bg-gradient-to-br p-5 ${c.color}`}>
+          <div key={i} className="rounded-2xl p-5" style={{ background: c.bg, border: `1px solid ${c.border}` }}>
             <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40">{c.label}</p>
-              <Icon className="h-4 w-4 text-white/20" />
+              <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>{c.label}</p>
+              <Icon className="h-4 w-4" style={{ color: "rgba(255,255,255,0.2)" }} />
             </div>
             <p className="mt-3 text-3xl font-bold tabular-nums text-white">{c.val}</p>
-            <p className={`mt-2 flex items-center gap-1.5 text-[11px] font-medium`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${c.dot}`} /><span className="text-white/40">{c.delta}</span>
+            <p className="mt-2 flex items-center gap-1.5 text-[11px] font-medium">
+              <span className="h-1.5 w-1.5 rounded-full inline-block" style={{ background: c.dot }} />
+              <span style={{ color: "rgba(255,255,255,0.4)" }}>{c.delta}</span>
             </p>
           </div>
         );
@@ -108,10 +109,10 @@ const MetricCards: React.FC = () => {
 // ─── Status Breakdown ─────────────────────────────────────────────
 const StatusBreakdown: React.FC = () => {
   const rows = [
-    { label: "Responded", n: 91, pct: 32, color: "bg-emerald-500" },
-    { label: "Opened", n: 76, pct: 27, color: "bg-blue-500" },
-    { label: "Sent (No Open)", n: 104, pct: 37, color: "bg-white/20" },
-    { label: "Bounced", n: 13, pct: 4, color: "bg-rose-500" },
+    { label: "Responded", n: 91, pct: 32, color: "#10b981" },
+    { label: "Opened", n: 76, pct: 27, color: "#3b82f6" },
+    { label: "Sent (No Open)", n: 104, pct: 37, color: "rgba(255,255,255,0.18)" },
+    { label: "Bounced", n: 13, pct: 4, color: "#f43f5e" },
   ];
   return (
     <Card>
@@ -120,11 +121,11 @@ const StatusBreakdown: React.FC = () => {
         {rows.map((r) => (
           <div key={r.label}>
             <div className="flex justify-between text-[11px] mb-1.5">
-              <span className="font-medium text-white/60">{r.label}</span>
-              <span className="tabular-nums text-white/30">{r.n}</span>
+              <span className="font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>{r.label}</span>
+              <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.3)" }}>{r.n}</span>
             </div>
-            <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-              <div className={`h-full rounded-full ${r.color} transition-all duration-700`} style={{ width: `${r.pct}%` }} />
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${r.pct}%`, background: r.color }} />
             </div>
           </div>
         ))}
@@ -140,11 +141,15 @@ const WeeklyChart: React.FC = () => {
   return (
     <Card>
       <SectionTitle icon={TrendingUp} title="Weekly Send Volume" sub="Emails dispatched per day" accent="text-emerald-400 bg-emerald-400/10 border-emerald-400/20" />
-      <div className="mt-5 flex items-end gap-2 h-24">
+      <div className="mt-5 flex items-end gap-2" style={{ height: 96 }}>
         {data.map((v, i) => (
           <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
-            <div className="w-full rounded-t-md bg-indigo-500/30 hover:bg-indigo-400/50 transition-colors" style={{ height: `${(v / max) * 88}px` }} />
-            <span className="text-[9px] text-white/20">{["M","T","W","T","F","S","S"][i]}</span>
+            <div
+              className="w-full rounded-t-md transition-colors"
+              style={{ height: `${(v / max) * 84}px`, background: "rgba(99,102,241,0.35)" }}
+              onMouseEnter={e => ((e.target as HTMLElement).style.background = "rgba(99,102,241,0.55)")}
+              onMouseLeave={e => ((e.target as HTMLElement).style.background = "rgba(99,102,241,0.35)")} />
+            <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.2)" }}>{["M","T","W","T","F","S","S"][i]}</span>
           </div>
         ))}
       </div>
@@ -160,7 +165,7 @@ const EmailLogsPanel: React.FC<{ filter?: string }> = ({ filter = "all" }) => {
   const filtered = LOGS.filter(l => activeFilter === "all" || l.status.toLowerCase() === activeFilter);
 
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-[#1a1d27] overflow-hidden">
+    <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)", background: "#1a1d27" }}>
       <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
         <SectionTitle icon={Mail} title="Outreach Logs" sub={`${filtered.length} records · click to expand thread`} />
         <div className="flex gap-1 rounded-xl bg-white/[0.04] p-1">
