@@ -38,8 +38,8 @@ export function AppShell({ children }: AppShellProps) {
         style={{
           position: "fixed", inset: 0,
           display: "flex", overflow: "hidden",
-          background: "hsl(224 71% 4%)",   /* --background */
-          color: "hsl(213 31% 91%)",        /* --foreground */
+          background: "#ffffff",
+          color: "#111111",
           fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
         }}
       >
@@ -51,8 +51,8 @@ export function AppShell({ children }: AppShellProps) {
             display: "flex",
             flexDirection: "column",
             transition: "width 280ms cubic-bezier(.4,0,.2,1)",
-            background: "hsl(222.2 84% 4.9%)",
-            borderRight: "1px solid hsl(217.2 32.6% 17.5%)",
+            background: "#f9f9f9",
+            borderRight: "1px solid #e2e2e2",
             overflow: "hidden",
             position: "relative",
           }}
@@ -69,10 +69,10 @@ export function AppShell({ children }: AppShellProps) {
             </div>
             {!collapsed && (
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "hsl(210 40% 98%)", lineHeight: 1.2, whiteSpace: "nowrap" }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#111111", lineHeight: 1.2, whiteSpace: "nowrap" }}>
                   Agent Platform
                 </p>
-                <p style={{ fontSize: 10, color: "hsl(215 20.2% 35%)", fontFamily: "monospace", marginTop: 2 }}>
+                <p style={{ fontSize: 10, color: "#888888", fontFamily: "monospace", marginTop: 2 }}>
                   v1.0 Enterprise
                 </p>
               </div>
@@ -80,7 +80,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
 
           {/* Divider */}
-          <div style={{ height: 1, background: "hsl(217.2 32.6% 17.5%)", margin: "0 12px" }} />
+          <div style={{ height: 1, background: "#e2e2e2", margin: "0 12px" }} />
 
           {/* Nav items */}
           <nav style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
@@ -98,10 +98,10 @@ export function AppShell({ children }: AppShellProps) {
                     borderRadius: 10, border: "none", cursor: "pointer",
                     fontSize: 13, fontWeight: 500, textAlign: "left",
                     position: "relative", transition: "all 150ms",
-                    background: active ? "hsl(239 84% 67% / .12)" : "transparent",
-                    color: active ? "hsl(239 100% 80%)" : "hsl(215 20.2% 55%)",
+                    background: active ? "rgba(99,102,241,0.1)" : "transparent",
+                    color: active ? "#4f46e5" : "#555555",
                   }}
-                  onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "hsl(215 27.9% 16.9%)"; }}
+                  onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#f0f0f0"; }}
                   onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
                   {/* Active accent bar */}
@@ -112,12 +112,12 @@ export function AppShell({ children }: AppShellProps) {
                       background: "hsl(239 84% 67%)",
                     }} />
                   )}
-                  <Icon size={16} style={{ flexShrink: 0, color: active ? "hsl(239 84% 72%)" : "hsl(215 20.2% 45%)" }} />
+                  <Icon size={16} style={{ flexShrink: 0, color: active ? "#4f46e5" : "#888888" }} />
                   {!collapsed && <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>}
                   {!collapsed && badge && (
                     <span style={{
                       fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 999,
-                      background: "hsl(239 84% 67% / .15)", color: "hsl(239 100% 77%)",
+                      background: "rgba(99,102,241,0.12)", color: "#4f46e5",
                     }}>{badge}</span>
                   )}
                   {collapsed && badge && (
@@ -136,18 +136,18 @@ export function AppShell({ children }: AppShellProps) {
             <div style={{
               margin: "0 10px 14px",
               borderRadius: 12,
-              border: "1px solid hsl(217.2 32.6% 17.5%)",
-              background: "hsl(215 27.9% 16.9% / .4)",
+              border: "1px solid #e2e2e2",
+              background: "#f5f5f5",
               padding: "10px 12px",
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(215 20.2% 45%)" }}>Backend</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#777777" }}>Backend</span>
                 <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 700, color: "hsl(142.1 70.6% 45.3%)" }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: "hsl(142.1 70.6% 45.3%)", display: "inline-block" }} />
                   ONLINE
                 </span>
               </div>
-              <p style={{ fontSize: 10, color: "hsl(215 20.2% 35%)", marginTop: 5, lineHeight: 1.6 }}>
+              <p style={{ fontSize: 10, color: "#999999", marginTop: 5, lineHeight: 1.6 }}>
                 LangGraph · Groq · Supabase pgvector
               </p>
             </div>
@@ -159,8 +159,8 @@ export function AppShell({ children }: AppShellProps) {
             style={{
               position: "absolute", right: -12, top: 72,
               width: 24, height: 24, borderRadius: "50%",
-              border: "1px solid hsl(217.2 32.6% 17.5%)",
-              background: "hsl(222.2 84% 4.9%)",
+              border: "1px solid #e2e2e2",
+              background: "#ffffff",
               display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", color: "hsl(215 20.2% 45%)",
               boxShadow: "0 2px 8px rgba(0,0,0,.4)",
@@ -178,15 +178,15 @@ export function AppShell({ children }: AppShellProps) {
             height: 56, flexShrink: 0,
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "0 24px",
-            background: "hsl(222.2 84% 4.9% / .85)",
-            borderBottom: "1px solid hsl(217.2 32.6% 17.5%)",
+            background: "rgba(255,255,255,0.92)",
+            borderBottom: "1px solid #e2e2e2",
             backdropFilter: "blur(8px)",
           }}>
             {/* Breadcrumb */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "hsl(215 20.2% 45%)" }}>Agent Platform</span>
-              <span style={{ fontSize: 12, color: "hsl(215 20.2% 35%)" }}>/</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "hsl(210 40% 88%)" }}>
+              <span style={{ fontSize: 12, color: "#888888" }}>Agent Platform</span>
+              <span style={{ fontSize: 12, color: "#cccccc" }}>/</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#111111" }}>
                 {NAV.find(n => n.id === tab)?.label}
               </span>
             </div>
@@ -196,16 +196,16 @@ export function AppShell({ children }: AppShellProps) {
               {/* Search */}
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
-                border: "1px solid hsl(217.2 32.6% 17.5%)",
+                border: "1px solid #e2e2e2",
                 borderRadius: 10, padding: "6px 12px",
-                background: "hsl(215 27.9% 16.9% / .5)",
+                background: "#f5f5f5",
               }}>
-                <Search size={13} style={{ color: "hsl(215 20.2% 40%)" }} />
+                <Search size={13} style={{ color: "#aaaaaa" }} />
                 <input
                   placeholder="Search..."
                   style={{
                     width: 160, background: "transparent", border: "none", outline: "none",
-                    fontSize: 12, color: "hsl(210 40% 80%)",
+                    fontSize: 12, color: "#333333",
                   }}
                 />
               </div>
@@ -216,7 +216,7 @@ export function AppShell({ children }: AppShellProps) {
                 border: "1px solid hsl(217.2 32.6% 17.5%)",
                 background: "transparent", cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                color: "hsl(215 20.2% 45%)",
+                color: "#888888",
               }}>
                 <Bell size={15} />
                 <span style={{
@@ -226,7 +226,7 @@ export function AppShell({ children }: AppShellProps) {
               </button>
 
               {/* Divider */}
-              <div style={{ width: 1, height: 24, background: "hsl(217.2 32.6% 17.5%)" }} />
+              <div style={{ width: 1, height: 24, background: "#e2e2e2" }} />
 
               {/* Avatar */}
               <div style={{
