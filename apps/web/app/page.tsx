@@ -28,6 +28,7 @@ export default function Home() {
   const [isMuted, setIsMuted] = useState(false);
   const [orbState, setOrbState] = useState<SiriOrbState>("idle");
   const [transcription, setTranscription] = useState("");
+  const [liveResponse, setLiveResponse] = useState("");
   const [micError, setMicError] = useState<string | null>(null);
 
   const audioManagerRef = useRef<AudioStreamManager | null>(null);
