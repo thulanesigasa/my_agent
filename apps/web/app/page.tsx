@@ -58,7 +58,7 @@ export default function Demo(props: Partial<typeof settings>) {
         </div>
 
         <div className="flex flex-col items-center justify-center w-full text-center">
-          <span className="text-xs font-semibold tracking-wide text-slate-600 block text-center w-full translate-x-2 pl-2">
+          <span className="text-xs font-semibold tracking-wide text-slate-600 block text-center w-full translate-x-[30px] pl-[30px]">
             {orbState === "idle"
               ? "Click Orb to Speak"
               : orbState === "listening"
@@ -69,13 +69,13 @@ export default function Demo(props: Partial<typeof settings>) {
           </span>
 
           {transcription && (
-            <p className="text-xs text-slate-400 italic mt-1 text-center w-full max-w-sm">
+            <p className="text-xs text-slate-400 italic mt-1 text-center w-full max-w-sm translate-x-[30px]">
               "{transcription}"
             </p>
           )}
 
           {responseText && (
-            <p className="text-sm font-medium text-slate-800 leading-snug mt-2 text-center w-full">
+            <p className="text-sm font-medium text-slate-800 leading-snug mt-2 text-center w-full translate-x-[30px]">
               {responseText}
             </p>
           )}
