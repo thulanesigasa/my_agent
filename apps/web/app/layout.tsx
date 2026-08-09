@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Autonomous AI Agent Platform",
-  description: "Continuous learning voice & multi-agent platform powered by LangGraph, Supabase pgvector, Groq, and Gemini Pro.",
+  title: "SiriOrb Platform",
+  description: "Continuous learning voice & multi-agent platform.",
 };
 
 export default function RootLayout({
@@ -12,8 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-[#08090d] text-gray-100 antialiased min-h-screen">
+    <html lang="en">
+      <body className="bg-white text-slate-900 antialiased min-h-screen m-0 p-0 flex items-center justify-center">
         {children}
       </body>
     </html>
