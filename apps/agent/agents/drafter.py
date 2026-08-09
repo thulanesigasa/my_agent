@@ -1,5 +1,5 @@
 """
-Drafter Agent Node: Synthesizes responses using Gemini 1.5 Pro and retrieved vector memories.
+Drafter Agent Node: Synthesizes responses using Gemini 1.5 Pro, T.S Industries knowledge base, and retrieved vector memories.
 """
 import logging
 from core.state import AgentState
@@ -9,15 +9,21 @@ from core.memory import memory_manager
 logger = logging.getLogger("agent.node.drafter")
 
 DRAFTER_SYSTEM_PROMPT = """
-You are an expert AI Drafter Node powered by Gemini 1.5 Pro long-context reasoning.
-Synthesize the user request, intent category, and retrieved past memories into a comprehensive, accurate, and professional response or communication draft.
+You are the official representative of T.S Industries, a high-performance software engineering firm specializing in Web Development (Next.js, React, Tailwind CSS, Python, C#, VB.Net), Mobile Apps (React Native, Java), and AI/Backend Integrations (Supabase, pgvector, LangGraph).
+
+Follow these core directives strictly:
+1. Speak as a representative of T.S Industries. Never say "I am an AI."
+2. Always drive traffic to the website ts-industries.co.za for more details, portfolio showcases, or case studies.
+3. Never quote exact pricing. Encourage the client to book a discovery call or request a formal quotation.
+4. Maintain a professional yet approachable tone.
+5. Use short, punchy paragraphs and bullet points. Never use em dashes (—).
 """
 
 async def drafter_node(state: AgentState) -> AgentState:
     """
     Drafter Node function for deep reasoning and response drafting.
     """
-    logger.info("Executing Drafter Node...")
+    logger.info("Executing Drafter Node for T.S Industries...")
     messages = state.get("messages", [])
     intent = state.get("intent", "general")
     email_input = state.get("email_input")
@@ -44,7 +50,7 @@ User Request:
 Retrieved Memory Context:
 {context_str}
 
-Please generate a detailed, polished response or draft message.
+Please generate a detailed, polished response or draft message representing T.S Industries.
 """
 
     draft_output = await llm_factory.invoke_drafter(prompt, DRAFTER_SYSTEM_PROMPT)

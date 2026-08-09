@@ -1,5 +1,5 @@
 """
-Triage Agent Node: Classifies incoming user messages or emails into intent categories.
+Triage Agent Node: Classifies incoming user messages or emails into intent categories for T.S Industries.
 """
 import json
 import logging
@@ -10,15 +10,18 @@ from core.memory import memory_manager
 logger = logging.getLogger("agent.node.triage")
 
 TRIAGE_SYSTEM_PROMPT = """
-You are an expert Triage Agent node in an autonomous AI platform.
+You are an expert Triage Agent representing T.S Industries, a high-performance web and mobile application engineering firm led by Pharez (Thulane).
+
 Analyze incoming user messages or email inputs and classify them into one of these intents:
-- "sales": Inquiries regarding pricing, product upgrades, or purchase intentions.
+- "sales": Inquiries regarding pricing, quotes, product upgrades, or project scope.
 - "support": Bug reports, platform issues, or technical help requests.
-- "client_inquiry": High-priority client questions, contract requests, or custom work.
+- "client_inquiry": High-priority client questions, contract requests, or custom engineering work.
 - "general": General questions, greeting, or status checks.
 - "spam": Unsolicited promotional mail, irrelevant text, or noise.
 
-Set "needs_human_approval" to true ONLY if intent is "client_inquiry" or involves sending sensitive communications.
+Directives:
+1. Always represent T.S Industries.
+2. Flag "needs_human_approval" as true ONLY if intent is "client_inquiry" or involves sending sensitive communications/pricing.
 
 Respond strictly with a JSON object matching:
 {
@@ -32,7 +35,7 @@ async def triage_node(state: AgentState) -> AgentState:
     """
     Triage Node function for intent classification and initial context routing.
     """
-    logger.info("Executing Triage Node...")
+    logger.info("Executing Triage Node for T.S Industries...")
     messages = state.get("messages", [])
     email_input = state.get("email_input")
 

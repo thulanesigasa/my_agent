@@ -1,13 +1,68 @@
 """
 LLM Factory Module: Provides Chat Model initializers for Groq, Gemini 1.5 Pro, and OpenRouter fallback.
+Loads T.S Industries company knowledge context dynamically from root knowledge/ directory.
 """
+import os
 import logging
+from pathlib import Path
 from typing import Any, Optional
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_community.chat_models import ChatOpenAI
 from config import settings
 
 logger = logging.getLogger("agent.llm_factory")
+
+_SYSTEM_CONTEXT_CACHE: Optional[str] = None
+
+
+def load_system_context(knowledge_dir: Optional[str] = None) -> str:
+    """
+    Reads all Markdown files in the knowledge/ directory and concatenates them into a single
+    SYSTEM_PROMPT string representing T.S Industries identity, services, and communication rules.
+    Caches in memory for fast retrieval.
+    """
+    global _SYSTEM_CONTEXT_CACHE
+    if _SYSTEM_CONTEXT_CACHE is not None and not knowledge_dir:
+        return _SYSTEM_CONTEXT_CACHE
+
+    possible_dirs = []
+    if knowledge_dir:
+        possible_dirs.append(Path(knowledge_dir))
+
+    # Search for root knowledge directory relative to repository structure
+    module_root = Path(__file__).resolve().parent.parent.parent.parent
+    possible_dirs.extend([
+        module_root / "knowledge",
+        Path.cwd() / "knowledge",
+        Path.cwd().parent / "knowledge",
+        Path.cwd().parent.parent / "knowledge",
+    ])
+
+    target_dir = None
+    for d in possible_dirs:
+        if d.exists() and d.is_dir():
+            target_dir = d
+            break
+
+    if not target_dir:
+        logger.warning("Knowledge directory not found. System prompt context will be empty.")
+        _SYSTEM_CONTEXT_CACHE = ""
+        return _SYSTEM_CONTEXT_CACHE
+
+    context_parts = []
+    md_files = sorted(list(target_dir.glob("*.md")))
+    for md_path in md_files:
+        try:
+            with open(md_path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if content:
+                    context_parts.append(f"=== KNOWLEDGE SOURCE: {md_path.name} ===\n{content}")
+        except Exception as e:
+            logger.error(f"Error reading knowledge file {md_path}: {e}")
+
+    _SYSTEM_CONTEXT_CACHE = "\n\n".join(context_parts)
+    logger.info(f"Loaded {len(md_files)} knowledge context files from {target_dir}")
+    return _SYSTEM_CONTEXT_CACHE
 
 
 def get_triage_llm() -> BaseChatModel:
@@ -67,7 +122,6 @@ def get_fallback_llm() -> BaseChatModel:
         except Exception as e:
             logger.error(f"Failed to initialize OpenRouter LLM: {e}")
 
-    # Fallback to local default ChatOpenAI instance
     return ChatOpenAI(
         model="gpt-3.5-turbo",
         openai_api_key="mock-key",
@@ -77,17 +131,21 @@ def get_fallback_llm() -> BaseChatModel:
 
 class LLMFactory:
     """
-    Unified execution helper with exception handling and fallback mechanism.
+    Unified execution helper with T.S Industries system context injection,
+    exception handling, and fallback mechanism.
     """
 
     @staticmethod
-    async def invoke_triage(prompt: str, system_prompt: str = "") -> str:
+    async def invoke_triage(prompt: str, node_system_prompt: str = "") -> str:
         """
-        Execute triage invocation using Groq Llama 3.3 70B with fallback handling.
+        Execute triage invocation using Groq Llama 3.3 70B with T.S Industries knowledge context injection.
         """
+        company_context = load_system_context()
+        combined_system = f"{company_context}\n\n{node_system_prompt}".strip()
+
         messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+        if combined_system:
+            messages.append({"role": "system", "content": combined_system})
         messages.append({"role": "user", "content": prompt})
 
         try:
@@ -105,13 +163,16 @@ class LLMFactory:
                 return '{"intent": "general", "needs_human_approval": false, "reason": "Fallback triage executed"}'
 
     @staticmethod
-    async def invoke_drafter(prompt: str, system_prompt: str = "") -> str:
+    async def invoke_drafter(prompt: str, node_system_prompt: str = "") -> str:
         """
-        Execute drafting invocation using Gemini 1.5 Pro with fallback handling.
+        Execute drafting invocation using Gemini 1.5 Pro with T.S Industries knowledge context injection.
         """
+        company_context = load_system_context()
+        combined_system = f"{company_context}\n\n{node_system_prompt}".strip()
+
         messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+        if combined_system:
+            messages.append({"role": "system", "content": combined_system})
         messages.append({"role": "user", "content": prompt})
 
         try:
@@ -126,7 +187,7 @@ class LLMFactory:
                 return res.content if hasattr(res, "content") else str(res)
             except Exception as fb_err:
                 logger.error(f"Fallback LLM failed: {fb_err}")
-                return "Thank you for reaching out. Our autonomous agent system is processing your inquiry."
+                return "Thank you for contacting T.S Industries. We build high-performance web and mobile applications. Please visit ts-industries.co.za to request a quotation."
 
 
 llm_factory = LLMFactory()
