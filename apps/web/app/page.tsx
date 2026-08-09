@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
-  Send, Sparkles, LayoutDashboard, Bot, User,
-  ArrowUp, Mic, Globe, Shield, Terminal
+  Plus, ChevronDown, Mic, MicOff, Square, X,
+  PenSquare, LayoutDashboard, ArrowUp, Sparkles,
+  Volume2, VolumeX, Bot, User
 } from "lucide-react";
 import SiriOrb from "@/components/ui/siri-orb";
 import { AudioStreamManager, SiriOrbState } from "@/lib/audio";
@@ -17,21 +18,19 @@ interface Message {
   mode?: "text" | "voice";
 }
 
-const QUICK_PROMPTS = [
-  "Find new leads for web dev outreach",
-  "Check email outreach response rate",
-  "Inspect active pgvector memory bank",
-  "Run detailed system health check",
-];
-
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
+  const [modelDropdown, setModelDropdown] = useState(false);
 
-  // Voice state
+  // Voice / Full-screen Orb Live mode state
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [orbState, setOrbState] = useState<SiriOrbState>("idle");
-  const [speechActive, setSpeechActive] = useState(false);
+  const [transcription, setTranscription] = useState("");
+  const [liveResponse, setLiveResponse] = useState("");
+
   const audioManagerRef = useRef<AudioStreamManager | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -39,10 +38,10 @@ export default function Home() {
     const manager = new AudioStreamManager({
       onStateChange: (state) => {
         setOrbState(state);
-        if (state === "idle") setSpeechActive(false);
       },
       onTranscription: (text) => {
         if (text) {
+          setTranscription(text);
           const userMsg: Message = {
             id: `usr_${Date.now()}`,
             sender: "user",
@@ -55,6 +54,7 @@ export default function Home() {
       },
       onResponseText: (text) => {
         if (text) {
+          setLiveResponse(text);
           const botMsg: Message = {
             id: `bot_${Date.now()}`,
             sender: "assistant",
@@ -79,6 +79,40 @@ export default function Home() {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  // Start voice streaming session (Full Screen White Orb Mode)
+  const startVoiceMode = async () => {
+    setVoiceActive(true);
+    setTranscription("");
+    setLiveResponse("");
+    const started = await audioManagerRef.current?.startStreaming();
+    if (!started) {
+      setVoiceActive(false);
+      setOrbState("idle");
+    }
+  };
+
+  // Interrupt / Stop voice streaming and return to Gemini Home UI
+  const interruptVoiceMode = () => {
+    audioManagerRef.current?.stopStreaming();
+    setVoiceActive(false);
+    setOrbState("idle");
+    setIsMuted(false);
+  };
+
+  // Toggle Mute
+  const toggleMute = () => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      if (next) {
+        audioManagerRef.current?.stopStreaming();
+      } else {
+        audioManagerRef.current?.startStreaming();
+      }
+      return next;
+    });
+  };
+
+  // Send Text query
   const handleSendText = async (textToSend?: string) => {
     const text = (textToSend || inputValue).trim();
     if (!text || loading) return;
@@ -138,260 +172,279 @@ export default function Home() {
     }
   };
 
-  const toggleSpeechMode = async () => {
-    if (orbState === "idle") {
-      setSpeechActive(true);
-      const started = await audioManagerRef.current?.startStreaming();
-      if (!started) {
-        setOrbState("idle");
-        setSpeechActive(false);
-      }
-    } else if (orbState === "listening") {
-      audioManagerRef.current?.stopStreaming();
-    }
-  };
-
   const getAgentFallbackResponse = (query: string): string => {
     const q = query.toLowerCase();
     if (q.includes("lead") || q.includes("outreach")) {
-      return "I've initiated the lead discovery pipeline. Scraped target companies from Google search, enriched contact details, and drafted outreach emails for human review in the Admin Dashboard.";
+      return "I've initiated lead discovery. Target prospects scraped and outreach drafts created in Admin Dashboard.";
     }
     if (q.includes("response") || q.includes("metric") || q.includes("rate")) {
-      return "Current email outreach metrics:\n• Total Emails Sent: 284\n• Total Responses: 91 (32.0% response rate)\n• Active Leads in Pipeline: 47";
+      return "Outreach status: 284 emails sent, 91 responses (32.0% response rate), 47 active leads.";
     }
     if (q.includes("memory") || q.includes("vector") || q.includes("supabase")) {
-      return "Connected to Supabase pgvector store. Holding continuous active memory entries for quota limits, preferred languages, and client notes.";
+      return "Connected to Supabase pgvector store. Holding active continuous memories for user preferences.";
     }
-    if (q.includes("health") || q.includes("status")) {
-      return "All system dependencies are operational:\n- Supabase pgvector: CONNECTED\n- Groq API: UP\n- Tavily Search: ACTIVE\n- FastAPI Endpoint: 200 OK";
-    }
-    return `Processed request: "${query}". Dispatched to the autonomous LangGraph workflow. Inspect logs & approvals in the Admin Dashboard.`;
+    return `Processed request: "${query}". Dispatched to LangGraph agent. Inspect logs in Admin Dashboard.`;
   };
 
   return (
     <div style={{
-      position: "fixed", inset: 0, display: "flex",
-      background: "#f0f0f0",
+      position: "fixed", inset: 0, overflow: "hidden",
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      fontSize: 14, color: "#111",
     }}>
-      {/* ── Main Outer Frame ── */}
-      <div style={{
-        display: "flex", flex: 1, flexDirection: "column", margin: 12,
-        background: "#fff", border: "1px solid #e0e0e0",
-        borderRadius: 10, boxShadow: "0 2px 16px rgba(0,0,0,0.07)",
-        overflow: "hidden",
-      }}>
-        {/* ── Topbar ── */}
-        <header style={{
-          height: 48, display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 20px", borderBottom: "1px solid #e8e8e8", background: "#fff", flexShrink: 0,
+      {/* ── FULL SCREEN ORB VOICE MODE (When Voice Active) ───────────── */}
+      {voiceActive ? (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 100,
+          background: "#ffffff", display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "between", padding: "32px 24px",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <img src="/favicon.png" alt="my_agent" style={{ width: 22, height: 22, objectFit: "contain" }} />
-            <span style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>my_agent</span>
-            <span style={{ fontSize: 11, fontWeight: 500, color: "#777", background: "#f5f5f5", border: "1px solid #e5e5e5", borderRadius: 999, padding: "2px 8px" }}>
-              Gemini 2.5 + LangGraph
-            </span>
+          {/* Top Controls */}
+          <div style={{ width: "100%", maxWidth: 600, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: isMuted ? "#ef4444" : "#10b981" }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>
+                {isMuted ? "Microphone Muted" : orbState === "listening" ? "Listening..." : orbState === "processing" ? "Thinking..." : "Speaking..."}
+              </span>
+            </div>
+            <button
+              onClick={interruptVoiceMode}
+              title="Close Voice Mode"
+              style={{ background: "#f5f5f5", border: "1px solid #e0e0e0", borderRadius: "50%", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#555" }}
+            >
+              <X size={18} />
+            </button>
           </div>
 
-          <Link
-            href="/dashboard"
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "#111",
-              background: "#fff", border: "1px solid #e0e0e0", borderRadius: 6,
-              textDecoration: "none", transition: "all 150ms",
-            }}
-          >
-            <LayoutDashboard size={14} strokeWidth={1.8} />
-            Admin Dashboard
-          </Link>
-        </header>
+          {/* Centered Large SiriOrb */}
+          <div style={{ margin: "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, textAlign: "center" }}>
+            <div style={{ cursor: "pointer", transform: "scale(1.25)", transition: "transform 300ms ease" }}>
+              <SiriOrb size={220} animationDuration={orbState === "idle" ? 20 : 3} />
+            </div>
 
-        {/* ── Chat Container ── */}
-        <main style={{ flex: 1, overflowY: "auto", background: "#fff", padding: "24px 20px" }}>
-          <div style={{ maxWidth: 720, margin: "0 auto", height: "100%", display: "flex", flexDirection: "column" }}>
-            {messages.length === 0 ? (
-              /* ── Gemini Welcome Card ── */
-              <div style={{ margin: "auto 0", textAlign: "center", padding: "40px 0" }}>
-                <div style={{
-                  width: 48, height: 48, borderRadius: 12, background: "#111",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  margin: "0 auto 16px", color: "#fff",
-                }}>
-                  <Sparkles size={24} strokeWidth={1.8} />
-                </div>
-
-                <h1 style={{ fontSize: 24, fontWeight: 700, color: "#111", margin: "0 0 8px" }}>
-                  Hello. How can <span style={{ color: "#4f46e5" }}>my_agent</span> help you?
-                </h1>
-                <p style={{ fontSize: 13, color: "#777", margin: "0 0 28px", lineHeight: 1.5 }}>
-                  Autonomous AI infrastructure — type your request or click the Orb for voice interaction.
+            {/* Live Transcription / Response */}
+            <div style={{ maxWidth: 480, minHeight: 60 }}>
+              {transcription && (
+                <p style={{ fontSize: 14, color: "#777", fontStyle: "italic", margin: "0 0 8px" }}>
+                  "{transcription}"
                 </p>
+              )}
+              {liveResponse && (
+                <p style={{ fontSize: 15, fontWeight: 500, color: "#111", margin: 0, lineHeight: 1.5 }}>
+                  {liveResponse}
+                </p>
+              )}
+              {!transcription && !liveResponse && (
+                <p style={{ fontSize: 14, color: "#999", margin: 0 }}>
+                  Speak now or click Interrupt to end...
+                </p>
+              )}
+            </div>
+          </div>
 
-                {/* Quick Prompts Grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 600, margin: "0 auto" }}>
-                  {QUICK_PROMPTS.map((prompt) => (
-                    <button
-                      key={prompt}
-                      onClick={() => handleSendText(prompt)}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "12px 14px", fontSize: 12, fontWeight: 500, color: "#333",
-                        background: "#fafafa", border: "1px solid #e8e8e8", borderRadius: 8,
-                        cursor: "pointer", textAlign: "left", transition: "all 150ms",
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f0f0f0"; (e.currentTarget as HTMLElement).style.borderColor = "#ccc"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#fafafa"; (e.currentTarget as HTMLElement).style.borderColor = "#e8e8e8"; }}
-                    >
-                      <span>{prompt}</span>
-                      <Sparkles size={13} strokeWidth={1.8} style={{ color: "#aaa", flexShrink: 0 }} />
-                    </button>
-                  ))}
-                </div>
+          {/* Bottom Controls: Mute & Click to Interrupt */}
+          <div style={{ width: "100%", maxWidth: 420, display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 24 }}>
+            {/* Mute Button */}
+            <button
+              onClick={toggleMute}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "12px 20px", borderRadius: 999,
+                background: isMuted ? "#fef2f2" : "#f5f5f5",
+                border: isMuted ? "1px solid #fca5a5" : "1px solid #e0e0e0",
+                color: isMuted ? "#dc2626" : "#333",
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+                transition: "all 150ms",
+              }}
+            >
+              {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
+              <span>{isMuted ? "Unmute Mic" : "Mute Mic"}</span>
+            </button>
+
+            {/* Click to Interrupt Button */}
+            <button
+              onClick={interruptVoiceMode}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "12px 24px", borderRadius: 999,
+                background: "#111111", color: "#ffffff",
+                border: "none", fontSize: 13, fontWeight: 600,
+                cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                transition: "all 150ms",
+              }}
+            >
+              <Square size={14} fill="#ffffff" />
+              <span>Click to Interrupt</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* ── GEMINI HOME UI (Default View) ───────────────────────────── */
+        <div style={{
+          position: "fixed", inset: 0, display: "flex", flexDirection: "column",
+          backgroundImage: "url('/gemini-bg.png'), radial-gradient(circle at 50% 40%, rgba(224, 242, 254, 0.6) 0%, rgba(243, 232, 255, 0.4) 50%, #f8fafc 100%)",
+          backgroundSize: "cover", backgroundPosition: "center",
+          color: "#1e293b",
+        }}>
+          {/* Top Bar Header */}
+          <header style={{ height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <img src="/favicon.png" alt="my_agent" style={{ width: 24, height: 24, objectFit: "contain" }} />
+              <span style={{ fontWeight: 700, fontSize: 16, color: "#0f172a" }}>my_agent</span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button
+                onClick={() => setMessages([])}
+                title="New Chat"
+                style={{ background: "rgba(255,255,255,0.8)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "50%", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }}
+              >
+                <PenSquare size={16} />
+              </button>
+
+              <Link
+                href="/dashboard"
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "7px 14px", fontSize: 12, fontWeight: 600, color: "#0f172a",
+                  background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)",
+                  borderRadius: 999, textDecoration: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                }}
+              >
+                <LayoutDashboard size={14} />
+                Admin Dashboard
+              </Link>
+            </div>
+          </header>
+
+          {/* Main Area */}
+          <main style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px", overflowY: "auto" }}>
+            {messages.length === 0 ? (
+              /* ── Gemini Centered Hero Title ── */
+              <div style={{ textAlign: "center", marginBottom: 36, maxWidth: 640 }}>
+                <h1 style={{ fontSize: 38, fontWeight: 400, color: "#0f172a", letterSpacing: "-0.02em", margin: "0 0 8px" }}>
+                  What's next, THULANE?
+                </h1>
+                <p style={{ fontSize: 14, color: "#64748b", margin: 0 }}>
+                  Ask my_agent or click the mic to switch to speech mode.
+                </p>
               </div>
             ) : (
-              /* ── Conversation Stream ── */
-              <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 16 }}>
+              /* ── Message Stream ── */
+              <div style={{ width: "100%", maxWidth: 680, flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16, paddingBottom: 20 }}>
                 {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    style={{
-                      display: "flex", gap: 10,
-                      justifyContent: msg.sender === "user" ? "flex-end" : "flex-start",
-                    }}
-                  >
+                  <div key={msg.id} style={{ display: "flex", gap: 10, justifyContent: msg.sender === "user" ? "flex-end" : "flex-start" }}>
                     {msg.sender === "assistant" && (
-                      <div style={{
-                        width: 28, height: 28, borderRadius: 6, background: "#111",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        color: "#fff", flexShrink: 0,
-                      }}>
-                        <Bot size={15} strokeWidth={1.8} />
+                      <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                        <Bot size={16} />
                       </div>
                     )}
-
                     <div style={{
-                      maxWidth: "80%", padding: "10px 14px", fontSize: 13, lineHeight: 1.6,
-                      borderRadius: msg.sender === "user" ? "10px 10px 0 10px" : "10px 10px 10px 0",
-                      background: msg.sender === "user" ? "#111" : "#f5f5f5",
-                      color: msg.sender === "user" ? "#fff" : "#111",
-                      border: msg.sender === "user" ? "none" : "1px solid #e8e8e8",
+                      maxWidth: "80%", padding: "12px 16px", fontSize: 13, lineHeight: 1.6,
+                      borderRadius: 18,
+                      background: msg.sender === "user" ? "#0f172a" : "rgba(255,255,255,0.9)",
+                      color: msg.sender === "user" ? "#ffffff" : "#0f172a",
+                      boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
                     }}>
                       <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
-                      <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4, textAlign: "right" }}>
-                        {msg.mode === "voice" ? "🎙️ Voice · " : ""}{msg.timestamp}
-                      </div>
                     </div>
-
                     {msg.sender === "user" && (
-                      <div style={{
-                        width: 28, height: 28, borderRadius: 6, background: "#e5e5e5",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        color: "#555", flexShrink: 0,
-                      }}>
-                        <User size={15} strokeWidth={1.8} />
+                      <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155" }}>
+                        <User size={16} />
                       </div>
                     )}
                   </div>
                 ))}
-
                 {loading && (
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 6, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-                      <Bot size={15} />
+                    <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                      <Sparkles size={16} className="animate-spin" />
                     </div>
-                    <div style={{ padding: "8px 14px", fontSize: 13, background: "#fafafa", border: "1px solid #e8e8e8", borderRadius: 8, color: "#777", display: "flex", alignItems: "center", gap: 6 }}>
-                      <Sparkles size={13} strokeWidth={1.8} style={{ color: "#4f46e5" }} />
-                      <span>my_agent is processing...</span>
-                    </div>
+                    <span style={{ fontSize: 13, color: "#64748b" }}>my_agent is thinking...</span>
                   </div>
                 )}
                 <div ref={chatBottomRef} />
               </div>
             )}
-          </div>
-        </main>
 
-        {/* ── Bottom Input Container ── */}
-        <footer style={{ padding: "16px 20px", borderTop: "1px solid #e8e8e8", background: "#fff", flexShrink: 0 }}>
-          <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 8 }}>
-            {/* Voice Active Bar Overlay */}
-            {speechActive && (
+            {/* ── Large Gemini Floating Input Bar ── */}
+            <div style={{ width: "100%", maxWidth: 680, position: "relative" }}>
               <div style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "8px 12px", fontSize: 12, background: "#f0fdf4",
-                border: "1px solid #bbf7d0", borderRadius: 6, color: "#16a34a",
+                display: "flex", alignItems: "center", gap: 12,
+                background: "#ffffff", borderRadius: 999,
+                padding: "8px 12px 8px 18px",
+                boxShadow: "0 10px 30px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)",
+                border: "1px solid rgba(226, 232, 240, 0.8)",
               }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a" }} />
-                  <span style={{ fontWeight: 600 }}>
-                    {orbState === "listening" ? "Listening... speak now" : orbState === "processing" ? "Processing voice..." : "Speaking response..."}
-                  </span>
+                {/* Plus Icon */}
+                <button title="Add attachment" style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", padding: 2 }}>
+                  <Plus size={20} />
+                </button>
+
+                {/* Text Input */}
+                <input
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSendText();
+                    }
+                  }}
+                  placeholder="Ask Gemini"
+                  style={{
+                    flex: 1, border: "none", outline: "none",
+                    fontSize: 15, color: "#0f172a", background: "transparent",
+                    fontFamily: "inherit",
+                  }}
+                />
+
+                {/* Model Selector Badge */}
+                <div style={{ position: "relative" }}>
+                  <button
+                    onClick={() => setModelDropdown(!modelDropdown)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 4,
+                      fontSize: 13, fontWeight: 500, color: "#475569",
+                      background: "#f1f5f9", border: "none", borderRadius: 999,
+                      padding: "4px 10px", cursor: "pointer",
+                    }}
+                  >
+                    <span>Pro</span>
+                    <ChevronDown size={14} />
+                  </button>
+
+                  {modelDropdown && (
+                    <div style={{
+                      position: "absolute", bottom: 36, right: 0, width: 140,
+                      background: "#ffffff", border: "1px solid #e2e8f0",
+                      borderRadius: 12, boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+                      padding: 6, zIndex: 50, fontSize: 12,
+                    }}>
+                      <div onClick={() => setModelDropdown(false)} style={{ padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontWeight: 600, color: "#0f172a", background: "#f1f5f9" }}>Pro (FastAPI)</div>
+                      <div onClick={() => setModelDropdown(false)} style={{ padding: "6px 10px", borderRadius: 6, cursor: "pointer", color: "#64748b" }}>Flash (Groq)</div>
+                    </div>
+                  )}
                 </div>
-                <button onClick={toggleSpeechMode} style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", background: "none", border: "none", cursor: "pointer" }}>
-                  Stop Voice
+
+                {/* Microphone / SiriOrb Button to start voice mode */}
+                <button
+                  onClick={startVoiceMode}
+                  title="Click to start speech mode"
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: 4, borderRadius: "50%", transition: "transform 150ms",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                >
+                  <Mic size={20} style={{ color: "#475569" }} />
                 </button>
               </div>
-            )}
-
-            {/* Input Bar */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 8,
-              border: "1px solid #e0e0e0", borderRadius: 8,
-              padding: "6px 8px 6px 14px", background: "#fff",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-            }}>
-              <input
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleSendText();
-                  }
-                }}
-                placeholder="Ask my_agent anything or click the Orb to speak..."
-                style={{
-                  flex: 1, border: "none", outline: "none",
-                  fontSize: 13, color: "#111", background: "transparent",
-                  fontFamily: "inherit",
-                }}
-              />
-
-              {/* Send Button */}
-              <button
-                onClick={() => handleSendText()}
-                disabled={!inputValue.trim() || loading}
-                style={{
-                  width: 32, height: 32, borderRadius: 6,
-                  border: "none", background: inputValue.trim() && !loading ? "#111" : "#f0f0f0",
-                  color: inputValue.trim() && !loading ? "#fff" : "#ccc",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: inputValue.trim() && !loading ? "pointer" : "not-allowed",
-                  transition: "all 150ms",
-                }}
-              >
-                <ArrowUp size={15} strokeWidth={2} />
-              </button>
-
-              {/* SiriOrb Toggle */}
-              <div
-                onClick={toggleSpeechMode}
-                title="Click to toggle speech mode"
-                style={{ cursor: "pointer", padding: 2, display: "flex", alignItems: "center" }}
-              >
-                <SiriOrb size={32} animationDuration={orbState === "idle" ? 20 : 4} />
-              </div>
             </div>
-
-            <p style={{ textAlign: "center", fontSize: 11, color: "#aaa", margin: 0 }}>
-              my_agent executes web outreach, lead discovery, & continuous vector memory tasks. Check Admin Dashboard for logs.
-            </p>
-          </div>
-        </footer>
-      </div>
+          </main>
+        </div>
+      )}
     </div>
   );
 }
