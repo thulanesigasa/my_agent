@@ -13,6 +13,25 @@ export interface AudioStreamCallbacks {
   onError?: (err: string) => void;
 }
 
+export async function playBase64Audio(base64Data: string): Promise<void> {
+  try {
+    const binaryString = atob(base64Data);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const decodedData = await audioContext.decodeAudioData(bytes.buffer);
+    const source = audioContext.createBufferSource();
+    source.buffer = decodedData;
+    source.connect(audioContext.destination);
+    source.start(0);
+  } catch (e) {
+    console.warn("Error playing base64 audio:", e);
+  }
+}
+
 export class AudioStreamManager {
   private mediaRecorder: MediaRecorder | null = null;
   private audioContext: AudioContext | null = null;
@@ -29,7 +48,7 @@ export class AudioStreamManager {
    */
   public connect(url?: string): void {
     const wsUrl = url || process.env.NEXT_PUBLIC_AGENT_AUDIO_WS_URL || "ws://localhost:8000/ws/audio";
-    
+
     try {
       this.socket = new WebSocket(wsUrl);
       this.socket.binaryType = "arraybuffer";
@@ -78,7 +97,7 @@ export class AudioStreamManager {
   public async startStreaming(): Promise<boolean> {
     try {
       this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       let mimeType = "audio/webm";
       if (!MediaRecorder.isTypeSupported("audio/webm")) {
         if (MediaRecorder.isTypeSupported("audio/mp4")) {

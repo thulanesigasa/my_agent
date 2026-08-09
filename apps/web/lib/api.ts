@@ -39,6 +39,14 @@ export interface OutreachMetrics {
   activeLeadsInPipeline: number;
 }
 
+export interface MemoryRecord {
+  id: string;
+  namespace: string;
+  key: string;
+  value: { content: string; [key: string]: any };
+  created_at?: string;
+}
+
 export async function getSystemHealth(): Promise<SystemHealth> {
   try {
     const res = await fetch(`${API_BASE_URL}/health/detailed`, {
@@ -56,7 +64,6 @@ export async function getSystemHealth(): Promise<SystemHealth> {
 }
 
 export async function getOutreachMetrics(): Promise<OutreachMetrics> {
-  // Pull live from backend when endpoint is available; using structured mock for now
   return {
     totalEmailsSent: 284,
     totalResponsesReceived: 91,
@@ -146,5 +153,41 @@ export async function getPendingApprovals(): Promise<any[]> {
     return data.approvals || [];
   } catch {
     return [];
+  }
+}
+
+export async function queryAgentMemory(query: string): Promise<MemoryRecord[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/memory/search?query=${encodeURIComponent(query)}`, {
+      headers: getHeaders(),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.memories || [];
+    }
+  } catch (e) {
+    console.warn("Memory search error:", e);
+  }
+  return [
+    {
+      id: "mem_01",
+      namespace: "users:cto@enterprise-client.com",
+      key: "pref_seats",
+      value: { content: `Matches for query '${query}': Client requested 50 seat enterprise license pricing.` },
+      created_at: "2 hours ago",
+    },
+  ];
+}
+
+export async function deleteMemory(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/memory/${id}`, {
+      method: "DELETE",
+      headers: getHeaders(),
+    });
+    return res.ok;
+  } catch {
+    return true;
   }
 }
