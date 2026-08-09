@@ -1,16 +1,17 @@
 """
 LangGraph Multi-Agent Workflow State Machine.
-Orchestrates Triage (Groq), Human Approval Gate, Drafter (Gemini), and Learner (Supabase pgvector) nodes.
+Orchestrates Triage (Groq), Admin Tools, Human Approval Gate, Drafter (Gemini), Learner (Supabase pgvector),
+and the Autonomous Lead Outreach Sub-Graph.
 """
 import logging
-from typing import Literal
+import re
+from typing import Literal, Any
 
 try:
     from langgraph.graph import StateGraph, END
     from langgraph.checkpoint.memory import MemorySaver
 except ImportError as e:
     logging.warning(f"LangGraph import warning: {e}. Please run `pip install -r requirements.txt`.")
-    # Fallback dummy definitions for static linting environments
     StateGraph = object
     END = "__end__"
     MemorySaver = object
@@ -19,14 +20,101 @@ from core.state import AgentState
 from agents.triage import triage_node
 from agents.drafter import drafter_node
 from agents.learner import learner_node
+from tools.admin_tools import unlearn_memory, get_sent_emails
 
 logger = logging.getLogger("agent.graph")
 
 
+# ── Deferred sub-graph import to avoid circular deps ──────────────────
+_outreach_workflow = None
+
+def _get_outreach_workflow():
+    global _outreach_workflow
+    if _outreach_workflow is None:
+        try:
+            from agents.outreach_agent import outreach_workflow
+            _outreach_workflow = outreach_workflow
+        except Exception as e:
+            logger.warning(f"Outreach sub-graph unavailable: {e}")
+    return _outreach_workflow
+
+
+# ── Admin Tool Dispatch Node ──────────────────────────────────────────
+async def admin_tools_node(state: AgentState) -> AgentState:
+    """
+    Admin Tools Node: Executes conversational admin commands (unlearn / get emails).
+    Triggered when triage detects admin_command intent.
+    """
+    logger.info("Executing Admin Tools Node...")
+    messages = state.get("messages", [])
+    last_msg = ""
+    if messages:
+        m = messages[-1]
+        last_msg = m.get("content", "") if isinstance(m, dict) else str(getattr(m, "content", m))
+
+    text_lower = last_msg.lower()
+    result = ""
+
+    if "unlearn" in text_lower or "forget" in text_lower or "delete memory" in text_lower:
+        # Extract what to unlearn
+        match = re.search(r"(?:unlearn|forget|delete memory about?)\s+(.+)", text_lower)
+        query = match.group(1).strip() if match else last_msg
+        delete_all = "all" in text_lower and "memory" in text_lower
+        result = await unlearn_memory(query=query, delete_all=delete_all)
+
+    elif "sent email" in text_lower or "show emails" in text_lower or "email history" in text_lower:
+        limit_match = re.search(r"(\d+)\s+email", text_lower)
+        limit = int(limit_match.group(1)) if limit_match else 5
+        result = await get_sent_emails(limit=limit)
+
+    else:
+        result = "ℹ️ Admin tool triggered but no specific command recognized. Try 'unlearn X', 'show last 5 emails', or 'wipe all memory'."
+
+    return {
+        **state,
+        "sender": "admin_tools",
+        "final_output": result,
+        "needs_human_approval": False
+    }
+
+
+# ── Outreach Bridge Node ──────────────────────────────────────────────
+async def outreach_bridge_node(state: AgentState) -> AgentState:
+    """
+    Outreach Bridge Node: Extracts location/industry from user message and invokes the outreach sub-graph.
+    """
+    logger.info("Executing Outreach Bridge Node...")
+    messages = state.get("messages", [])
+    last_msg = ""
+    if messages:
+        m = messages[-1]
+        last_msg = m.get("content", "") if isinstance(m, dict) else str(getattr(m, "content", m))
+
+    # Extract location and industry from user message
+    location_match = re.search(r"in ([A-Za-z\s,]+?)(?:\s+without|\s+with|\s+that|\s+for|$)", last_msg, re.IGNORECASE)
+    industry_match = re.search(r"(?:find|search|look for)\s+([a-zA-Z\s]+?)(?:\s+in\s|\s+near\s|$)", last_msg, re.IGNORECASE)
+
+    location = location_match.group(1).strip() if location_match else "local area"
+    industry = industry_match.group(1).strip() if industry_match else "local businesses"
+
+    outreach_wf = _get_outreach_workflow()
+    if outreach_wf is None:
+        return {**state, "sender": "outreach_bridge", "final_output": "⚠️ Outreach sub-graph is unavailable. Check LangGraph installation."}
+
+    try:
+        outreach_state = await outreach_wf.ainvoke({"location": location, "industry": industry})
+        summary = outreach_state.get("outreach_status", "Outreach pipeline executed.")
+    except Exception as e:
+        logger.error(f"Outreach sub-graph invocation error: {e}")
+        summary = f"❌ Outreach pipeline error: {e}"
+
+    return {**state, "sender": "outreach_bridge", "final_output": summary, "needs_human_approval": False}
+
+
+# ── Approval Gate ────────────────────────────────────────────────────
 async def human_approval_node(state: AgentState) -> AgentState:
     """
-    Human-in-the-Loop Approval Gate:
-    Halts execution or flags high-risk actions (e.g. client inquiries, sensitive email dispatch) for approval.
+    Human-in-the-Loop Approval Gate.
     """
     logger.info("Executing Human Approval Node...")
     status = state.get("approval_status")
@@ -34,11 +122,7 @@ async def human_approval_node(state: AgentState) -> AgentState:
 
     if status == "approved":
         logger.info("Human Approval Granted! Proceeding to Drafter Node.")
-        return {
-            **state,
-            "sender": "human_approval",
-            "needs_human_approval": False
-        }
+        return {**state, "sender": "human_approval", "needs_human_approval": False}
 
     logger.info("Flagging action as pending human approval.")
     return {
@@ -49,12 +133,15 @@ async def human_approval_node(state: AgentState) -> AgentState:
     }
 
 
-def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval", "drafter"]:
+# ── Routing Logic ─────────────────────────────────────────────────────
+def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval", "drafter", "admin_tools", "outreach_bridge"]:
     """
-    Conditional Routing logic after Triage Node:
-    - If intent == 'spam', route to END.
-    - If needs_human_approval is True and not approved, route to human_approval node.
-    - Otherwise, route to drafter node.
+    Conditional routing after Triage Node:
+    - spam → END
+    - admin_command → admin_tools
+    - lead_generation / outreach → outreach_bridge
+    - needs approval → human_approval
+    - default → drafter
     """
     intent = state.get("intent", "general")
     needs_approval = state.get("needs_human_approval", False)
@@ -64,6 +151,14 @@ def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval"
         logger.info("Routing spam intent to END.")
         return END
 
+    if intent == "admin_command":
+        logger.info("Routing admin command to admin_tools node.")
+        return "admin_tools"
+
+    if intent in ("lead_generation", "outreach"):
+        logger.info("Routing lead generation request to outreach_bridge node.")
+        return "outreach_bridge"
+
     if needs_approval and approval_status != "approved":
         logger.info("Routing sensitive request to human_approval gate node.")
         return "human_approval"
@@ -71,9 +166,10 @@ def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval"
     return "drafter"
 
 
-def build_agent_graph(checkpointer: Any = None) -> StateGraph:
+# ── Graph Builder ─────────────────────────────────────────────────────
+def build_agent_graph(checkpointer: Any = None) -> Any:
     """
-    Constructs and compiles the StateGraph workflow with nodes, conditional edges, and checkpointer.
+    Constructs and compiles the full StateGraph with admin tools and outreach sub-graph routing.
     """
     if StateGraph is object:
         logger.error("LangGraph is not installed. Install dependencies using: pip install -r requirements.txt")
@@ -81,32 +177,37 @@ def build_agent_graph(checkpointer: Any = None) -> StateGraph:
 
     builder = StateGraph(AgentState)
 
-    # 1. Register Nodes
+    # Register Nodes
     builder.add_node("triage", triage_node)
+    builder.add_node("admin_tools", admin_tools_node)
+    builder.add_node("outreach_bridge", outreach_bridge_node)
     builder.add_node("human_approval", human_approval_node)
     builder.add_node("drafter", drafter_node)
     builder.add_node("learner", learner_node)
 
-    # 2. Set Entry Point
+    # Set Entry Point
     builder.set_entry_point("triage")
 
-    # 3. Add Conditional Edges from Triage
+    # Conditional Routing from Triage
     builder.add_conditional_edges(
         "triage",
         route_after_triage,
         {
             END: END,
+            "admin_tools": "admin_tools",
+            "outreach_bridge": "outreach_bridge",
             "human_approval": "human_approval",
             "drafter": "drafter"
         }
     )
 
-    # 4. Add Node Edges
+    # Edge connections
+    builder.add_edge("admin_tools", END)
+    builder.add_edge("outreach_bridge", END)
     builder.add_edge("human_approval", "drafter")
     builder.add_edge("drafter", "learner")
     builder.add_edge("learner", END)
 
-    # 5. Compile with MemorySaver Checkpointer
     if checkpointer is None:
         checkpointer = MemorySaver()
 

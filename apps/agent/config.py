@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_MODEL: str = "anthropic/claude-3.5-sonnet"
 
+    # Lead Discovery / Web Search
+    TAVILY_API_KEY: Optional[str] = None
+
     # Audio Voice Output
     DEFAULT_TTS_VOICE: str = "en-US-AriaNeural"
 
