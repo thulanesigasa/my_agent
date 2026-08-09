@@ -368,7 +368,7 @@ export default function Home() {
               <div style={{
                 padding: "10px 14px", fontSize: 12, borderRadius: 8,
                 background: "#fef2f2", border: "1px solid #fca5a5", color: "#b91c1c",
-                display: "flex", alignItems: "center", justifyBetween: "space-between", gap: 10,
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
                 marginBottom: 10,
               }}>
                 <span>{micError}</span>

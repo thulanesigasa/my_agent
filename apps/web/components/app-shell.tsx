@@ -6,7 +6,6 @@ import {
   HelpCircle, BookOpen, LayoutDashboard, Mail,
   ShieldCheck, Database, PanelLeft, Bell, Send
 } from "lucide-react";
-import { TabContext } from "@/components/app-shell";
 
 export type NavTab = "overview" | "logs" | "approvals" | "memory" | "settings";
 
