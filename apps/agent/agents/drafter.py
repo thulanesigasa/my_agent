@@ -1,15 +1,17 @@
 """
 Drafter Agent Node: Synthesizes responses using Gemini 1.5 Pro, T.S Industries knowledge base, and retrieved vector memories.
+Uses runtime dynamic reading of knowledge/*.md files.
 """
 import logging
 from core.state import AgentState
 from services.llm_factory import llm_factory
 from core.memory import memory_manager
+from tools.knowledge_tools import read_company_knowledge
 
 logger = logging.getLogger("agent.node.drafter")
 
 DRAFTER_SYSTEM_PROMPT = """
-You are the official representative of T.S Industries, a high-performance software engineering firm specializing in Web Development (Next.js, React, Tailwind CSS, Python, C#, VB.Net), Mobile Apps (React Native, Java), and AI/Backend Integrations (Supabase, pgvector, LangGraph).
+You are the official representative of T.S Industries, a high-performance software engineering firm specializing in Web Development, Mobile Apps, and AI/Backend Integrations.
 
 Follow these core directives strictly:
 1. Speak as a representative of T.S Industries. Never say "I am an AI."
@@ -22,12 +24,16 @@ Follow these core directives strictly:
 async def drafter_node(state: AgentState) -> AgentState:
     """
     Drafter Node function for deep reasoning and response drafting.
+    Dynamically loads knowledge/*.md files at runtime for every task.
     """
     logger.info("Executing Drafter Node for T.S Industries...")
     messages = state.get("messages", [])
     intent = state.get("intent", "general")
     email_input = state.get("email_input")
     context = state.get("retrieved_context", [])
+
+    # Read company knowledge dynamically at runtime for this specific execution
+    company_knowledge = read_company_knowledge()
 
     user_input = ""
     if email_input and isinstance(email_input, dict):
@@ -42,6 +48,8 @@ async def drafter_node(state: AgentState) -> AgentState:
 
     context_str = "\n".join([f"- {c['content']}" for c in context]) if context else "No prior memory context."
 
+    combined_system = f"{company_knowledge}\n\n{DRAFTER_SYSTEM_PROMPT}".strip()
+
     prompt = f"""
 Current Intent: {intent}
 User Request:
@@ -53,7 +61,7 @@ Retrieved Memory Context:
 Please generate a detailed, polished response or draft message representing T.S Industries.
 """
 
-    draft_output = await llm_factory.invoke_drafter(prompt, DRAFTER_SYSTEM_PROMPT)
+    draft_output = await llm_factory.invoke_drafter(prompt, combined_system)
 
     return {
         **state,

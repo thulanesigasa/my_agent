@@ -1,7 +1,7 @@
 """
 LangGraph Multi-Agent Workflow State Machine.
-Orchestrates Triage (Groq), Admin Tools, Human Approval Gate, Drafter (Gemini), Learner (Supabase pgvector),
-and the Autonomous Lead Outreach Sub-Graph.
+Orchestrates Triage (Groq), Knowledge Manager (Dynamic Reader/Writer), Admin Tools,
+Human Approval Gate, Drafter (Gemini), Learner (Supabase pgvector), and Outreach Sub-Graph.
 """
 import logging
 import re
@@ -20,6 +20,7 @@ from core.state import AgentState
 from agents.triage import triage_node
 from agents.drafter import drafter_node
 from agents.learner import learner_node
+from agents.knowledge_manager import knowledge_updater_node
 from tools.admin_tools import unlearn_memory, get_sent_emails
 
 logger = logging.getLogger("agent.graph")
@@ -56,7 +57,6 @@ async def admin_tools_node(state: AgentState) -> AgentState:
     result = ""
 
     if "unlearn" in text_lower or "forget" in text_lower or "delete memory" in text_lower:
-        # Extract what to unlearn
         match = re.search(r"(?:unlearn|forget|delete memory about?)\s+(.+)", text_lower)
         query = match.group(1).strip() if match else last_msg
         delete_all = "all" in text_lower and "memory" in text_lower
@@ -90,7 +90,6 @@ async def outreach_bridge_node(state: AgentState) -> AgentState:
         m = messages[-1]
         last_msg = m.get("content", "") if isinstance(m, dict) else str(getattr(m, "content", m))
 
-    # Extract location and industry from user message
     location_match = re.search(r"in ([A-Za-z\s,]+?)(?:\s+without|\s+with|\s+that|\s+for|$)", last_msg, re.IGNORECASE)
     industry_match = re.search(r"(?:find|search|look for)\s+([a-zA-Z\s]+?)(?:\s+in\s|\s+near\s|$)", last_msg, re.IGNORECASE)
 
@@ -134,10 +133,11 @@ async def human_approval_node(state: AgentState) -> AgentState:
 
 
 # ── Routing Logic ─────────────────────────────────────────────────────
-def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval", "drafter", "admin_tools", "outreach_bridge"]:
+def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval", "drafter", "admin_tools", "outreach_bridge", "knowledge_updater"]:
     """
     Conditional routing after Triage Node:
     - spam → END
+    - knowledge_update → knowledge_updater
     - admin_command → admin_tools
     - lead_generation / outreach → outreach_bridge
     - needs approval → human_approval
@@ -150,6 +150,10 @@ def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval"
     if intent == "spam":
         logger.info("Routing spam intent to END.")
         return END
+
+    if intent == "knowledge_update":
+        logger.info("Routing knowledge update request to knowledge_updater node.")
+        return "knowledge_updater"
 
     if intent == "admin_command":
         logger.info("Routing admin command to admin_tools node.")
@@ -169,7 +173,7 @@ def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval"
 # ── Graph Builder ─────────────────────────────────────────────────────
 def build_agent_graph(checkpointer: Any = None) -> Any:
     """
-    Constructs and compiles the full StateGraph with admin tools and outreach sub-graph routing.
+    Constructs and compiles the full StateGraph with knowledge updater, admin tools, and outreach sub-graph routing.
     """
     if StateGraph is object:
         logger.error("LangGraph is not installed. Install dependencies using: pip install -r requirements.txt")
@@ -179,6 +183,7 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
 
     # Register Nodes
     builder.add_node("triage", triage_node)
+    builder.add_node("knowledge_updater", knowledge_updater_node)
     builder.add_node("admin_tools", admin_tools_node)
     builder.add_node("outreach_bridge", outreach_bridge_node)
     builder.add_node("human_approval", human_approval_node)
@@ -194,6 +199,7 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
         route_after_triage,
         {
             END: END,
+            "knowledge_updater": "knowledge_updater",
             "admin_tools": "admin_tools",
             "outreach_bridge": "outreach_bridge",
             "human_approval": "human_approval",
@@ -202,6 +208,7 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
     )
 
     # Edge connections
+    builder.add_edge("knowledge_updater", END)
     builder.add_edge("admin_tools", END)
     builder.add_edge("outreach_bridge", END)
     builder.add_edge("human_approval", "drafter")
