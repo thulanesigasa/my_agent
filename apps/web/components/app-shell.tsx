@@ -21,6 +21,8 @@ const ADMIN_NAV = [
   { id: "settings" as NavTab, label: "Settings",    icon: Settings  },
 ];
 
+const ALL_NAV = [...WORKSPACE_NAV, ...ADMIN_NAV];
+
 interface AppShellProps { children: React.ReactNode; }
 
 export const TabContext = React.createContext<{
@@ -29,6 +31,10 @@ export const TabContext = React.createContext<{
 
 export function AppShell({ children }: AppShellProps) {
   const [tab, setTab] = useState<NavTab>("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const activeNav = ALL_NAV.find(n => n.id === tab) || WORKSPACE_NAV[0];
+  const ActiveIcon = activeNav.icon;
 
   const NavItem = ({ id, label, icon: Icon }: { id: NavTab; label: string; icon: React.ElementType }) => (
     <button
@@ -41,6 +47,7 @@ export function AppShell({ children }: AppShellProps) {
         fontSize: 13, color: tab === id ? "#111" : "#555",
         fontWeight: tab === id ? 600 : 400,
         textAlign: "left",
+        whiteSpace: "nowrap",
       }}
     >
       <Icon size={15} strokeWidth={1.8} style={{ color: tab === id ? "#111" : "#888", flexShrink: 0 }} />
@@ -68,18 +75,26 @@ export function AppShell({ children }: AppShellProps) {
 
           {/* ── Sidebar ── */}
           <aside style={{
-            width: 210, flexShrink: 0, display: "flex", flexDirection: "column",
-            borderRight: "1px solid #e8e8e8", background: "#fff",
+            width: sidebarOpen ? 210 : 0,
+            marginLeft: sidebarOpen ? 0 : -210,
+            opacity: sidebarOpen ? 1 : 0,
+            flexShrink: 0,
+            display: "flex",
+            flexDirection: "column",
+            borderRight: sidebarOpen ? "1px solid #e8e8e8" : "none",
+            background: "#fff",
             overflowY: "auto",
+            overflowX: "hidden",
+            transition: "all 150ms cubic-bezier(.4,0,.2,1)",
           }}>
-            {/* Logo */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e8e8e8", display: "flex", alignItems: "center", gap: 10 }}>
-              <img src="/favicon.png" alt="Dashboard Icon" style={{ width: 22, height: 22, objectFit: "contain" }} />
-              <span style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>Dashboard</span>
+            {/* Brand Logo */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e8e8e8", display: "flex", alignItems: "center", gap: 10, minWidth: 210 }}>
+              <img src="/favicon.png" alt="my_agent Logo" style={{ width: 22, height: 22, objectFit: "contain" }} />
+              <span style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>my_agent</span>
             </div>
 
             {/* Nav */}
-            <div style={{ flex: 1, padding: "14px 10px", overflowY: "auto" }}>
+            <div style={{ flex: 1, padding: "14px 10px", overflowY: "auto", minWidth: 210 }}>
               {/* Workspace */}
               <p style={{ fontSize: 11, fontWeight: 600, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, paddingLeft: 8 }}>
                 Workspace
@@ -98,7 +113,7 @@ export function AppShell({ children }: AppShellProps) {
             </div>
 
             {/* Changelog / bottom */}
-            <div style={{ borderTop: "1px solid #e8e8e8", padding: "12px 16px" }}>
+            <div style={{ borderTop: "1px solid #e8e8e8", padding: "12px 16px", minWidth: 210 }}>
               <p style={{ fontSize: 10, fontWeight: 700, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Changelog</p>
               <p style={{ fontSize: 12, fontWeight: 700, color: "#111", marginBottom: 2 }}>Agent v1.0 launch</p>
               <p style={{ fontSize: 11, color: "#888", marginBottom: 6, lineHeight: 1.5 }}>LangGraph + Groq pipeline live.</p>
@@ -113,7 +128,7 @@ export function AppShell({ children }: AppShellProps) {
                 </button>
               </div>
 
-              <p style={{ fontSize: 10, color: "#ccc", marginTop: 14 }}>© 2026 Agent Platform LLC</p>
+              <p style={{ fontSize: 10, color: "#ccc", marginTop: 14 }}>© 2026 my_agent LLC</p>
             </div>
           </aside>
 
@@ -125,10 +140,23 @@ export function AppShell({ children }: AppShellProps) {
               padding: "0 20px", borderBottom: "1px solid #e8e8e8", flexShrink: 0, background: "#fff",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <PanelLeft size={16} strokeWidth={1.5} style={{ color: "#999" }} />
+                <button
+                  onClick={() => setSidebarOpen(open => !open)}
+                  title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+                  style={{
+                    background: "none", border: "none", padding: 4, borderRadius: 6,
+                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                    color: sidebarOpen ? "#666" : "#111",
+                    transition: "background 150ms",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "#f0f0f0")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "none")}
+                >
+                  <PanelLeft size={16} strokeWidth={1.5} />
+                </button>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <LayoutDashboard size={14} strokeWidth={1.5} style={{ color: "#999" }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>Dashboard</span>
+                  <ActiveIcon size={14} strokeWidth={1.5} style={{ color: "#999" }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>{activeNav.label}</span>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
