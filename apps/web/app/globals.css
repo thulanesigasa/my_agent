@@ -2,29 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #0f172a;
+/* ── Shadcn/UI CSS variable design tokens (dark theme) ──────────── */
+@layer base {
+  :root {
+    --background:        224 71% 4%;
+    --foreground:        213 31% 91%;
+    --card:              224 71% 4%;
+    --card-foreground:   213 31% 91%;
+    --popover:           224 71% 4%;
+    --popover-foreground:213 31% 91%;
+    --primary:           239 84% 67%;
+    --primary-foreground:0 0% 100%;
+    --secondary:         215 27.9% 16.9%;
+    --secondary-foreground:210 40% 98%;
+    --muted:             215 27.9% 16.9%;
+    --muted-foreground:  217.9 10.6% 64.9%;
+    --accent:            215 27.9% 16.9%;
+    --accent-foreground: 210 40% 98%;
+    --destructive:       0 63% 31%;
+    --destructive-foreground:210 40% 98%;
+    --border:            217.2 32.6% 17.5%;
+    --input:             217.2 32.6% 17.5%;
+    --ring:              239 84% 67%;
+    --radius:            0.75rem;
+  }
 }
 
-html, body {
-  background-color: #ffffff;
-  color: #0f172a;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
-  width: 100vw;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Custom Glassmorphism Utilities */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 }

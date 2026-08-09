@@ -2,151 +2,248 @@
 
 import React, { useState } from "react";
 import {
-  LayoutDashboard, Mail, ShieldCheck, Database, Settings,
-  Cpu, ChevronLeft, ChevronRight, Circle, Bell, Search
+  LayoutDashboard, Mail, ShieldCheck, Database,
+  Settings, Cpu, Bell, Search, ChevronLeft, ChevronRight,
+  ChevronsUpDown, Check, Circle
 } from "lucide-react";
 
 type NavTab = "overview" | "logs" | "approvals" | "memory" | "settings";
 
-interface AppShellProps {
-  children: (activeTab: NavTab, setTab: (t: NavTab) => void) => React.ReactNode;
-}
-
-const NAV_ITEMS: { id: NavTab; label: string; icon: React.ElementType; badge?: number }[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "logs", label: "Outreach Logs", icon: Mail, badge: 6 },
-  { id: "approvals", label: "Approvals", icon: ShieldCheck, badge: 3 },
-  { id: "memory", label: "Memory Bank", icon: Database },
-  { id: "settings", label: "Settings", icon: Settings },
+const NAV: { id: NavTab; label: string; icon: React.ElementType; badge?: number }[] = [
+  { id: "overview",  label: "Overview",       icon: LayoutDashboard },
+  { id: "logs",      label: "Outreach Logs",  icon: Mail,           badge: 6  },
+  { id: "approvals", label: "Approvals",      icon: ShieldCheck,    badge: 3  },
+  { id: "memory",    label: "Memory Bank",    icon: Database               },
+  { id: "settings",  label: "Settings",       icon: Settings               },
 ];
 
-export const AppShell: React.FC<AppShellProps> = ({ children }) => {
-  const [activeTab, setActiveTab] = useState<NavTab>("overview");
+interface AppShellProps {
+  children: React.ReactNode;
+}
+
+// ── Context so Dashboard can read the active tab ────────────────────
+export const TabContext = React.createContext<{
+  tab: NavTab;
+  setTab: (t: NavTab) => void;
+}>({ tab: "overview", setTab: () => {} });
+
+export function AppShell({ children }: AppShellProps) {
+  const [tab, setTab]           = useState<NavTab>("overview");
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        position: "fixed",
-        inset: 0,
-        overflow: "hidden",
-        background: "#0f1117",
-        color: "#fff",
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      }}
-    >
-      {/* ── Sidebar ─────────────────────────────────────────────── */}
-      <aside
-        className={`relative flex flex-col transition-all duration-300 ${collapsed ? "w-[68px]" : "w-[220px]"}`}
-        style={{ background: "#13151c", borderRight: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}
+    <TabContext.Provider value={{ tab, setTab }}>
+      {/* Root — fixed full-screen dark canvas */}
+      <div
+        style={{
+          position: "fixed", inset: 0,
+          display: "flex", overflow: "hidden",
+          background: "hsl(224 71% 4%)",   /* --background */
+          color: "hsl(213 31% 91%)",        /* --foreground */
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        }}
       >
-        {/* Logo */}
-        <div className={`flex items-center gap-3 px-4 py-5 ${collapsed ? "justify-center" : ""}`}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg">
-            <Cpu className="h-4 w-4 text-white" />
+        {/* ── Sidebar ── */}
+        <aside
+          style={{
+            width: collapsed ? 64 : 220,
+            flexShrink: 0,
+            display: "flex",
+            flexDirection: "column",
+            transition: "width 280ms cubic-bezier(.4,0,.2,1)",
+            background: "hsl(222.2 84% 4.9%)",
+            borderRight: "1px solid hsl(217.2 32.6% 17.5%)",
+            overflow: "hidden",
+            position: "relative",
+          }}
+        >
+          {/* Logo */}
+          <div style={{ padding: "18px 16px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, flexShrink: 0,
+              borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
+              background: "linear-gradient(135deg, hsl(239 84% 67%), hsl(262 83% 58%))",
+              boxShadow: "0 4px 14px rgba(99,102,241,.45)",
+            }}>
+              <Cpu size={15} color="#fff" />
+            </div>
+            {!collapsed && (
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "hsl(210 40% 98%)", lineHeight: 1.2, whiteSpace: "nowrap" }}>
+                  Agent Platform
+                </p>
+                <p style={{ fontSize: 10, color: "hsl(215 20.2% 35%)", fontFamily: "monospace", marginTop: 2 }}>
+                  v1.0 Enterprise
+                </p>
+              </div>
+            )}
           </div>
+
+          {/* Divider */}
+          <div style={{ height: 1, background: "hsl(217.2 32.6% 17.5%)", margin: "0 12px" }} />
+
+          {/* Nav items */}
+          <nav style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+            {NAV.map(({ id, label, icon: Icon, badge }) => {
+              const active = tab === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setTab(id)}
+                  title={collapsed ? label : undefined}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center",
+                    gap: 10, padding: collapsed ? "10px 0" : "9px 12px",
+                    justifyContent: collapsed ? "center" : "flex-start",
+                    borderRadius: 10, border: "none", cursor: "pointer",
+                    fontSize: 13, fontWeight: 500, textAlign: "left",
+                    position: "relative", transition: "all 150ms",
+                    background: active ? "hsl(239 84% 67% / .12)" : "transparent",
+                    color: active ? "hsl(239 100% 80%)" : "hsl(215 20.2% 55%)",
+                  }}
+                  onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "hsl(215 27.9% 16.9%)"; }}
+                  onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                >
+                  {/* Active accent bar */}
+                  {active && (
+                    <span style={{
+                      position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
+                      width: 3, height: 20, borderRadius: "0 3px 3px 0",
+                      background: "hsl(239 84% 67%)",
+                    }} />
+                  )}
+                  <Icon size={16} style={{ flexShrink: 0, color: active ? "hsl(239 84% 72%)" : "hsl(215 20.2% 45%)" }} />
+                  {!collapsed && <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>}
+                  {!collapsed && badge && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 999,
+                      background: "hsl(239 84% 67% / .15)", color: "hsl(239 100% 77%)",
+                    }}>{badge}</span>
+                  )}
+                  {collapsed && badge && (
+                    <span style={{
+                      position: "absolute", top: 6, right: 8,
+                      width: 6, height: 6, borderRadius: "50%", background: "hsl(239 84% 67%)",
+                    }} />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Backend status */}
           {!collapsed && (
-            <div className="min-w-0">
-              <p className="truncate text-[13px] font-bold text-white leading-none">Agent Platform</p>
-              <p className="text-[10px] text-white/30 font-mono mt-0.5">v1.0 Enterprise</p>
+            <div style={{
+              margin: "0 10px 14px",
+              borderRadius: 12,
+              border: "1px solid hsl(217.2 32.6% 17.5%)",
+              background: "hsl(215 27.9% 16.9% / .4)",
+              padding: "10px 12px",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(215 20.2% 45%)" }}>Backend</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 700, color: "hsl(142.1 70.6% 45.3%)" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "hsl(142.1 70.6% 45.3%)", display: "inline-block" }} />
+                  ONLINE
+                </span>
+              </div>
+              <p style={{ fontSize: 10, color: "hsl(215 20.2% 35%)", marginTop: 5, lineHeight: 1.6 }}>
+                LangGraph · Groq · Supabase pgvector
+              </p>
             </div>
           )}
-        </div>
 
-        {/* Divider */}
-        <div className="mx-3 h-px bg-white/[0.06]" />
+          {/* Collapse toggle */}
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            style={{
+              position: "absolute", right: -12, top: 72,
+              width: 24, height: 24, borderRadius: "50%",
+              border: "1px solid hsl(217.2 32.6% 17.5%)",
+              background: "hsl(222.2 84% 4.9%)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: "hsl(215 20.2% 45%)",
+              boxShadow: "0 2px 8px rgba(0,0,0,.4)",
+              zIndex: 10,
+            }}
+          >
+            {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+          </button>
+        </aside>
 
-        {/* Nav */}
-        <nav className="flex-1 space-y-0.5 px-2 py-4">
-          {NAV_ITEMS.map(({ id, label, icon: Icon, badge }) => {
-            const active = activeTab === id;
-            return (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                title={collapsed ? label : undefined}
-                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[12.5px] font-medium transition-all duration-150 ${
-                  active
-                    ? "bg-indigo-500/10 text-indigo-300"
-                    : "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
-                } ${collapsed ? "justify-center" : ""}`}
-              >
-                {active && (
-                  <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-indigo-400" />
-                )}
-                <Icon className={`h-4 w-4 shrink-0 ${active ? "text-indigo-400" : ""}`} />
-                {!collapsed && <span className="flex-1 truncate">{label}</span>}
-                {!collapsed && badge && (
-                  <span className="rounded-full bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-bold text-indigo-300">
-                    {badge}
-                  </span>
-                )}
-                {collapsed && badge && (
-                  <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-indigo-400" />
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Status */}
-        {!collapsed && (
-          <div className="mx-3 mb-4 rounded-xl border border-white/[0.06] bg-white/[0.03] p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-white/40">Backend</span>
-              <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400">
-                <Circle className="h-1.5 w-1.5 fill-emerald-400" /> ONLINE
+        {/* ── Main area ── */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {/* Top bar */}
+          <header style={{
+            height: 56, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "0 24px",
+            background: "hsl(222.2 84% 4.9% / .85)",
+            borderBottom: "1px solid hsl(217.2 32.6% 17.5%)",
+            backdropFilter: "blur(8px)",
+          }}>
+            {/* Breadcrumb */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "hsl(215 20.2% 45%)" }}>Agent Platform</span>
+              <span style={{ fontSize: 12, color: "hsl(215 20.2% 35%)" }}>/</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "hsl(210 40% 88%)" }}>
+                {NAV.find(n => n.id === tab)?.label}
               </span>
             </div>
-            <p className="mt-1 text-[10px] leading-relaxed text-white/20">
-              LangGraph · Groq · Supabase pgvector
-            </p>
-          </div>
-        )}
 
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed((c) => !c)}
-          className="absolute -right-3 top-[72px] flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-[#1c1f2e] text-white/40 shadow hover:text-white/80 transition-colors"
-        >
-          {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-        </button>
-      </aside>
-
-      {/* ── Main Area ──────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
-        <header className="flex h-14 shrink-0 items-center justify-between px-6" style={{ background: "rgba(19,21,28,0.92)", borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(8px)", flexShrink: 0 }}>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2">
-              <Search className="h-3.5 w-3.5 text-white/30" />
-              <input
-                placeholder="Search leads, memory, logs..."
-                className="w-48 bg-transparent text-[12px] text-white/60 placeholder:text-white/20 outline-none"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="relative rounded-xl p-2 text-white/30 hover:bg-white/[0.04] hover:text-white/60 transition-colors">
-              <Bell className="h-4 w-4" />
-              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-indigo-400" />
-            </button>
-            <div className="h-7 w-px bg-white/[0.06]" />
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-[11px] font-bold text-white">
-                A
+            {/* Right controls */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {/* Search */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                border: "1px solid hsl(217.2 32.6% 17.5%)",
+                borderRadius: 10, padding: "6px 12px",
+                background: "hsl(215 27.9% 16.9% / .5)",
+              }}>
+                <Search size={13} style={{ color: "hsl(215 20.2% 40%)" }} />
+                <input
+                  placeholder="Search..."
+                  style={{
+                    width: 160, background: "transparent", border: "none", outline: "none",
+                    fontSize: 12, color: "hsl(210 40% 80%)",
+                  }}
+                />
               </div>
-              {!collapsed && <span className="text-[12px] font-medium text-white/50">Admin</span>}
-            </div>
-          </div>
-        </header>
 
-        {/* Page content */}
-        <main style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
-          {children(activeTab, setActiveTab)}
-        </main>
+              {/* Bell */}
+              <button style={{
+                position: "relative", width: 36, height: 36, borderRadius: 10,
+                border: "1px solid hsl(217.2 32.6% 17.5%)",
+                background: "transparent", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "hsl(215 20.2% 45%)",
+              }}>
+                <Bell size={15} />
+                <span style={{
+                  position: "absolute", top: 7, right: 7,
+                  width: 6, height: 6, borderRadius: "50%", background: "hsl(239 84% 67%)",
+                }} />
+              </button>
+
+              {/* Divider */}
+              <div style={{ width: 1, height: 24, background: "hsl(217.2 32.6% 17.5%)" }} />
+
+              {/* Avatar */}
+              <div style={{
+                width: 30, height: 30, borderRadius: "50%",
+                background: "linear-gradient(135deg, hsl(239 84% 67%), hsl(262 83% 58%))",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 12, fontWeight: 700, color: "#fff", cursor: "pointer",
+              }}>A</div>
+            </div>
+          </header>
+
+          {/* Page content */}
+          <main style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </TabContext.Provider>
   );
-};
+}

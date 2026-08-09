@@ -1,14 +1,5 @@
-"use client";
+import { EfferdDashboard2 } from "@/components/ui/efferd-dashboard-2";
 
-import { AppShell } from "@/components/app-shell";
-import { Dashboard } from "@/components/dashboard";
-
-export function EfferdDashboard2() {
-  return (
-    <AppShell>
-      {(activeTab) => <Dashboard activeTab={activeTab} />}
-    </AppShell>
-  );
+export default function Demo() {
+  return <EfferdDashboard2 />;
 }
-
-export default EfferdDashboard2;
