@@ -8,24 +8,25 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://agent.enterprise.io"),
+  metadataBase: new URL("https://my-agent.enterprise.io"),
   title: {
-    default: "Efferd Admin & Autonomous Agent Infrastructure",
-    template: "%s | Efferd Platform",
+    default: "my_agent",
+    template: "%s | my_agent",
   },
-  description: "Production-grade autonomous AI multi-agent platform, continuous vector memory, and cold outreach management system.",
+  description: "my_agent – Continuous learning voice, multi-agent platform, and outreach command system.",
   keywords: [
-    "AI Agent Platform",
+    "my_agent",
+    "AI Agent",
     "LangGraph",
     "FastAPI",
     "Supabase pgvector",
+    "Voice AI",
     "Outreach Automation",
-    "Admin Command Dashboard",
-    "Voice AI Agent",
+    "Dashboard",
   ],
-  authors: [{ name: "Enterprise AI Security Team" }],
-  creator: "Efferd AI Engine",
-  publisher: "Efferd Platform Inc.",
+  authors: [{ name: "my_agent Team" }],
+  creator: "my_agent Engine",
+  publisher: "my_agent Inc.",
   formatDetection: {
     email: false,
     address: false,
@@ -39,20 +40,21 @@ export const metadata: Metadata = {
     shortcut: ["/favicon.png"],
     apple: [
       { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
     ],
   },
   manifest: "/site.webmanifest",
   openGraph: {
-    title: "Efferd Admin & Autonomous Agent Infrastructure",
-    description: "Production-grade autonomous AI multi-agent platform and command dashboard.",
-    url: "https://agent.enterprise.io",
-    siteName: "Efferd Platform",
+    title: "my_agent",
+    description: "my_agent – Autonomous AI agent infrastructure & voice platform.",
+    url: "https://my-agent.enterprise.io",
+    siteName: "my_agent",
     images: [
       {
         url: "/favicon.png",
         width: 512,
         height: 512,
-        alt: "Efferd Platform Logo",
+        alt: "my_agent Logo",
       },
     ],
     locale: "en_US",
@@ -60,8 +62,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    title: "Efferd Admin & Autonomous Agent Platform",
-    description: "Production-grade autonomous AI agent & outreach command dashboard.",
+    title: "my_agent",
+    description: "my_agent – Autonomous AI agent infrastructure & voice platform.",
     images: ["/favicon.png"],
   },
 };
@@ -73,6 +75,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.png" type="image/png" />
+        <link rel="shortcut icon" href="/favicon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-startup-image" href="/apple-touch-icon.png" />
+      </head>
       <body className="bg-white text-slate-900 antialiased min-h-screen m-0 p-0">
         {children}
       </body>

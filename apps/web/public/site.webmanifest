@@ -1,7 +1,7 @@
 {
-  "name": "Efferd Admin & Agent Platform",
-  "short_name": "Agent Platform",
-  "description": "Enterprise autonomous AI agent infrastructure & outreach command dashboard.",
+  "name": "my_agent",
+  "short_name": "my_agent",
+  "description": "Autonomous AI agent infrastructure, continuous learning voice, and outreach command platform.",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Admin Command Centre – Efferd Agent Platform",
-  description: "Secure outreach management, vector memory inspector, and human approval queue.",
+  title: "Dashboard | my_agent",
+  description: "Secure outreach management, vector memory inspector, and human approval queue for my_agent.",
   robots: {
     index: false,
     follow: false,
