@@ -1,120 +1,118 @@
 """
-LangGraph Multi-Agent State Machine Orchestrator.
-Flow: TriageNode (Groq Llama 3.3 70B) -> HumanApprovalGate -> DrafterNode (Gemini 1.5 Pro) -> LearnerNode (Supabase pgvector) -> OutputDispatcherNode (Edge-TTS)
+LangGraph Multi-Agent Workflow State Machine.
+Orchestrates Triage (Groq), Human Approval Gate, Drafter (Gemini), and Learner (Supabase pgvector) nodes.
 """
 import logging
-from typing import Dict, Any, Literal
-from langgraph.graph import StateGraph, END
+from typing import Literal
+
+try:
+    from langgraph.graph import StateGraph, END
+    from langgraph.checkpoint.memory import MemorySaver
+except ImportError as e:
+    logging.warning(f"LangGraph import warning: {e}. Please run `pip install -r requirements.txt`.")
+    # Fallback dummy definitions for static linting environments
+    StateGraph = object
+    END = "__end__"
+    MemorySaver = object
+
 from core.state import AgentState
 from agents.triage import triage_node
 from agents.drafter import drafter_node
 from agents.learner import learner_node
-from services.audio_service import audio_service
-from services.email_service import email_service
-from services.whatsapp_service import whatsapp_service
 
 logger = logging.getLogger("agent.graph")
+
 
 async def human_approval_node(state: AgentState) -> AgentState:
     """
     Human-in-the-Loop Approval Gate:
-    Flags high-risk external actions (such as sending emails or WhatsApp messages)
-    and waits for explicit approval via UI/WebSocket.
+    Halts execution or flags high-risk actions (e.g. client inquiries, sensitive email dispatch) for approval.
     """
-    logger.info("Entering Human Approval Gate Node...")
-    proposed = state.get("proposed_action") or {}
-    intent = state.get("intent", "action")
+    logger.info("Executing Human Approval Node...")
+    status = state.get("approval_status")
+    intent = state.get("intent", "general")
 
-    # If already approved by user in state
-    if state.get("approval_status") == "approved":
-        logger.info("Human Approval Granted! Executing external tool action...")
-        if intent == "email_dispatch":
-            res = await email_service.send_email(
-                draft_id="draft_101",
-                recipient=proposed.get("recipient", "user@example.com"),
-                subject=proposed.get("subject", "Agent Action"),
-                body=proposed.get("body", state.get("draft_response", ""))
-            )
-            state["draft_response"] = f"✅ Action Approved & Executed! Email sent to {res.get('recipient')}."
-        elif intent == "whatsapp_dispatch":
-            res = await whatsapp_service.send_whatsapp_message(
-                recipient_number=proposed.get("recipient", "+1234567890"),
-                message_body=proposed.get("body", state.get("draft_response", ""))
-            )
-            state["draft_response"] = f"✅ Action Approved & Executed! WhatsApp message sent to {res.get('to')}."
-        state["requires_human_approval"] = False
-        return state
+    if status == "approved":
+        logger.info("Human Approval Granted! Proceeding to Drafter Node.")
+        return {
+            **state,
+            "sender": "human_approval",
+            "needs_human_approval": False
+        }
 
-    # Otherwise flag as pending approval
-    state["approval_status"] = "pending"
-    state["draft_response"] = f"⚠️ High-risk action detected ({intent}). Requesting human approval for details: {proposed}"
-    state["active_node"] = "human_approval_node"
-    return state
-
-
-async def output_dispatcher_node(state: AgentState) -> AgentState:
-    """
-    Output Dispatcher Node:
-    Prepares final textual response and generates neural voice TTS payload via Edge-TTS.
-    """
-    logger.info("Executing Output Dispatcher Node...")
-    draft = state.get("draft_response", "Autonomous agent task complete.")
-
-    # Generate TTS voice audio payload
-    audio_b64 = await audio_service.text_to_speech_base64(draft[:250])
-
+    logger.info("Flagging action as pending human approval.")
     return {
         **state,
-        "audio_payload": audio_b64,
-        "active_node": "output_dispatcher_node"
+        "sender": "human_approval",
+        "approval_status": "pending",
+        "draft_response": f"⚠️ Action flagged for Human Approval. Intent: '{intent}'. Approval pending."
     }
 
 
-def route_after_triage(state: AgentState) -> Literal["human_approval_node", "drafter_node"]:
+def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval", "drafter"]:
     """
-    Conditional Routing Function:
-    Routes high-risk tasks requiring approval to Human Approval Gate; otherwise routes directly to Drafter.
+    Conditional Routing logic after Triage Node:
+    - If intent == 'spam', route to END.
+    - If needs_human_approval is True and not approved, route to human_approval node.
+    - Otherwise, route to drafter node.
     """
-    if state.get("requires_human_approval") and state.get("approval_status") != "approved":
-        return "human_approval_node"
-    return "drafter_node"
+    intent = state.get("intent", "general")
+    needs_approval = state.get("needs_human_approval", False)
+    approval_status = state.get("approval_status")
+
+    if intent == "spam":
+        logger.info("Routing spam intent to END.")
+        return END
+
+    if needs_approval and approval_status != "approved":
+        logger.info("Routing sensitive request to human_approval gate node.")
+        return "human_approval"
+
+    return "drafter"
 
 
-def build_agent_graph() -> StateGraph:
+def build_agent_graph(checkpointer: Any = None) -> StateGraph:
     """
-    Construct the complete LangGraph state machine flow:
-    Triage (Groq) -> Conditional Router -> Drafter (Gemini) -> Learner (Memory Indexer) -> Output Dispatcher
+    Constructs and compiles the StateGraph workflow with nodes, conditional edges, and checkpointer.
     """
+    if StateGraph is object:
+        logger.error("LangGraph is not installed. Install dependencies using: pip install -r requirements.txt")
+        return None
+
     builder = StateGraph(AgentState)
 
-    # Add State Machine Nodes
-    builder.add_node("triage_node", triage_node)
-    builder.add_node("human_approval_node", human_approval_node)
-    builder.add_node("drafter_node", drafter_node)
-    builder.add_node("learner_node", learner_node)
-    builder.add_node("output_dispatcher_node", output_dispatcher_node)
+    # 1. Register Nodes
+    builder.add_node("triage", triage_node)
+    builder.add_node("human_approval", human_approval_node)
+    builder.add_node("drafter", drafter_node)
+    builder.add_node("learner", learner_node)
 
-    # Set Entry Point
-    builder.set_entry_point("triage_node")
+    # 2. Set Entry Point
+    builder.set_entry_point("triage")
 
-    # Conditional Branch after Triage
+    # 3. Add Conditional Edges from Triage
     builder.add_conditional_edges(
-        "triage_node",
+        "triage",
         route_after_triage,
         {
-            "human_approval_node": "human_approval_node",
-            "drafter_node": "drafter_node"
+            END: END,
+            "human_approval": "human_approval",
+            "drafter": "drafter"
         }
     )
 
-    # Flow Edges
-    builder.add_edge("human_approval_node", "drafter_node")
-    builder.add_edge("drafter_node", "learner_node")
-    builder.add_edge("learner_node", "output_dispatcher_node")
-    builder.add_edge("output_dispatcher_node", END)
+    # 4. Add Node Edges
+    builder.add_edge("human_approval", "drafter")
+    builder.add_edge("drafter", "learner")
+    builder.add_edge("learner", END)
 
-    return builder.compile()
+    # 5. Compile with MemorySaver Checkpointer
+    if checkpointer is None:
+        checkpointer = MemorySaver()
+
+    return builder.compile(checkpointer=checkpointer)
 
 
-# Compiled LangGraph Workflow instance
-agent_workflow = build_agent_graph()
+# Compiled Agent Workflow Graph instance
+checkpointer_instance = MemorySaver() if MemorySaver is not object else None
+agent_workflow = build_agent_graph(checkpointer=checkpointer_instance)

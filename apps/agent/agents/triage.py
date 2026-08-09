@@ -1,76 +1,78 @@
+"""
+Triage Agent Node: Classifies incoming user messages or emails into intent categories.
+"""
 import json
 import logging
 from core.state import AgentState
 from services.llm_factory import llm_factory
-from core.memory import memory_store
+from core.memory import memory_manager
 
 logger = logging.getLogger("agent.node.triage")
 
 TRIAGE_SYSTEM_PROMPT = """
-You are the Triage Agent node in an autonomous multi-agent platform powered by Groq Llama 3.3 70B.
-Your task is to analyze user messages, categorize intent, query relevant long-term memory, and decide routing.
+You are an expert Triage Agent node in an autonomous AI platform.
+Analyze incoming user messages or email inputs and classify them into one of these intents:
+- "sales": Inquiries regarding pricing, product upgrades, or purchase intentions.
+- "support": Bug reports, platform issues, or technical help requests.
+- "client_inquiry": High-priority client questions, contract requests, or custom work.
+- "general": General questions, greeting, or status checks.
+- "spam": Unsolicited promotional mail, irrelevant text, or noise.
 
-Intents:
-- "email_dispatch": Creating or sending emails (requires human approval if sending).
-- "whatsapp_dispatch": Messaging via WhatsApp (requires human approval).
-- "draft_response": Complex reasoning, project planning, drafting documents.
-- "general_qa": Quick answers, conversation, status inquiries.
+Set "needs_human_approval" to true ONLY if intent is "client_inquiry" or involves sending sensitive communications.
 
-Respond ONLY with a valid JSON object matching this schema:
+Respond strictly with a JSON object matching:
 {
-    "intent": "<email_dispatch|whatsapp_dispatch|draft_response|general_qa>",
-    "requires_human_approval": true|false,
-    "reason": "<brief justification>",
-    "action_payload": {"recipient": "...", "subject": "...", "body": "..."} // if email/whatsapp
+    "intent": "sales|support|client_inquiry|general|spam",
+    "needs_human_approval": true|false,
+    "reason": "<brief justification>"
 }
 """
 
 async def triage_node(state: AgentState) -> AgentState:
     """
-    Triage Node: Fast intent classification using Groq Llama 3.3 70B & memory lookup.
+    Triage Node function for intent classification and initial context routing.
     """
     logger.info("Executing Triage Node...")
     messages = state.get("messages", [])
-    user_input = ""
-    if messages:
+    email_input = state.get("email_input")
+
+    input_text = ""
+    if email_input and isinstance(email_input, dict):
+        input_text = f"Subject: {email_input.get('subject', '')}\nFrom: {email_input.get('sender', '')}\nBody: {email_input.get('body', '')}"
+    elif messages:
         last_msg = messages[-1]
-        user_input = last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg)
+        input_text = last_msg.get("content", "") if isinstance(last_msg, dict) else str(getattr(last_msg, "content", last_msg))
 
-    # 1. Recall memory from Supabase pgvector
-    memories = await memory_store.recall_memories(user_input, limit=3)
-    memory_context = "\n".join([f"- {m['content']}" for m in memories])
+    # Recall relevant context memories
+    memories = await memory_manager.search_memory(input_text, limit=3)
 
-    # 2. Call Groq for fast triage analysis
-    prompt = f"User Input: {user_input}\n\nRetrieved Long-term Memories:\n{memory_context}"
-    llm_output = await llm_factory.call_groq(prompt, TRIAGE_SYSTEM_PROMPT, temperature=0.1)
+    prompt = f"User Input:\n{input_text}"
+    output_str = await llm_factory.invoke_triage(prompt, TRIAGE_SYSTEM_PROMPT)
 
-    intent = "general_qa"
-    requires_approval = False
-    action_payload = None
+    intent = "general"
+    needs_approval = False
 
     try:
-        # Extract JSON from output
-        start_idx = llm_output.find("{")
-        end_idx = llm_output.rfind("}")
+        start_idx = output_str.find("{")
+        end_idx = output_str.rfind("}")
         if start_idx != -1 and end_idx != -1:
-            parsed = json.loads(llm_output[start_idx:end_idx + 1])
-            intent = parsed.get("intent", "general_qa")
-            requires_approval = parsed.get("requires_human_approval", False)
-            action_payload = parsed.get("action_payload", None)
+            data = json.loads(output_str[start_idx:end_idx + 1])
+            intent = data.get("intent", "general")
+            needs_approval = data.get("needs_human_approval", False)
     except Exception as e:
-        logger.warning(f"Triage JSON parsing warning: {e}. Falling back to default heuristics.")
-        if "email" in user_input.lower():
-            intent = "email_dispatch"
-            requires_approval = True
-        elif "whatsapp" in user_input.lower():
-            intent = "whatsapp_dispatch"
-            requires_approval = True
+        logger.warning(f"Triage JSON extraction warning: {e}")
+        if "client" in input_text.lower() or "contract" in input_text.lower():
+            intent = "client_inquiry"
+            needs_approval = True
+
+    # Sensitive client inquiries always trigger human approval gate
+    if intent == "client_inquiry":
+        needs_approval = True
 
     return {
         **state,
+        "sender": "triage",
         "intent": intent,
-        "retrieved_memory": memories,
-        "requires_human_approval": requires_approval,
-        "proposed_action": action_payload,
-        "active_node": "triage_node"
+        "needs_human_approval": needs_approval,
+        "retrieved_context": memories
     }

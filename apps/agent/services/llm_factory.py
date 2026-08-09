@@ -1,138 +1,132 @@
+"""
+LLM Factory Module: Provides Chat Model initializers for Groq, Gemini 1.5 Pro, and OpenRouter fallback.
+"""
 import logging
-import httpx
-from typing import Optional, Dict, Any, List
+from typing import Any, Optional
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_community.chat_models import ChatOpenAI
 from config import settings
 
 logger = logging.getLogger("agent.llm_factory")
 
+
+def get_triage_llm() -> BaseChatModel:
+    """
+    Returns ChatOpenAI pointed to Groq's OpenAI-compatible API endpoint
+    using Llama 3.3 70B for fast intent triage and routing.
+    """
+    if settings.GROQ_API_KEY:
+        try:
+            return ChatOpenAI(
+                model=settings.GROQ_MODEL,
+                openai_api_key=settings.GROQ_API_KEY,
+                openai_api_base="https://api.groq.com/openai/v1",
+                temperature=0.1,
+                max_tokens=1024,
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize Groq Triage LLM: {e}. Falling back to OpenRouter.")
+
+    return get_fallback_llm()
+
+
+def get_drafting_llm() -> BaseChatModel:
+    """
+    Returns ChatGoogleGenerativeAI (or ChatOpenAI fallback) using model Gemini 1.5 Pro
+    for long-context reasoning and response synthesis.
+    """
+    if settings.GEMINI_API_KEY:
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            return ChatGoogleGenerativeAI(
+                model=settings.GEMINI_MODEL,
+                google_api_key=settings.GEMINI_API_KEY,
+                temperature=0.7,
+                max_output_tokens=2048,
+            )
+        except Exception as e:
+            logger.warning(f"langchain_google_genai import/init warning: {e}. Using ChatOpenAI / Groq endpoint for drafting.")
+            if settings.GROQ_API_KEY:
+                return get_triage_llm()
+
+    return get_fallback_llm()
+
+
+def get_fallback_llm() -> BaseChatModel:
+    """
+    Returns ChatOpenAI pointed to OpenRouter API endpoint as universal fallback model.
+    """
+    if settings.OPENROUTER_API_KEY:
+        try:
+            return ChatOpenAI(
+                model=settings.OPENROUTER_MODEL,
+                openai_api_key=settings.OPENROUTER_API_KEY,
+                openai_api_base="https://openrouter.ai/api/v1",
+                temperature=0.5,
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenRouter LLM: {e}")
+
+    # Fallback to local default ChatOpenAI instance
+    return ChatOpenAI(
+        model="gpt-3.5-turbo",
+        openai_api_key="mock-key",
+        temperature=0.3
+    )
+
+
 class LLMFactory:
     """
-    Unified Multi-Model Gateway supporting:
-    - Groq API (Llama 3.3 70B for fast triage & intent routing)
-    - Google AI Studio (Gemini 1.5 Pro for deep reasoning & drafting)
-    - OpenRouter API (Fallback gateway for Claude 3.5 / Llama 3)
+    Unified execution helper with exception handling and fallback mechanism.
     """
 
     @staticmethod
-    async def call_groq(prompt: str, system_prompt: str = "", temperature: float = 0.2) -> str:
+    async def invoke_triage(prompt: str, system_prompt: str = "") -> str:
         """
-        Call Groq API using Llama 3.3 70B for lightning-fast classification and triage.
+        Execute triage invocation using Groq Llama 3.3 70B with fallback handling.
         """
-        if not settings.GROQ_API_KEY:
-            logger.warning("GROQ_API_KEY missing. Falling back to synthetic responder.")
-            return LLMFactory._synthetic_triage_response(prompt)
-
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        payload = {
-            "model": settings.GROQ_MODEL,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": 1024
-        }
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            llm = get_triage_llm()
+            res = await llm.ainvoke(messages)
+            return res.content if hasattr(res, "content") else str(res)
+        except Exception as e:
+            logger.error(f"Primary triage LLM failed: {e}. Executing fallback LLM...")
             try:
-                response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                data = response.json()
-                return data["choices"][0]["message"]["content"]
-            except Exception as e:
-                logger.error(f"Groq API call error: {e}. Trying OpenRouter fallback...")
-                return await LLMFactory.call_openrouter(prompt, system_prompt, temperature)
+                fallback_llm = get_fallback_llm()
+                res = await fallback_llm.ainvoke(messages)
+                return res.content if hasattr(res, "content") else str(res)
+            except Exception as fb_err:
+                logger.error(f"Fallback LLM failed: {fb_err}")
+                return '{"intent": "general", "needs_human_approval": false, "reason": "Fallback triage executed"}'
 
     @staticmethod
-    async def call_gemini(prompt: str, system_prompt: str = "", temperature: float = 0.7) -> str:
+    async def invoke_drafter(prompt: str, system_prompt: str = "") -> str:
         """
-        Call Google AI Studio API (Gemini 1.5 Pro) for long-context drafting and reasoning.
+        Execute drafting invocation using Gemini 1.5 Pro with fallback handling.
         """
-        if not settings.GEMINI_API_KEY:
-            logger.warning("GEMINI_API_KEY missing. Falling back to Groq / OpenRouter.")
-            return await LLMFactory.call_groq(prompt, system_prompt, temperature)
-
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
-        
-        full_content = prompt
-        if system_prompt:
-            full_content = f"System Instructions: {system_prompt}\n\nUser Request: {prompt}"
-
-        payload = {
-            "contents": [{
-                "parts": [{"text": full_content}]
-            }],
-            "generationConfig": {
-                "temperature": temperature,
-                "maxOutputTokens": 2048
-            }
-        }
-
-        async with httpx.AsyncClient(timeout=45.0) as client:
-            try:
-                response = await client.post(url, json=payload)
-                response.raise_for_status()
-                data = response.json()
-                return data["candidates"][0]["content"]["parts"][0]["text"]
-            except Exception as e:
-                logger.error(f"Gemini API call error: {e}. Trying Groq fallback...")
-                return await LLMFactory.call_groq(prompt, system_prompt, temperature)
-
-    @staticmethod
-    async def call_openrouter(prompt: str, system_prompt: str = "", temperature: float = 0.5) -> str:
-        """
-        Call OpenRouter API as high-reliability fallback gateway.
-        """
-        if not settings.OPENROUTER_API_KEY:
-            logger.warning("OPENROUTER_API_KEY missing. Returning simulated agent response.")
-            return f"Processed request: '{prompt}'. Autonomous agent operational."
-
-        url = "https://openrouter.ai/api/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-            "HTTP-Referer": "https://localhost:3000",
-            "X-Title": "Autonomous Agent Platform",
-            "Content-Type": "application/json"
-        }
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        payload = {
-            "model": settings.OPENROUTER_MODEL,
-            "messages": messages,
-            "temperature": temperature
-        }
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            llm = get_drafting_llm()
+            res = await llm.ainvoke(messages)
+            return res.content if hasattr(res, "content") else str(res)
+        except Exception as e:
+            logger.error(f"Primary drafting LLM failed: {e}. Executing fallback LLM...")
             try:
-                response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                data = response.json()
-                return data["choices"][0]["message"]["content"]
-            except Exception as e:
-                logger.error(f"OpenRouter API call error: {e}")
-                return LLMFactory._synthetic_triage_response(prompt)
-
-    @staticmethod
-    def _synthetic_triage_response(prompt: str) -> str:
-        """
-        Local fallback when no external LLM keys are configured.
-        """
-        p_lower = prompt.lower()
-        if "email" in p_lower or "send message" in p_lower:
-            return '{"intent": "email_dispatch", "confidence": 0.95, "requires_human_approval": true, "reason": "Email dispatch involves external communication."}'
-        elif "whatsapp" in p_lower or "text" in p_lower:
-            return '{"intent": "whatsapp_dispatch", "confidence": 0.92, "requires_human_approval": true, "reason": "WhatsApp message dispatch requires approval."}'
-        else:
-            return f"I have processed your query: '{prompt}'. The autonomous agent state graph is active."
+                fallback_llm = get_fallback_llm()
+                res = await fallback_llm.ainvoke(messages)
+                return res.content if hasattr(res, "content") else str(res)
+            except Exception as fb_err:
+                logger.error(f"Fallback LLM failed: {fb_err}")
+                return "Thank you for reaching out. Our autonomous agent system is processing your inquiry."
 
 
 llm_factory = LLMFactory()

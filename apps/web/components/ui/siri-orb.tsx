@@ -1,132 +1,86 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import { Mic, MicOff, Sparkles, Volume2, Cpu } from "lucide-react";
+import React from "react";
+import { cn } from "@/lib/utils";
+import { Mic, Cpu, Volume2, Sparkles } from "lucide-react";
 
 export type SiriOrbState = "idle" | "listening" | "processing" | "speaking";
 
 interface SiriOrbProps {
-  state: SiriOrbState;
-  audioLevel?: number; // Normalized 0.0 to 1.0
-  onClick?: () => void;
+  size?: string | number;
   className?: string;
-  size?: number;
+  colors?: {
+    bg?: string;
+    c1?: string;
+    c2?: string;
+    c3?: string;
+  };
+  animationDuration?: number;
+  state?: SiriOrbState;
+  audioLevel?: number;
+  onClick?: () => void;
 }
 
 export const SiriOrb: React.FC<SiriOrbProps> = ({
+  size = "192px",
+  className,
+  colors,
+  animationDuration = 20,
   state = "idle",
   audioLevel = 0.2,
   onClick,
-  className = "",
-  size = 220,
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const defaultColors = {
+    bg: "transparent",
+    c1: "oklch(75% 0.15 350)",
+    c2: "oklch(80% 0.12 200)",
+    c3: "oklch(78% 0.14 280)",
+  };
 
-  // Dynamic fluid particle canvas animation
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+  // State-driven dynamic color and speed overrides
+  let stateColors = defaultColors;
+  let dynamicDuration = animationDuration;
 
-    let animationFrameId: number;
-    let time = 0;
-
-    const render = () => {
-      time += 0.03;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      const baseRadius = (size / 2) * 0.55;
-
-      // Reactivity modulation based on state and audio level
-      let speedMultiplier = 1;
-      let waveAmplitude = 8;
-      let primaryColor = "rgba(99, 102, 241, "; // Indigo
-      let secondaryColor = "rgba(6, 182, 212, "; // Cyan
-      let tertiaryColor = "rgba(236, 72, 153, "; // Pink
-
-      if (state === "listening") {
-        speedMultiplier = 2.5;
-        waveAmplitude = 14 + audioLevel * 25;
-        primaryColor = "rgba(6, 182, 212, "; // Cyan
-        secondaryColor = "rgba(16, 185, 129, "; // Emerald
-      } else if (state === "processing") {
-        speedMultiplier = 3.5;
-        waveAmplitude = 18;
-        primaryColor = "rgba(168, 85, 247, "; // Purple
-        secondaryColor = "rgba(236, 72, 153, "; // Pink
-      } else if (state === "speaking") {
-        speedMultiplier = 2.0;
-        waveAmplitude = 12 + Math.sin(time * 4) * 15;
-        primaryColor = "rgba(236, 72, 153, "; // Pink
-        secondaryColor = "rgba(99, 102, 241, "; // Indigo
-      }
-
-      // Draw multi-layered organic fluid wave circles
-      for (let layer = 0; layer < 3; layer++) {
-        ctx.beginPath();
-        const points = 36;
-        for (let i = 0; i <= points; i++) {
-          const angle = (i / points) * Math.PI * 2;
-          const offset =
-            Math.sin(angle * (3 + layer) + time * speedMultiplier + layer) *
-            waveAmplitude;
-          const r = baseRadius + offset;
-          const x = centerX + Math.cos(angle) * r;
-          const y = centerY + Math.sin(angle) * r;
-
-          if (i === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
-        }
-        ctx.closePath();
-
-        const grad = ctx.createRadialGradient(
-          centerX,
-          centerY,
-          5,
-          centerX,
-          centerY,
-          baseRadius * 1.4
-        );
-        const alpha = 0.35 - layer * 0.08;
-
-        if (layer === 0) {
-          grad.addColorStop(0, primaryColor + alpha + ")");
-          grad.addColorStop(1, secondaryColor + "0)");
-        } else if (layer === 1) {
-          grad.addColorStop(0, secondaryColor + alpha + ")");
-          grad.addColorStop(1, tertiaryColor + "0)");
-        } else {
-          grad.addColorStop(0, tertiaryColor + alpha + ")");
-          grad.addColorStop(1, primaryColor + "0)");
-        }
-
-        ctx.fillStyle = grad;
-        ctx.fill();
-      }
-
-      animationFrameId = requestAnimationFrame(render);
+  if (state === "listening") {
+    stateColors = {
+      bg: "transparent",
+      c1: "oklch(78% 0.18 190)",
+      c2: "oklch(82% 0.16 160)",
+      c3: "oklch(75% 0.17 210)",
     };
-
-    render();
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
+    dynamicDuration = Math.max(2, 6 - audioLevel * 4);
+  } else if (state === "processing") {
+    stateColors = {
+      bg: "transparent",
+      c1: "oklch(75% 0.20 300)",
+      c2: "oklch(78% 0.18 340)",
+      c3: "oklch(72% 0.19 280)",
     };
-  }, [state, audioLevel, size]);
+    dynamicDuration = 3;
+  } else if (state === "speaking") {
+    stateColors = {
+      bg: "transparent",
+      c1: "oklch(78% 0.19 340)",
+      c2: "oklch(76% 0.18 260)",
+      c3: "oklch(80% 0.17 380)",
+    };
+    dynamicDuration = 4;
+  }
 
-  // Status badges
+  const finalColors = { ...stateColors, ...colors };
+  
+  // Safely parse size as string or number
+  const sizeValue = typeof size === "number" ? size : parseInt(String(size).replace("px", ""), 10) || 192;
+  const sizeFormatted = `${sizeValue}px`;
+
+  const blurAmount = Math.max(sizeValue * 0.08, 8);
+  const contrastAmount = Math.max(sizeValue * 0.003, 1.8);
+
   const stateLabel = {
     idle: "Tap to Speak",
     listening: "Listening...",
-    processing: "Thinking (LangGraph)...",
-    speaking: "Speaking (Edge-TTS)...",
+    processing: "Thinking...",
+    speaking: "Speaking...",
   }[state];
 
   const stateIcon = {
@@ -138,54 +92,151 @@ export const SiriOrb: React.FC<SiriOrbProps> = ({
 
   return (
     <div
-      className={`relative flex flex-col items-center justify-center select-none cursor-pointer group ${className}`}
       onClick={onClick}
+      className={cn(
+        "relative flex flex-col items-center justify-center select-none cursor-pointer group",
+        className
+      )}
     >
-      {/* Outer Glowing Aura Ring */}
-      <motion.div
-        animate={{
-          scale: state === "listening" ? [1, 1.08, 1] : [1, 1.03, 1],
-          opacity: state === "idle" ? 0.4 : 0.8,
-        }}
-        transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-        className="absolute rounded-full pointer-events-none filter blur-2xl transition-all duration-700"
-        style={{
-          width: size * 1.3,
-          height: size * 1.3,
-          background:
-            state === "listening"
-              ? "radial-gradient(circle, rgba(6, 182, 212, 0.4) 0%, rgba(99, 102, 241, 0) 70%)"
-              : state === "processing"
-              ? "radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, rgba(236, 72, 153, 0) 70%)"
-              : state === "speaking"
-              ? "radial-gradient(circle, rgba(236, 72, 153, 0.45) 0%, rgba(99, 102, 241, 0) 70%)"
-              : "radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(6, 182, 212, 0) 70%)",
-        }}
-      />
-
-      {/* Fluid Dynamic Canvas */}
-      <div className="relative flex items-center justify-center">
-        <canvas
-          ref={canvasRef}
-          width={size * 1.5}
-          height={size * 1.5}
-          className="pointer-events-none transition-transform duration-500 transform group-hover:scale-105"
-        />
-
+      <div
+        className={cn("siri-orb transition-transform duration-500 group-hover:scale-105")}
+        style={
+          {
+            width: sizeFormatted,
+            height: sizeFormatted,
+            "--bg": finalColors.bg,
+            "--c1": finalColors.c1,
+            "--c2": finalColors.c2,
+            "--c3": finalColors.c3,
+            "--animation-duration": `${dynamicDuration}s`,
+            "--blur-amount": `${blurAmount}px`,
+            "--contrast-amount": contrastAmount,
+          } as React.CSSProperties
+        }
+      >
         {/* Center Icon Overlay */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-16 h-16 rounded-full glass-panel flex items-center justify-center shadow-xl border border-white/10 group-hover:border-white/30 transition-all duration-300">
+        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+          <div className="w-14 h-14 rounded-full glass-panel flex items-center justify-center shadow-xl border border-white/20 group-hover:border-white/40 transition-all duration-300">
             {stateIcon}
           </div>
         </div>
+
+        <style jsx>{`
+          @property --angle {
+            syntax: "<angle>";
+            inherits: false;
+            initial-value: 0deg;
+          }
+
+          .siri-orb {
+            display: grid;
+            grid-template-areas: "stack";
+            overflow: hidden;
+            border-radius: 50%;
+            position: relative;
+            background: radial-gradient(
+              circle,
+              rgba(0, 0, 0, 0.08) 0%,
+              rgba(0, 0, 0, 0.03) 30%,
+              transparent 70%
+            );
+          }
+
+          /* override for dark mode */
+          .dark .siri-orb {
+            background: radial-gradient(
+              circle,
+              rgba(255, 255, 255, 0.08) 0%,
+              rgba(255, 255, 255, 0.02) 30%,
+              transparent 70%
+            );
+          }
+
+          .siri-orb::before {
+            content: "";
+            display: block;
+            grid-area: stack;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background:
+              conic-gradient(
+                from calc(var(--angle) * 1.2) at 30% 65%,
+                var(--c3) 0deg,
+                transparent 45deg 315deg,
+                var(--c3) 360deg
+              ),
+              conic-gradient(
+                from calc(var(--angle) * 0.8) at 70% 35%,
+                var(--c2) 0deg,
+                transparent 60deg 300deg,
+                var(--c2) 360deg
+              ),
+              conic-gradient(
+                from calc(var(--angle) * -1.5) at 65% 75%,
+                var(--c1) 0deg,
+                transparent 90deg 270deg,
+                var(--c1) 360deg
+              ),
+              conic-gradient(
+                from calc(var(--angle) * 2.1) at 25% 25%,
+                var(--c2) 0deg,
+                transparent 30deg 330deg,
+                var(--c2) 360deg
+              ),
+              conic-gradient(
+                from calc(var(--angle) * -0.7) at 80% 80%,
+                var(--c1) 0deg,
+                transparent 45deg 315deg,
+                var(--c1) 360deg
+              ),
+              radial-gradient(
+                ellipse 120% 80% at 40% 60%,
+                var(--c3) 0%,
+                transparent 50%
+              );
+            filter: blur(var(--blur-amount)) contrast(var(--contrast-amount))
+              saturate(1.2);
+            animation: rotate var(--animation-duration) linear infinite;
+            transform: translateZ(0);
+            will-change: transform;
+          }
+
+          .siri-orb::after {
+            content: "";
+            display: block;
+            grid-area: stack;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: radial-gradient(
+              circle at 45% 55%,
+              rgba(255, 255, 255, 0.1) 0%,
+              rgba(255, 255, 255, 0.05) 30%,
+              transparent 60%
+            );
+            mix-blend-mode: overlay;
+          }
+
+          @keyframes rotate {
+            from {
+              --angle: 0deg;
+            }
+            to {
+              --angle: 360deg;
+            }
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .siri-orb::before {
+              animation: none;
+            }
+          }
+        `}</style>
       </div>
 
       {/* Real-time State Badge */}
-      <motion.div
-        initial={{ opacity: 0, y: 5 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-pill text-xs font-medium tracking-wide border border-white/10 shadow-lg"
-      >
+      <div className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-pill text-xs font-medium tracking-wide border border-white/10 shadow-lg">
         <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
         <span
           className={
@@ -200,7 +251,9 @@ export const SiriOrb: React.FC<SiriOrbProps> = ({
         >
           {stateLabel}
         </span>
-      </motion.div>
+      </div>
     </div>
   );
 };
+
+export default SiriOrb;
