@@ -78,7 +78,20 @@ export class AudioStreamManager {
   public async startStreaming(): Promise<boolean> {
     try {
       this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.mediaRecorder = new MediaRecorder(this.mediaStream, { mimeType: "audio/webm" });
+      
+      let mimeType = "audio/webm";
+      if (!MediaRecorder.isTypeSupported("audio/webm")) {
+        if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        } else if (MediaRecorder.isTypeSupported("audio/ogg")) {
+          mimeType = "audio/ogg";
+        } else {
+          mimeType = "";
+        }
+      }
+
+      const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
+      this.mediaRecorder = new MediaRecorder(this.mediaStream, options);
 
       const chunks: Blob[] = [];
 
@@ -89,7 +102,7 @@ export class AudioStreamManager {
       };
 
       this.mediaRecorder.onstop = async () => {
-        const fullBlob = new Blob(chunks, { type: "audio/webm" });
+        const fullBlob = new Blob(chunks, { type: mimeType || "audio/webm" });
         const arrayBuffer = await fullBlob.arrayBuffer();
 
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
@@ -101,9 +114,12 @@ export class AudioStreamManager {
       this.mediaRecorder.start();
       this.callbacks.onStateChange?.("listening");
       return true;
-    } catch (err) {
-      console.error("Microphone access error:", err);
-      this.callbacks.onError?.("Microphone permission denied.");
+    } catch (err: any) {
+      console.warn("Microphone access error:", err);
+      const errMsg = err?.name === "NotAllowedError"
+        ? "Microphone access blocked. Please allow microphone permission in your browser address bar settings."
+        : "Could not access microphone.";
+      this.callbacks.onError?.(errMsg);
       return false;
     }
   }

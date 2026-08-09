@@ -28,7 +28,7 @@ export default function Home() {
   const [isMuted, setIsMuted] = useState(false);
   const [orbState, setOrbState] = useState<SiriOrbState>("idle");
   const [transcription, setTranscription] = useState("");
-  const [liveResponse, setLiveResponse] = useState("");
+  const [micError, setMicError] = useState<string | null>(null);
 
   const audioManagerRef = useRef<AudioStreamManager | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
@@ -37,6 +37,11 @@ export default function Home() {
     const manager = new AudioStreamManager({
       onStateChange: (state) => {
         setOrbState(state);
+      },
+      onError: (err) => {
+        setMicError(err);
+        setVoiceActive(false);
+        setOrbState("idle");
       },
       onTranscription: (text) => {
         if (text) {
@@ -354,6 +359,19 @@ export default function Home() {
                   </div>
                 )}
                 <div ref={chatBottomRef} />
+              </div>
+            )}
+
+            {/* Mic Permission Error Alert */}
+            {micError && (
+              <div style={{
+                padding: "10px 14px", fontSize: 12, borderRadius: 8,
+                background: "#fef2f2", border: "1px solid #fca5a5", color: "#b91c1c",
+                display: "flex", alignItems: "center", justifyBetween: "space-between", gap: 10,
+                marginBottom: 10,
+              }}>
+                <span>{micError}</span>
+                <button onClick={() => setMicError(null)} style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontWeight: 700 }}>✕</button>
               </div>
             )}
 
