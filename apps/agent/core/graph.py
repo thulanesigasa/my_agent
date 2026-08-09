@@ -1,7 +1,7 @@
 """
 LangGraph Multi-Agent Workflow State Machine.
-Orchestrates Triage (Groq), Knowledge Manager (Dynamic Knowledge Base), Skill Learner (Procedural Memory),
-Admin Tools, Human Approval Gate, Drafter (Gemini), Learner (Supabase pgvector), and Outreach Sub-Graph.
+Orchestrates Triage (Groq), Risk Evaluator (Guardrails & Risk Classification), Knowledge Manager, Skill Learner,
+Admin Tools, Human Approval Gate (with native LangGraph interrupt_before breakpoints), Drafter (Gemini), Learner, and Outreach.
 """
 import logging
 import re
@@ -18,10 +18,12 @@ except ImportError as e:
 
 from core.state import AgentState
 from agents.triage import triage_node
+from agents.risk_evaluator import risk_evaluator_node
 from agents.drafter import drafter_node
 from agents.learner import learner_node
 from agents.knowledge_manager import knowledge_updater_node
 from agents.skill_learner import skill_learner_node
+from agents.human_approval import human_approval_node
 from tools.admin_tools import unlearn_memory, get_sent_emails
 
 logger = logging.getLogger("agent.graph")
@@ -111,30 +113,8 @@ async def outreach_bridge_node(state: AgentState) -> AgentState:
     return {**state, "sender": "outreach_bridge", "final_output": summary, "needs_human_approval": False}
 
 
-# ── Approval Gate ────────────────────────────────────────────────────
-async def human_approval_node(state: AgentState) -> AgentState:
-    """
-    Human-in-the-Loop Approval Gate.
-    """
-    logger.info("Executing Human Approval Node...")
-    status = state.get("approval_status")
-    intent = state.get("intent", "general")
-
-    if status == "approved":
-        logger.info("Human Approval Granted! Proceeding to Drafter Node.")
-        return {**state, "sender": "human_approval", "needs_human_approval": False}
-
-    logger.info("Flagging action as pending human approval.")
-    return {
-        **state,
-        "sender": "human_approval",
-        "approval_status": "pending",
-        "draft_response": f"⚠️ Action flagged for Human Approval. Intent: '{intent}'. Approval pending."
-    }
-
-
 # ── Routing Logic ─────────────────────────────────────────────────────
-def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval", "drafter", "admin_tools", "outreach_bridge", "knowledge_updater", "skill_learner"]:
+def route_after_triage(state: AgentState) -> Literal["__end__", "risk_evaluator", "skill_learner", "knowledge_updater", "admin_tools", "outreach_bridge"]:
     """
     Conditional routing after Triage Node:
     - spam → END
@@ -142,12 +122,9 @@ def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval"
     - knowledge_update → knowledge_updater
     - admin_command → admin_tools
     - lead_generation / outreach → outreach_bridge
-    - needs approval → human_approval
-    - default → drafter
+    - default → risk_evaluator
     """
     intent = state.get("intent", "general")
-    needs_approval = state.get("needs_human_approval", False)
-    approval_status = state.get("approval_status")
 
     if intent == "spam":
         logger.info("Routing spam intent to END.")
@@ -169,8 +146,26 @@ def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval"
         logger.info("Routing lead generation request to outreach_bridge node.")
         return "outreach_bridge"
 
+    return "risk_evaluator"
+
+
+def route_after_risk_evaluator(state: AgentState) -> Literal["__end__", "human_approval", "drafter"]:
+    """
+    Conditional routing after Risk Evaluator Node:
+    - FORBIDDEN action → END
+    - HIGH risk action (needs_human_approval=True) → human_approval
+    - LOW risk action → drafter
+    """
+    is_forbidden = state.get("is_forbidden", False)
+    needs_approval = state.get("needs_human_approval", False)
+    approval_status = state.get("approval_status")
+
+    if is_forbidden:
+        logger.warning("Routing FORBIDDEN action to END.")
+        return END
+
     if needs_approval and approval_status != "approved":
-        logger.info("Routing sensitive request to human_approval gate node.")
+        logger.info("Routing HIGH-risk action to human_approval gate node.")
         return "human_approval"
 
     return "drafter"
@@ -179,7 +174,8 @@ def route_after_triage(state: AgentState) -> Literal["__end__", "human_approval"
 # ── Graph Builder ─────────────────────────────────────────────────────
 def build_agent_graph(checkpointer: Any = None) -> Any:
     """
-    Constructs and compiles the full StateGraph with skill learner, knowledge updater, admin tools, and outreach sub-graph routing.
+    Constructs and compiles the full StateGraph with risk evaluator, native interrupt_before breakpoints,
+    skill learner, knowledge updater, admin tools, and outreach sub-graph routing.
     """
     if StateGraph is object:
         logger.error("LangGraph is not installed. Install dependencies using: pip install -r requirements.txt")
@@ -189,6 +185,7 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
 
     # Register Nodes
     builder.add_node("triage", triage_node)
+    builder.add_node("risk_evaluator", risk_evaluator_node)
     builder.add_node("skill_learner", skill_learner_node)
     builder.add_node("knowledge_updater", knowledge_updater_node)
     builder.add_node("admin_tools", admin_tools_node)
@@ -206,10 +203,20 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
         route_after_triage,
         {
             END: END,
+            "risk_evaluator": "risk_evaluator",
             "skill_learner": "skill_learner",
             "knowledge_updater": "knowledge_updater",
             "admin_tools": "admin_tools",
             "outreach_bridge": "outreach_bridge",
+        }
+    )
+
+    # Conditional Routing from Risk Evaluator
+    builder.add_conditional_edges(
+        "risk_evaluator",
+        route_after_risk_evaluator,
+        {
+            END: END,
             "human_approval": "human_approval",
             "drafter": "drafter"
         }
@@ -227,9 +234,13 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
     if checkpointer is None:
         checkpointer = MemorySaver()
 
-    return builder.compile(checkpointer=checkpointer)
+    # Native LangGraph breakpoint interrupt before high-stakes human approval node
+    return builder.compile(
+        checkpointer=checkpointer,
+        interrupt_before=["human_approval"]
+    )
 
 
-# Compiled Agent Workflow Graph instance
+# Compiled Agent Workflow Graph instance with native interrupt_before breakpoint
 checkpointer_instance = MemorySaver() if MemorySaver is not object else None
 agent_workflow = build_agent_graph(checkpointer=checkpointer_instance)
