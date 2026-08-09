@@ -48,8 +48,8 @@ export default function Demo(props: Partial<typeof settings>) {
 
   return (
     <main className="h-screen w-screen flex flex-col items-center justify-center bg-white m-0 p-0 overflow-hidden select-none text-center">
-      <div className="flex flex-col items-center justify-center gap-4 text-center w-full max-w-lg mx-auto px-4">
-        <div onClick={handleOrbClick} className="cursor-pointer flex flex-col items-center justify-center w-full">
+      <div className="flex flex-col items-center justify-center gap-4 text-center w-full max-w-lg mx-auto">
+        <div onClick={handleOrbClick} className="cursor-pointer flex flex-col items-center justify-center w-full mx-auto">
           <SiriOrb
             size={s.selectedSize}
             animationDuration={animDuration}
@@ -57,8 +57,8 @@ export default function Demo(props: Partial<typeof settings>) {
           />
         </div>
 
-        <div className="flex flex-col items-center justify-center w-full text-center">
-          <span className="text-xs font-semibold tracking-wide text-slate-600 block text-center w-full translate-x-[30px] pl-[30px]">
+        <div className="flex flex-col items-center justify-center text-center w-full mx-auto">
+          <span className="text-xs font-semibold tracking-wide text-slate-600 text-center block w-full">
             {orbState === "idle"
               ? "Click Orb to Speak"
               : orbState === "listening"
@@ -69,13 +69,13 @@ export default function Demo(props: Partial<typeof settings>) {
           </span>
 
           {transcription && (
-            <p className="text-xs text-slate-400 italic mt-1 text-center w-full max-w-sm translate-x-[30px]">
+            <p className="text-xs text-slate-400 italic mt-1 text-center w-full max-w-sm">
               "{transcription}"
             </p>
           )}
 
           {responseText && (
-            <p className="text-sm font-medium text-slate-800 leading-snug mt-2 text-center w-full translate-x-[30px]">
+            <p className="text-sm font-medium text-slate-800 leading-snug mt-2 text-center w-full">
               {responseText}
             </p>
           )}

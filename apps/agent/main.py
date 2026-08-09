@@ -24,6 +24,7 @@ from core.security import limiter, verify_api_key, verify_websocket_api_key
 from services.audio_service import audio_service
 from services.whatsapp_service import whatsapp_service
 from agents.human_approval import get_pending_approvals, approve_draft, reject_or_edit_draft
+from routers import health
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -34,6 +35,9 @@ app = FastAPI(
     description="Python FastAPI backend powered by LangGraph, Supabase pgvector, Groq, Gemini 1.5 Pro, and Edge-TTS.",
     version="1.0.0"
 )
+
+# Mount Health check router
+app.include_router(health.router)
 
 # Attach SlowAPI limiter state and error handler
 app.state.limiter = limiter
@@ -214,7 +218,7 @@ async def process_approval_action(request: Request, thread_id: str, payload: Act
 @app.websocket("/ws/audio")
 async def websocket_audio_endpoint(websocket: WebSocket):
     """
-    Real-time Bidirectional Audio Streaming WebSocket Endpoint with strict token & rate limits.
+    Real-time Bidirectional Audio Streaming WebSocket Endpoint.
     """
     is_authed = await verify_websocket_api_key(websocket)
     if not is_authed:
