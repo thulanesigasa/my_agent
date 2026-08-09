@@ -4,17 +4,34 @@ An enterprise-grade, autonomous, voice-enabled AI agent platform built with **Py
 
 ---
 
-## 🌟 Key Architecture & Highlights
+## 🚀 Launch Checklist
 
-- **Frontend (`apps/web`)**: Next.js App Router, TypeScript, Framer Motion interactive 3D `SiriOrb`, real-time WebSocket communication, audio recorder, chat feed, memory vault inspector, and Human-in-the-Loop approval dashboard.
-- **Backend (`apps/agent`)**: FastAPI with WebSockets, LangGraph state graph machine (`TriageNode` via Groq Llama 3.3 70B -> `DrafterNode` via Gemini 1.5 Pro -> `LearnerNode` memory extractor -> `OutputDispatcher`).
-- **Memory Engine**: Supabase PostgreSQL + `pgvector` for semantic recall of past conversations and automated user preference indexing.
-- **Multi-Model Orchestration**:
-  - **Groq API**: Llama 3.3 70B (Fast intent triage & routing) + Whisper (Speech-to-Text).
-  - **Google AI Studio**: Gemini 1.5 Pro (Deep drafting, long-context reasoning).
-  - **OpenRouter API**: Seamless fallback gateway.
-  - **Edge-TTS / Web Audio API**: Low-latency neural text-to-speech audio streaming.
-- **Tools & Approvals**: Gmail & WhatsApp integration adapters with safety gates for high-risk action approval.
+- [ ] **1. Environment Configuration**: Copy `.env.example` to `.env` and configure credentials (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`).
+- [ ] **2. Database Migration**: Run SQL migration script in `supabase/migrations/001_agent_memory.sql` to enable `pgvector` and create the `langgraph_memory` table with HNSW index.
+- [ ] **3. Security Config**: Set `API_KEY_REQUIRED=true` and configure `AGENT_API_KEY` for production deployments.
+- [ ] **4. Container Launch**: Execute `docker-compose up --build -d` to launch the multi-container production stack (`agent`, `web`, `worker`, `postgres`).
+- [ ] **5. Verification**: Run health check: `curl http://localhost:8000/health`.
+
+---
+
+## 🔒 Production Security Architecture
+
+1. **API Key Authentication**:
+   - HTTP routes enforce token verification via `X-API-Key` headers or `api_key` parameters (`verify_api_key`).
+   - WebSockets validate token credentials before connection acceptance (`verify_websocket_api_key`).
+
+2. **Abuse Protection & Rate Limiting**:
+   - `SlowAPI` rate limiter attached to FastAPI application state with automatic HTTP 429 handler.
+   - Endpoint Tiers:
+     - Voice & Audio Endpoints (`/ws/audio`): Strict rate limits (10-30 requests/minute).
+     - Chat & Approvals (`/api/chat`, `/api/approvals`): Standard rate limits (60 requests/minute).
+
+3. **Human-in-the-Loop Approval Gate**:
+   - High-risk operations (such as contract emails, client-facing inquiries, or WhatsApp dispatches) pause graph execution.
+   - Pending state is stored securely in Supabase and requires explicit human approval or edits before execution resumes.
+
+4. **HTTP Security Headers**:
+   - Enforces `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `X-XSS-Protection`, and `Referrer-Policy`.
 
 ---
 
@@ -22,113 +39,50 @@ An enterprise-grade, autonomous, voice-enabled AI agent platform built with **Py
 
 ```
 root/
+├── .env.example                            # Environment credentials template
+├── docker-compose.yml                      # Container orchestrator (agent, web, worker, postgres)
+├── Dockerfile.agent                        # Python FastAPI backend image
+├── Dockerfile.web                          # Next.js frontend image
+├── README.md                               # Launch checklist & security model docs
+├── deploy.md                               # Production deployment guide
+├── requirements-dev.txt                    # Testing & OpenTelemetry dependencies
+├── supabase/
+│   └── migrations/
+│       └── 001_agent_memory.sql            # Database schema & pgvector HNSW index
 ├── apps/
-│   ├── web/                    # Next.js App Router UI
+│   ├── web/                                # Next.js App Router UI
 │   │   ├── app/
-│   │   │   ├── api/agent/      # API route proxy handlers
-│   │   │   ├── page.tsx        # Voice & Chat interface + Agent Dashboard
+│   │   │   ├── page.tsx                    # Main SiriOrb interface
 │   │   │   └── layout.tsx
 │   │   ├── components/
-│   │   │   ├── ui/siri-orb.tsx # Dynamic interactive 3D Canvas SiriOrb component
-│   │   │   ├── chat/           # Chat Feed & Memory Viewer
-│   │   │   └── dashboard/      # LangGraph state monitor & tool approval panel
-│   │   ├── lib/
-│   │   │   ├── utils.ts        # Helper utilities
-│   │   │   └── audio.ts        # Web Audio API recorder & decoder helpers
-│   │   └── public/
-│   └── agent/                  # Python LangGraph Backend Service
-│       ├── main.py             # FastAPI entrypoint & WebSocket handler
-│       ├── config.py           # Environment settings & API credentials
+│   │   │   ├── ui/siri-orb.tsx             # Interactive SiriOrb component
+│   │   │   └── dashboard/approval_queue.tsx# Human-in-the-Loop review dashboard
+│   │   └── lib/audio.ts                    # MediaRecorder & Web Audio API manager
+│   └── agent/                              # Python LangGraph Backend Service
+│       ├── main.py                         # FastAPI entrypoint, HTTP, & WebSockets
+│       ├── config.py                       # Pydantic settings & credential validation
+│       ├── worker.py                       # 24/7 background task scheduler
 │       ├── core/
-│       │   ├── graph.py        # LangGraph state machine & router flow
-│       │   ├── state.py        # TypedDict AgentState definition
-│       │   └── memory.py       # Supabase vector store & checkpointer
+│       │   ├── graph.py                    # LangGraph StateGraph workflow
+│       │   ├── state.py                    # AgentState TypedDict
+│       │   ├── memory.py                   # LangGraph BaseStore & pgvector store
+│       │   ├── security.py                 # SlowAPI rate limiter & API key auth
+│       │   └── telemetry.py                # OpenTelemetry & LangSmith tracing
 │       ├── agents/
-│       │   ├── triage.py       # Groq fast triage agent node
-│       │   ├── drafter.py      # Gemini drafting & reasoning node
-│       │   └── learner.py      # Memory extractor & indexer node
+│       │   ├── triage.py                   # Groq fast intent classification
+│       │   ├── drafter.py                  # Gemini 1.5 Pro reasoning & drafting
+│       │   ├── learner.py                  # Continuous memory extractor
+│       │   └── human_approval.py           # Human review gate node
 │       ├── services/
-│       │   ├── llm_factory.py  # Groq, Gemini, OpenRouter provider factory
-│       │   ├── audio_service.py# Groq Whisper STT & Edge-TTS speech engine
-│       │   ├── email_service.py# Gmail adapter
-│       │   └── whatsapp_service.py # WhatsApp / Twilio adapter
-│       └── requirements.txt
-├── docker-compose.yml          # Containerized setup
-└── README.md
-```
-
----
-
-## 🚀 Quick Start Guide
-
-### 1. Prerequisites
-- **Python 3.11+** installed
-- **Node.js 18+** & `npm` / `pnpm`
-- **Docker & Docker Compose** (optional for local database & full container stack)
-- API Keys for **Supabase**, **Groq**, **Google AI Studio (Gemini)**
-
-### 2. Environment Configuration
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-Fill in your credentials:
-- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
-- `GROQ_API_KEY`
-- `GEMINI_API_KEY`
-- `OPENROUTER_API_KEY` (Optional fallback)
-
-### 3. Backend Setup (`apps/agent`)
-```bash
-cd apps/agent
-python -m venv venv
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-# source venv/bin/activate
-
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-Backend API will run at `http://localhost:8000` with WebSocket endpoint at `ws://localhost:8000/ws/agent`.
-
-### 4. Frontend Setup (`apps/web`)
-```bash
-cd apps/web
-npm install
-npm run dev
-```
-Open `http://localhost:3000` in your browser.
-
----
-
-## 🐳 Docker Deployment
-To launch the entire platform (PostgreSQL pgvector, Python Agent, and Next.js frontend) with Docker:
-```bash
-docker-compose up --build
-```
-
----
-
-## 🔒 Supabase Schema Setup (SQL Script)
-Run this SQL snippet in your Supabase SQL Editor to prepare `pgvector`:
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-
-CREATE TABLE IF NOT EXISTS agent_memories (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    content TEXT NOT NULL,
-    embedding vector(1536),
-    metadata JSONB DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS agent_memories_embedding_idx 
-ON agent_memories USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);
+│       │   ├── llm_factory.py              # Multi-model factory (Groq, Gemini, OpenRouter)
+│       │   ├── audio_service.py            # Whisper STT & Edge-TTS voice engine
+│       │   ├── email_service.py            # Gmail API adapter
+│       │   └── whatsapp_service.py         # Twilio WhatsApp adapter
+│       └── tests/
+│           └── test_agent_flow.py          # Pytest & LangSmith evaluation suite
 ```
 
 ---
 
 ## 🤝 License
-MIT License. Built for autonomous agent scaling.
+MIT License. Built for enterprise autonomous agent platforms.

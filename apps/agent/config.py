@@ -1,17 +1,27 @@
+"""
+Pydantic Settings & Environment Variable Secrets Management Module.
+"""
 import os
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import logging
 from typing import Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import model_validator
+
+logger = logging.getLogger("agent.config")
 
 
 class Settings(BaseSettings):
     """
-    Application Settings powered by Pydantic BaseSettings.
-    Loads environment variables from environment or .env file.
+    Application Settings & Secret Credentials Manager.
     """
     ENV: str = "development"
     PORT: int = 8000
     HOST: str = "0.0.0.0"
     SECRET_KEY: str = "super-secret-agent-key"
+
+    # API Security & Authentication
+    API_KEY_REQUIRED: bool = False
+    AGENT_API_KEY: str = "agent-secret-api-key"
 
     # Supabase Vector Store & Database
     SUPABASE_URL: str = "https://your-project.supabase.co"
@@ -47,6 +57,25 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+    @model_validator(mode="after")
+    def validate_secrets(self) -> "Settings":
+        """
+        Validate credentials and warn or raise error if critical secrets are missing in production.
+        """
+        if self.ENV == "production":
+            missing = []
+            if not self.GROQ_API_KEY and not self.GEMINI_API_KEY and not self.OPENROUTER_API_KEY:
+                missing.append("LLM_API_KEYS (GROQ_API_KEY, GEMINI_API_KEY, or OPENROUTER_API_KEY)")
+            if not self.SUPABASE_SERVICE_ROLE_KEY:
+                missing.append("SUPABASE_SERVICE_ROLE_KEY")
+
+            if missing:
+                logger.error(f"CRITICAL PRODUCTION SECURITY WARNING: Missing secrets: {', '.join(missing)}")
+                if self.API_KEY_REQUIRED and not self.AGENT_API_KEY:
+                    raise ValueError("AGENT_API_KEY must be configured in production when API_KEY_REQUIRED=true")
+
+        return self
 
 
 settings = Settings()
