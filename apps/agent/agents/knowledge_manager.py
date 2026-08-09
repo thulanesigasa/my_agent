@@ -10,7 +10,7 @@ from tools.knowledge_tools import update_knowledge_file, read_company_knowledge
 logger = logging.getLogger("agent.node.knowledge_manager")
 
 KNOWLEDGE_UPDATER_PROMPT = """
-You are the Knowledge Manager Node for T.S Industries.
+You are the Knowledge Manager Node for T.s Industries.
 Your role is to analyze inputs where an admin/user provides new business information, corrections, pricing rules, new service capabilities, or brand directives.
 
 Analyze the message and determine which knowledge file should be updated:

@@ -11,7 +11,7 @@ from tools.procedural_tools import get_memory_dir
 logger = logging.getLogger("agent.node.skill_learner")
 
 SKILL_LEARNER_PROMPT = """
-You are the Skill Learner Node for T.S Industries.
+You are the Skill Learner Node for T.s Industries.
 Your role is to analyze user/admin messages where a new step-by-step procedure/skill or strict business rule is taught.
 
 Determine the type of input:

@@ -26,13 +26,13 @@ async def notify_admin_approval_needed(
 
     body = (
         f"Hello Pharez,\n\n"
-        f"An action by T.S Industries AI Agent requires your review and approval before dispatch.\n\n"
+        f"An action by T.s Industries AI Agent requires your review and approval before dispatch.\n\n"
         f"• Client/Prospect: {client_name}\n"
         f"• Intent: {intent}\n"
         f"• Thread ID: {thread_id}\n"
         f"{f'• Details: {details}' if details else ''}\n\n"
         f"Direct Approval Link:\n{approval_link}\n\n"
-        f"Best regards,\nT.S Industries Autonomous Agent System"
+        f"Best regards,\nT.s Industries Autonomous Agent System"
     )
 
     logger.info(f"Sending human approval notification email to {ADMIN_EMAIL} for thread {thread_id}...")

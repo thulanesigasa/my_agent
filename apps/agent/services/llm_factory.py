@@ -1,6 +1,7 @@
 """
-LLM Factory Module: Provides Chat Model initializers for Groq, Gemini 1.5 Pro, and OpenRouter fallback.
-Loads T.S Industries company knowledge context dynamically from root knowledge/ directory.
+LLM Factory & Resilient Provider Integration for T.s Industries Agent.
+Provides model instantiations for Groq (Llama 3.3 70B), Gemini 1.5 Pro, and OpenRouter with automatic fallbacks.
+Loads T.s Industries company knowledge context dynamically from root knowledge/ directory.
 """
 import os
 import logging
@@ -18,7 +19,7 @@ _SYSTEM_CONTEXT_CACHE: Optional[str] = None
 def load_system_context(knowledge_dir: Optional[str] = None) -> str:
     """
     Reads all Markdown files in the knowledge/ directory and concatenates them into a single
-    SYSTEM_PROMPT string representing T.S Industries identity, services, and communication rules.
+    SYSTEM_PROMPT string representing T.s Industries identity, services, and communication rules.
     Caches in memory for fast retrieval.
     """
     global _SYSTEM_CONTEXT_CACHE
@@ -131,41 +132,38 @@ def get_fallback_llm() -> BaseChatModel:
 
 class LLMFactory:
     """
-    Unified execution helper with T.S Industries system context injection,
-    exception handling, and fallback mechanism.
+    Unified execution helper with T.s Industries system context injection,
+    handling model initialization, system context building, and fallbacks.
     """
 
-    @staticmethod
-    async def invoke_triage(prompt: str, node_system_prompt: str = "") -> str:
+    async def invoke_triage(self, prompt: str, system_override: Optional[str] = None) -> str:
         """
-        Execute triage invocation using Groq Llama 3.3 70B with T.S Industries knowledge context injection.
+        Execute triage invocation using Groq Llama 3.3 70B with T.s Industries knowledge context injection.
         """
-        company_context = load_system_context()
-        combined_system = f"{company_context}\n\n{node_system_prompt}".strip()
-
-        messages = []
-        if combined_system:
-            messages.append({"role": "system", "content": combined_system})
-        messages.append({"role": "user", "content": prompt})
-
+        system = system_override if system_override else load_system_context()
         try:
             llm = get_triage_llm()
-            res = await llm.ainvoke(messages)
+            res = await llm.ainvoke([
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt}
+            ])
             return res.content if hasattr(res, "content") else str(res)
         except Exception as e:
             logger.error(f"Primary triage LLM failed: {e}. Executing fallback LLM...")
             try:
                 fallback_llm = get_fallback_llm()
-                res = await fallback_llm.ainvoke(messages)
+                res = await fallback_llm.ainvoke([
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt}
+                ])
                 return res.content if hasattr(res, "content") else str(res)
             except Exception as fb_err:
                 logger.error(f"Fallback LLM failed: {fb_err}")
-                return '{"intent": "general", "needs_human_approval": false, "reason": "Fallback triage executed"}'
+                return '{"intent": "general", "needs_human_approval": false, "reason": "Fallback mode"}'
 
-    @staticmethod
-    async def invoke_drafter(prompt: str, node_system_prompt: str = "") -> str:
+    async def invoke_drafter(self, prompt: str, node_system_prompt: str = "") -> str:
         """
-        Execute drafting invocation using Gemini 1.5 Pro with T.S Industries knowledge context injection.
+        Execute drafting invocation using Gemini 1.5 Pro with T.s Industries knowledge context injection.
         """
         company_context = load_system_context()
         combined_system = f"{company_context}\n\n{node_system_prompt}".strip()
@@ -187,7 +185,7 @@ class LLMFactory:
                 return res.content if hasattr(res, "content") else str(res)
             except Exception as fb_err:
                 logger.error(f"Fallback LLM failed: {fb_err}")
-                return "Thank you for contacting T.S Industries. We build high-performance web and mobile applications. Please visit ts-industries.co.za to request a quotation."
+                return "Thank you for contacting T.s Industries. We build high-performance web and mobile applications. Please visit ts-industries.co.za to request a quotation."
 
 
 llm_factory = LLMFactory()

@@ -86,16 +86,16 @@ async def send_weekly_report() -> Dict[str, Any]:
     Generates the Excel report and emails it to the admin (Pharez).
     """
     report_path = await generate_weekly_report()
-    subject = f"📊 T.S Industries Weekly Brief – {datetime.now().strftime('%B %d, %Y')}"
+    subject = f"📊 T.s Industries Weekly Brief – {datetime.now().strftime('%B %d, %Y')}"
     body = (
         f"Hi Pharez,\n\n"
-        f"Attached is your T.S Industries Autonomous AI Agent weekly performance brief.\n\n"
+        f"Attached is your T.s Industries Autonomous AI Agent weekly performance brief.\n\n"
         f"Summary:\n"
         f"• Emails Sent: 284\n"
         f"• Responses Received: 91 (32.0% response rate)\n"
         f"• Active Leads: 47\n\n"
         f"The attached Excel file contains detailed sheets for Outreach Logs, Approval Queue, and Learned Context.\n\n"
-        f"Best regards,\nT.S Industries Autonomous Agent System"
+        f"Best regards,\nT.s Industries Autonomous Agent System"
     )
 
     result = await email_service.send_email(

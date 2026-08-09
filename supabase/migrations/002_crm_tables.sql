@@ -1,6 +1,6 @@
 -- ====================================================================
 -- Migration: 002_crm_tables.sql
--- Description: Structured CRM tables for T.S Industries clients and project sales pipeline
+-- Description: Structured CRM tables for T.s Industries clients and project sales pipeline
 -- ====================================================================
 
 -- 1. Enable UUID Extension if not already active

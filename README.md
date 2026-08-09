@@ -1,6 +1,6 @@
 # Autonomous Continuously Learning AI Agent Platform
 
-An enterprise-grade, autonomous, voice-enabled AI agent platform representing **T.S Industries** (led by Pharez / Thulane). Built with **Python (FastAPI + LangGraph)** and **Next.js 15 (App Router + Tailwind CSS + Framer Motion)**. Featuring multi-agent orchestration, continuous memory extraction via Supabase `pgvector`, SiriOrb voice interaction, dynamic runtime knowledge reading, procedural rules & SOP skills, dynamic risk evaluation with Human-in-the-Loop breakpoints, real-time Gmail Pub/Sub webhooks, and structured CRM sales pipeline tracking.
+An enterprise-grade, autonomous, voice-enabled AI agent platform representing **T.s Industries** (led by Pharez / Thulane). Built with **Python (FastAPI + LangGraph)** and **Next.js 15 (App Router + Tailwind CSS + Framer Motion)**. Featuring multi-agent orchestration, continuous memory extraction via Supabase `pgvector`, SiriOrb voice interaction, dynamic runtime knowledge reading, procedural rules & SOP skills, dynamic risk evaluation with Human-in-the-Loop breakpoints, real-time Gmail Pub/Sub webhooks, and structured CRM sales pipeline tracking.
 
 ---
 
@@ -116,6 +116,6 @@ root/
 
 ## ⚖️ Copyright & License
 
-**Copyright © 2026 T.S Industries. All Rights Reserved.**
+**Copyright © 2026 T.s Industries. All Rights Reserved.**
 
-This software and associated documentation files are **proprietary and confidential**. Unauthorized copying, distribution, modification, or public display of this software, via any medium, is strictly prohibited without the express written permission of T.S Industries (Pharez / Thulane).
+This software and associated documentation files are **proprietary and confidential**. Unauthorized copying, distribution, modification, or public display of this software, via any medium, is strictly prohibited without the express written permission of T.s Industries (Pharez / Thulane).

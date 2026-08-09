@@ -1,5 +1,5 @@
 """
-Triage Agent Node: Classifies incoming user messages or emails into intent categories for T.S Industries.
+Triage Agent Node: Classifies incoming user messages or emails into intent categories for T.s Industries.
 Uses runtime dynamic reading of knowledge/*.md files, unbreakable rules, and procedural skills.
 """
 import json
@@ -13,7 +13,7 @@ from tools.procedural_tools import load_unbreakable_rules, fetch_skill
 logger = logging.getLogger("agent.node.triage")
 
 TRIAGE_SYSTEM_PROMPT = """
-You are an expert Triage Agent representing T.S Industries, a high-performance software engineering firm led by Pharez (Thulane).
+You are an expert Triage Agent representing T.s Industries, a high-performance software engineering firm led by Pharez (Thulane).
 
 Analyze incoming user messages or email inputs and classify them into one of these intents:
 - "skill_learning": User or admin teaching a new step-by-step procedure/skill or declaring a strict business rule.
@@ -26,7 +26,7 @@ Analyze incoming user messages or email inputs and classify them into one of the
 - "spam": Unsolicited promotional mail, irrelevant text, or noise.
 
 Directives:
-1. Always represent T.S Industries.
+1. Always represent T.s Industries.
 2. Flag "needs_human_approval" as true ONLY if intent is "client_inquiry" or involves sending sensitive communications.
 
 Respond strictly with a JSON object matching:
@@ -42,7 +42,7 @@ async def triage_node(state: AgentState) -> AgentState:
     Triage Node function for intent classification and initial context routing.
     Dynamically loads knowledge/*.md and unbreakable rules at runtime for every task.
     """
-    logger.info("Executing Triage Node for T.S Industries...")
+    logger.info("Executing Triage Node for T.s Industries...")
     messages = state.get("messages", [])
     email_input = state.get("email_input")
 

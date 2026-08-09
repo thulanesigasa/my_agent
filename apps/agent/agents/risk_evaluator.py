@@ -37,7 +37,7 @@ def load_guardrails() -> str:
 
 
 RISK_EVALUATOR_PROMPT = """
-You are an expert AI Security Evaluator Node representing T.S Industries.
+You are an expert AI Security Evaluator Node representing T.s Industries.
 Your sole job is to evaluate an intended agent action against the security guardrails.
 
 Classify the intended action into one of three risk levels:

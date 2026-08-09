@@ -1,5 +1,5 @@
 """
-CRM Service: Structured database layer for T.S Industries clients and project sales pipeline in Supabase.
+CRM Service: Structured database layer for T.s Industries clients and project sales pipeline in Supabase.
 """
 import logging
 from typing import Dict, Any, Optional, List

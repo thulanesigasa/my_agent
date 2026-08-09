@@ -1,7 +1,7 @@
 """
 Autonomous Outreach Sub-Graph.
 Multi-node LangGraph sub-workflow for: lead discovery -> contact enrichment -> pitch composition -> approval queue.
-Enforces T.S Industries unbreakable business rules on all generated pitches.
+Enforces T.s Industries unbreakable business rules on all generated pitches.
 """
 import logging
 from typing import List, Dict, Any, TypedDict, Optional
@@ -26,14 +26,14 @@ class OutreachState(TypedDict, total=False):
 
 
 PITCH_SYSTEM_PROMPT = """
-You are an expert sales copywriter for T.S Industries.
+You are an expert sales copywriter for T.s Industries.
 Write a concise, friendly, and personalized cold outreach email to a local business owner.
 The email should:
 - Address the business owner by their business name.
 - Empathize with the challenge of being invisible online.
 - Highlight a clear value proposition: professional website + local SEO + mobile-first design.
 - Include a clear CTA: "Reply to this email to claim your free 30-minute strategy call or request a custom quotation on ts-industries.co.za."
-- Include T.S Industries contact email (pharezsigasa@gmail.com) and phone (+447544357979).
+- Include T.s Industries contact email (pharezsigasa@gmail.com) and phone (+447544357979).
 - Be under 120 words, professional but warm, short punchy paragraphs. Never use em dashes (—).
 
 Return ONLY the email body text, no subject line.
@@ -111,7 +111,7 @@ async def compose_pitch_node(state: OutreachState) -> OutreachState:
                 f"Hi {biz_name} team,\n\n"
                 f"We help local businesses get a professional online presence quickly and affordably. "
                 f"If you are ready to attract more customers online, reply or visit ts-industries.co.za to set up a strategy call.\n\n"
-                f"Best,\nT.S Industries Team\npharezsigasa@gmail.com | +447544357979"
+                f"Best,\nT.s Industries Team\npharezsigasa@gmail.com | +447544357979"
             )
 
         drafted.append({

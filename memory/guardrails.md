@@ -1,11 +1,11 @@
 # SECURITY & RISK EVALUATION GUARDRAILS
-These security rules define action risk classification levels for T.S Industries AI Agent.
+These security rules define action risk classification levels for T.s Industries AI Agent.
 
 ## LOW STAKES (Auto-Approve)
 Actions in this category pose zero risk to external clients or system data. Auto-approve execution:
 *   Searching the internal vector memory / Supabase database.
 *   Browsing the web or Tavily API for business leads and company information.
-*   Answering general public queries about T.S Industries services and capabilities.
+*   Answering general public queries about T.s Industries services and capabilities.
 *   Drafting internal notes, summaries, or candidate responses.
 
 ## HIGH STAKES (Requires Human Approval)

@@ -1,5 +1,5 @@
 """
-Drafter Agent Node: Synthesizes responses using Gemini 1.5 Pro, T.S Industries knowledge base,
+Drafter Agent Node: Synthesizes responses using Gemini 1.5 Pro, T.s Industries knowledge base,
 unbreakable business rules, and procedural skills.
 """
 import logging
@@ -12,10 +12,10 @@ from tools.procedural_tools import load_unbreakable_rules, fetch_skill
 logger = logging.getLogger("agent.node.drafter")
 
 DRAFTER_SYSTEM_PROMPT = """
-You are the official representative of T.S Industries, a high-performance software engineering firm specializing in Web Development, Mobile Apps, and AI/Backend Integrations.
+You are the official representative of T.s Industries, a high-performance software engineering firm specializing in Web Development, Mobile Apps, and AI/Backend Integrations.
 
 Follow these core directives strictly:
-1. Speak as a representative of T.S Industries. Never say "I am an AI."
+1. Speak as a representative of T.s Industries. Never say "I am an AI."
 2. Always drive traffic to the website ts-industries.co.za for more details, portfolio showcases, or case studies.
 3. Never quote exact pricing without established scope. Encourage booking a discovery call.
 4. Maintain a professional yet approachable tone.
@@ -27,7 +27,7 @@ async def drafter_node(state: AgentState) -> AgentState:
     Drafter Node function for deep reasoning, skill execution, and response drafting.
     Dynamically loads knowledge/*.md, unbreakable rules, and procedural skills at runtime.
     """
-    logger.info("Executing Drafter Node for T.S Industries...")
+    logger.info("Executing Drafter Node for T.s Industries...")
     messages = state.get("messages", [])
     intent = state.get("intent", "general")
     email_input = state.get("email_input")
@@ -75,7 +75,7 @@ User Request:
 Retrieved Memory Context:
 {context_str}
 
-Please generate a detailed, polished response or draft message representing T.S Industries following all procedures and critical constraints.
+Please generate a detailed, polished response or draft message representing T.s Industries following all procedures and critical constraints.
 """
 
     draft_output = await llm_factory.invoke_drafter(prompt, combined_system)
