@@ -8,7 +8,11 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_community.chat_models import ChatOpenAI
+
+try:
+    from langchain_openai import ChatOpenAI
+except ImportError:
+    from langchain_community.chat_models import ChatOpenAI  # type: ignore
 from config import settings
 
 logger = logging.getLogger("agent.llm_factory")

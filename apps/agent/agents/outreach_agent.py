@@ -5,6 +5,14 @@ Enforces T.s Industries unbreakable business rules on all generated pitches.
 """
 import logging
 from typing import List, Dict, Any, TypedDict, Optional
+
+try:
+    from langgraph.graph import StateGraph, END
+except ImportError as e:
+    logging.warning(f"LangGraph import warning in outreach_agent: {e}.")
+    StateGraph = object
+    END = "__end__"
+
 from core.memory import memory_manager
 from services.llm_factory import llm_factory
 from tools.lead_finder import search_businesses_without_websites, find_contact_email
@@ -161,8 +169,11 @@ def build_outreach_subgraph():
     Constructs and returns the compiled outreach sub-graph.
     Returns None gracefully if LangGraph is unavailable.
     """
+    if StateGraph is object:
+        logger.warning("LangGraph unavailable for outreach sub-graph.")
+        return None
+
     try:
-        from langgraph.graph import StateGraph, END
         builder = StateGraph(OutreachState)
         builder.add_node("find_leads", find_leads_node)
         builder.add_node("enrich_leads", enrich_leads_node)
@@ -176,8 +187,8 @@ def build_outreach_subgraph():
         builder.add_edge("outreach_dispatcher", END)
 
         return builder.compile()
-    except ImportError as e:
-        logger.warning(f"LangGraph unavailable for outreach sub-graph: {e}")
+    except Exception as e:
+        logger.warning(f"Error compiling outreach sub-graph: {e}")
         return None
 
 
