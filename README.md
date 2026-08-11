@@ -14,6 +14,21 @@ An enterprise-grade, autonomous, voice-enabled AI agent platform representing **
 
 ---
 
+## 👏 Double Clap Hands Auto-Launcher
+
+Kick-start the agent backend and open the web dashboard instantly using hands-free sound triggers:
+
+```bash
+# Run real-time double clap mic listener
+python run_clap_launcher.py
+```
+- **How it works**: Continuously monitors the default system microphone for two quick consecutive hand claps (150ms - 750ms apart).
+- **Automated Actions**:
+  1. Checks if `http://localhost:8000/health` is running; if offline, spawns the FastAPI backend server process automatically.
+  2. Opens the Next.js web application UI in your primary web browser (`http://localhost:3000`).
+
+---
+
 ## 🔒 Production Security & Risk Architecture
 
 1. **Dynamic Risk Evaluation & Guardrails**:
