@@ -23,6 +23,9 @@ from core.memory import memory_manager
 from core.security import limiter, verify_api_key, verify_websocket_api_key
 from services.audio_service import audio_service
 from services.whatsapp_service import whatsapp_service
+from services.sandbox_service import sandbox_service
+from services.voice_biometrics import voice_biometrics_service
+from tools.procedural_tools import list_available_skills
 from agents.human_approval import get_pending_approvals, approve_draft, reject_or_edit_draft
 from routers import health, webhooks
 from scheduler import agent_scheduler
@@ -106,6 +109,10 @@ class VoiceRequest(BaseModel):
 class ActionDecisionRequest(BaseModel):
     action: str  # 'approve', 'edit', 'reject'
     new_content: Optional[str] = None
+
+class SandboxRequest(BaseModel):
+    code: str
+    max_retries: Optional[int] = 3
 
 
 @app.get("/health")
@@ -239,6 +246,27 @@ async def process_approval_action(request: Request, thread_id: str, payload: Act
         return {"status": "success", "action": "rejected"}
 
     raise HTTPException(status_code=400, detail="Invalid action type. Expected 'approve', 'edit', or 'reject'.")
+
+
+@app.post("/api/sandbox/run")
+@limiter.limit("20/minute")
+async def run_sandbox_code(request: Request, payload: SandboxRequest, token: str = Depends(verify_api_key)):
+    """
+    Executes Python script inside an isolated self-healing sandbox.
+    """
+    retries = payload.max_retries or 3
+    result = await sandbox_service.execute_with_self_healing(code=payload.code, max_retries=retries)
+    return {"status": "success" if result["success"] else "error", "result": result}
+
+
+@app.get("/api/skills")
+@limiter.limit("60/minute")
+async def get_active_skills(request: Request, token: str = Depends(verify_api_key)):
+    """
+    Returns a list of all active learned Standard Operating Procedures (SOP skills).
+    """
+    skills = list_available_skills()
+    return {"status": "success", "count": len(skills), "skills": skills}
 
 
 @app.websocket("/ws/audio")

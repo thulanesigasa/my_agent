@@ -5,7 +5,11 @@ import os
 import logging
 from pathlib import Path
 from typing import Optional
-from langchain_core.tools import tool
+try:
+    from langchain_core.tools import tool
+except ImportError:
+    def tool(func):
+        return func
 
 logger = logging.getLogger("agent.tools.procedural")
 
@@ -102,3 +106,14 @@ def fetch_skill(task_name: str) -> str:
             pass
 
     return ""
+
+
+def list_available_skills() -> list[str]:
+    """
+    Scans memory/procedures/ and returns a list of all active learned SOP skill filenames.
+    """
+    mem_dir = get_memory_dir()
+    proc_dir = mem_dir / "procedures"
+    if not proc_dir.exists():
+        return []
+    return [f.name for f in proc_dir.glob("*.md")]
