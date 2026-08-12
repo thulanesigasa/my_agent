@@ -29,7 +29,10 @@ agent_path = os.path.join(current_dir, "apps", "agent")
 if agent_path not in sys.path:
     sys.path.insert(0, agent_path)
 
-from services.clap_launcher import ClapLauncher
+try:
+    from apps.agent.services.clap_launcher import ClapLauncher
+except ImportError:
+    from services.clap_launcher import ClapLauncher
 
 
 def print_active_banner():
