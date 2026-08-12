@@ -239,16 +239,16 @@ class ClapLauncher:
         for idx, url in enumerate(self.frontend_urls):
             logger.info(f"🚀 Launching browser tab #{idx + 1}: {url}")
             try:
-                if sys.platform == "win32":
-                    subprocess.Popen(["cmd", "/c", "start", "", url])
+                if idx == 0:
+                    webbrowser.open(url)
                 else:
-                    webbrowser.open(url, new=1)
+                    webbrowser.open_new_tab(url)
             except Exception as e:
                 logger.error(f"Failed to open browser tab for {url}: {e}")
                 webbrowser.open(url)
             
-            # Brief pause between tabs to ensure OS shell registers both tabs separately
-            time.sleep(0.8)
+            # 1.5s pause ensures Windows Edge/Chrome IPC settles before opening 2nd tab
+            time.sleep(1.5)
 
     def trigger_action(self):
         """Executes non-blocking parallel kick-start sequence on clap detection."""
