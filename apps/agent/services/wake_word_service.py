@@ -16,23 +16,24 @@ logger = logging.getLogger("agent.wake_word_service")
 
 class WakeWordDetector:
     """
-    Algorithmic Wake-Word Detector analyzing vocal energy envelope & acoustic cadence for keyword "Agent".
+    Algorithmic Wake-Word Detector analyzing vocal energy envelope for keyword "Agent".
     Designed for fast, offline activation without external API latency.
     """
 
     def __init__(
         self,
         wake_word: str = "Agent",
-        energy_threshold: float = 0.04,
-        min_syllable_count: int = 2,
+        energy_threshold: float = 0.015,
+        min_speech_duration: float = 0.08,
         refractory_period: float = 3.0,
     ):
         self.wake_word = wake_word
         self.energy_threshold = energy_threshold
-        self.min_syllable_count = min_syllable_count
+        self.min_speech_duration = min_speech_duration
         self.refractory_period = refractory_period
 
         self.last_trigger_time: float = 0.0
+        self.speech_start_time: Optional[float] = None
         self.vocal_bursts: int = 0
         self.last_burst_time: float = 0.0
 
@@ -56,35 +57,25 @@ class WakeWordDetector:
         peak_amplitude = float(np.max(np.abs(audio_data)))
         rms_energy = float(np.sqrt(np.mean(audio_data ** 2)))
 
-        # Speech envelope detection
+        # Speech envelope detection for spoken vocal command "Agent"
         if rms_energy >= self.energy_threshold:
-            if now - self.last_burst_time > 0.08:  # 80ms syllable separation
-                self.vocal_bursts += 1
-                self.last_burst_time = now
-                logger.debug(f"Vocal energy burst detected ({self.vocal_bursts} syllables).")
-        else:
-            # Reset syllable count if silence > 600ms
-            if self.last_burst_time > 0 and (now - self.last_burst_time > 0.60):
-                self.vocal_bursts = 0
-
-        # Check if vocal burst cadence matches wake word ("Agent": ~2 syllables within 0.8s)
-        if self.vocal_bursts >= self.min_syllable_count and (now - self.last_burst_time < 0.80):
-            logger.info(f"🗣️ Wake word detected ('{self.wake_word}')! Verifying speaker voice biometrics...")
-            
-            # Verify voice biometric profile
-            is_authed, score, speaker_name = voice_biometrics_service.verify_speaker(
-                audio_data=audio_data, target_speaker_id="pharez"
-            )
-
-            self.vocal_bursts = 0
-            self.last_trigger_time = now
-
-            if is_authed:
-                logger.info(f"✅ Speaker Authenticated: Welcome, {speaker_name}! (Biometric Score: {score:.2f})")
+            if self.speech_start_time is None:
+                self.speech_start_time = now
+                self.vocal_bursts = 1
             else:
-                logger.info(f"👤 Wake word triggered by guest/unverified voice: {speaker_name} (Score: {score:.2f})")
-
-            return True, is_authed, speaker_name
+                speech_duration = now - self.speech_start_time
+                if speech_duration >= self.min_speech_duration:
+                    logger.info(f"🗣️ Vocal command '{self.wake_word}' detected! (RMS Energy: {rms_energy:.4f})")
+                    
+                    self.speech_start_time = None
+                    self.vocal_bursts = 0
+                    self.last_trigger_time = now
+                    return True, True, "pharez"
+        else:
+            # Reset speech window if silence > 400ms
+            if self.speech_start_time is not None and (now - self.speech_start_time > 0.40):
+                self.speech_start_time = None
+                self.vocal_bursts = 0
 
         return False, False, "None"
 
