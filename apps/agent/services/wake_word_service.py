@@ -23,8 +23,8 @@ class WakeWordDetector:
     def __init__(
         self,
         wake_word: str = "Agent",
-        energy_threshold: float = 0.001,
-        min_speech_duration: float = 0.02,
+        energy_threshold: float = 0.012,
+        min_speech_duration: float = 0.10,
         refractory_period: float = 3.0,
     ):
         self.wake_word = wake_word
