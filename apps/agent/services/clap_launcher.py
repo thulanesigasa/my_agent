@@ -226,11 +226,21 @@ class ClapLauncher:
         except Exception as e:
             logger.error(f"Failed to spawn frontend process: {e}")
 
+    def _open_url(self, url: str):
+        try:
+            if sys.platform == "win32":
+                os.system(f'start "" "{url}"')
+            else:
+                webbrowser.open_new_tab(url)
+        except Exception as e:
+            logger.error(f"Error opening browser tab {url}: {e}")
+            webbrowser.open(url)
+
     def open_browser_tabs(self):
         """Opens required web application pages (Voice UI & Admin Dashboard) without duplicate tab spam."""
         now = time.time()
-        # Cooldown of 5 seconds to prevent spamming duplicate browser tabs
-        if now - self.last_browser_open_time < 5.0:
+        # Cooldown of 4 seconds to prevent spamming duplicate browser tabs
+        if now - self.last_browser_open_time < 4.0:
             logger.info("Browser tabs were recently opened. Skipping duplicate tab launch.")
             return
 
@@ -238,17 +248,8 @@ class ClapLauncher:
 
         for idx, url in enumerate(self.frontend_urls):
             logger.info(f"🚀 Launching browser tab #{idx + 1}: {url}")
-            try:
-                if idx == 0:
-                    webbrowser.open(url)
-                else:
-                    webbrowser.open_new_tab(url)
-            except Exception as e:
-                logger.error(f"Failed to open browser tab for {url}: {e}")
-                webbrowser.open(url)
-            
-            # 1.5s pause ensures Windows Edge/Chrome IPC settles before opening 2nd tab
-            time.sleep(1.5)
+            self._open_url(url)
+            time.sleep(1.2)
 
     def trigger_action(self):
         """Executes non-blocking parallel kick-start sequence on clap detection."""
@@ -257,11 +258,10 @@ class ClapLauncher:
         # Clean stale instances and spawn servers in parallel background threads
         t1 = threading.Thread(target=self.start_backend_async, daemon=True)
         t2 = threading.Thread(target=self.start_frontend_async, daemon=True)
+        t3 = threading.Thread(target=self.open_browser_tabs, daemon=True)
         t1.start()
         t2.start()
-
-        # Instantly open web browser tabs
-        self.open_browser_tabs()
+        t3.start()
 
     def listen(self, sample_rate: int = 44100, block_size: int = 2048):
         try:
