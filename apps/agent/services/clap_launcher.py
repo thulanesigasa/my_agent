@@ -227,7 +227,7 @@ class ClapLauncher:
             logger.error(f"Failed to spawn frontend process: {e}")
 
     def open_browser_tabs(self):
-        """Opens required web application pages without duplicate tab spam."""
+        """Opens required web application pages (Voice UI & Admin Dashboard) without duplicate tab spam."""
         now = time.time()
         # Cooldown of 5 seconds to prevent spamming duplicate browser tabs
         if now - self.last_browser_open_time < 5.0:
@@ -239,13 +239,16 @@ class ClapLauncher:
         for idx, url in enumerate(self.frontend_urls):
             logger.info(f"🚀 Launching browser tab #{idx + 1}: {url}")
             try:
-                if idx == 0:
-                    webbrowser.open(url)
+                if sys.platform == "win32":
+                    subprocess.Popen(["cmd", "/c", "start", "", url])
                 else:
-                    webbrowser.open_new_tab(url)
-                time.sleep(0.3)
+                    webbrowser.open(url, new=1)
             except Exception as e:
                 logger.error(f"Failed to open browser tab for {url}: {e}")
+                webbrowser.open(url)
+            
+            # Brief pause between tabs to ensure OS shell registers both tabs separately
+            time.sleep(0.8)
 
     def trigger_action(self):
         """Executes non-blocking parallel kick-start sequence on clap detection."""
