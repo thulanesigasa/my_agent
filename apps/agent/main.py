@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 import core.telemetry
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, Depends, status
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -43,6 +44,116 @@ app = FastAPI(
 # Mount Health check and Webhooks routers
 app.include_router(health.router)
 app.include_router(webhooks.router)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def root_status_page():
+    """Root endpoint: Displays backend status dashboard with quick navigation links."""
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>T.s Industries - Agent Backend API</title>
+        <style>
+            :root {
+                --bg: #090d16;
+                --card-bg: #111827;
+                --accent: #3b82f6;
+                --accent-glow: rgba(59, 130, 246, 0.3);
+                --text: #f3f4f6;
+                --text-muted: #9ca3af;
+                --border: #1f2937;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                background-color: var(--bg);
+                color: var(--text);
+                margin: 0;
+                padding: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+            }
+            .container {
+                max-width: 600px;
+                width: 90%;
+                background-color: var(--card-bg);
+                border: 1px solid var(--border);
+                border-radius: 16px;
+                padding: 32px;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 0 40px var(--accent-glow);
+                text-align: center;
+            }
+            .status-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                background: rgba(16, 185, 129, 0.15);
+                color: #10b981;
+                border: 1px solid rgba(16, 185, 129, 0.3);
+                padding: 6px 16px;
+                border-radius: 9999px;
+                font-size: 14px;
+                font-weight: 600;
+                margin-bottom: 20px;
+            }
+            .status-dot {
+                width: 8px;
+                height: 8px;
+                background-color: #10b981;
+                border-radius: 50%;
+                box-shadow: 0 0 10px #10b981;
+            }
+            h1 { font-size: 24px; font-weight: 700; margin: 0 0 8px 0; }
+            p { color: var(--text-muted); font-size: 14px; line-height: 1.5; margin-bottom: 24px; }
+            .links { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+            .btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 12px 16px;
+                background-color: #1f2937;
+                color: var(--text);
+                text-decoration: none;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 500;
+                border: 1px solid var(--border);
+                transition: all 0.2s ease;
+            }
+            .btn:hover {
+                background-color: var(--accent);
+                border-color: var(--accent);
+                color: #ffffff;
+                transform: translateY(-2px);
+            }
+            .btn-primary { grid-column: span 2; background-color: #2563eb; border-color: #2563eb; }
+            .btn-primary:hover { background-color: #1d4ed8; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                FastAPI Backend Online
+            </div>
+            <h1>T.s Industries Autonomous Agent</h1>
+            <p>LangGraph multi-agent orchestrator, Groq/Gemini voice synthesis, Supabase pgvector memory & Human-in-the-Loop engine.</p>
+            <div class="links">
+                <a href="http://localhost:3000/dashboard" class="btn btn-primary">📊 Launch Web Admin Dashboard</a>
+                <a href="http://localhost:3000/" class="btn">🎙️ Launch Voice UI</a>
+                <a href="/docs" class="btn">📘 Swagger API Docs</a>
+                <a href="/health" class="btn">💚 Health Check JSON</a>
+                <a href="/api/skills" class="btn">🧠 Active SOP Skills</a>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content, status_code=200)
 
 
 @app.on_event("startup")

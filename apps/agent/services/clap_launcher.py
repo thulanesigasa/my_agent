@@ -1,11 +1,12 @@
 """
-Clap Audio Trigger & Auto-Launcher Service.
+Clap Audio Trigger & Smart Auto-Launcher Service.
 
 Listens to real-time host microphone input using `sounddevice` and `numpy`.
 Detects sharp clap sounds (single clap or double clap) and automatically:
-1. Boots the FastAPI backend server (port 8000) if unstarted.
-2. Boots the Next.js web frontend dev server (port 3000) if unstarted.
-3. Instantly launches the browser pointing to http://localhost:3000.
+1. Kills stale orphan process instances on ports 8000 & 3000 to prevent port conflicts.
+2. Boots FastAPI backend server (port 8000).
+3. Boots Next.js web frontend dev server (port 3000).
+4. Launches http://localhost:3000/ (Voice UI) and http://localhost:3000/dashboard (Admin Dashboard) without tab duplication.
 """
 
 import time
@@ -16,11 +17,36 @@ import subprocess
 import webbrowser
 import urllib.request
 import threading
-from typing import Optional, Callable
+from typing import Optional, Callable, Set
 import numpy as np
 
 logger = logging.getLogger("agent.clap_launcher")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+
+def kill_stale_port_processes(port: int):
+    """
+    Kills any stale/orphan background process listening on the specified TCP port.
+    Prevents port conflicts and stale terminal processes.
+    """
+    try:
+        if sys.platform == "win32":
+            cmd = f"netstat -ano | findstr :{port}"
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if res.returncode == 0 and res.stdout:
+                pids: Set[str] = set()
+                for line in res.stdout.strip().split("\n"):
+                    parts = line.strip().split()
+                    if len(parts) >= 5 and "LISTENING" in line:
+                        pids.add(parts[-1])
+                for pid in pids:
+                    if pid != "0" and int(pid) != os.getpid():
+                        logger.info(f"Killing stale process on port {port} (PID: {pid})...")
+                        subprocess.run(f"taskkill /F /PID {pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.run(f"fuser -k {port}/tcp", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        logger.debug(f"Process cleanup notice for port {port}: {e}")
 
 
 class SingleOrDoubleClapDetector:
@@ -35,15 +61,8 @@ class SingleOrDoubleClapDetector:
         single_clap: bool = True,
         min_clap_interval: float = 0.12,
         max_clap_interval: float = 0.75,
-        refractory_period: float = 2.5,
+        refractory_period: float = 3.0,
     ):
-        """
-        :param energy_threshold: Minimum normalized peak amplitude (0.0 to 1.0) to register as a clap.
-        :param single_clap: If True, activates instantly on a single sharp clap. If False, requires double clap.
-        :param min_clap_interval: Minimum time (seconds) between clap 1 and clap 2 for double clap mode.
-        :param max_clap_interval: Maximum time (seconds) between clap 1 and clap 2 for double clap mode.
-        :param refractory_period: Cooldown time (seconds) after a successful trigger to avoid multi-triggers.
-        """
         self.energy_threshold = energy_threshold
         self.single_clap = single_clap
         self.min_clap_interval = min_clap_interval
@@ -55,17 +74,11 @@ class SingleOrDoubleClapDetector:
         self.in_peak: bool = False
 
     def process_audio_chunk(self, audio_data: np.ndarray, timestamp: Optional[float] = None) -> bool:
-        """
-        Processes a block of PCM audio data (NumPy array).
-        Returns True if a clap activation condition is met, False otherwise.
-        """
         now = timestamp if timestamp is not None else time.time()
 
-        # Enforce post-trigger refractory period
         if now - self.last_trigger_time < self.refractory_period:
             return False
 
-        # Normalize audio format if necessary
         if audio_data.dtype != np.float32:
             if np.issubdtype(audio_data.dtype, np.integer):
                 max_int = float(np.iinfo(audio_data.dtype).max)
@@ -73,7 +86,6 @@ class SingleOrDoubleClapDetector:
 
         peak = float(np.max(np.abs(audio_data)))
 
-        # Transient peak detection (rising edge above threshold)
         if peak >= self.energy_threshold:
             if not self.in_peak:
                 self.in_peak = True
@@ -81,20 +93,17 @@ class SingleOrDoubleClapDetector:
         else:
             self.in_peak = False
 
-        # Reset double clap timer if expired
         if not self.single_clap and self.last_clap_time and (now - self.last_clap_time > self.max_clap_interval):
             self.last_clap_time = None
 
         return False
 
     def _register_clap_peak(self, now: float) -> bool:
-        """Helper to evaluate clap sequence timing on peak detection."""
         if self.single_clap:
             logger.info("👏 Single clap sound detected! Instant activation triggered!")
             self.last_trigger_time = now
             return True
 
-        # Double clap logic
         if self.last_clap_time is None:
             self.last_clap_time = now
             logger.info("👏 First clap detected! Waiting for second clap...")
@@ -117,32 +126,33 @@ class SingleOrDoubleClapDetector:
             return False
 
 
-# Backwards compatibility alias
 DoubleClapDetector = SingleOrDoubleClapDetector
 
 
 class ClapLauncher:
     """
-    Service wrapper around SingleOrDoubleClapDetector that interacts with system processes:
-    Checks/boots FastAPI backend server AND Next.js web frontend, then instantly opens browser.
+    Service wrapper around SingleOrDoubleClapDetector that manages system processes and browser tabs:
+    - Kills orphan processes on ports 8000 and 3000.
+    - Boots FastAPI backend server AND Next.js web frontend.
+    - Opens http://localhost:3000/ and http://localhost:3000/dashboard without duplicate tab spam.
     """
 
     def __init__(
         self,
         backend_url: str = "http://localhost:8000/health",
-        frontend_url: str = "http://localhost:3000",
+        frontend_urls: Optional[list] = None,
         backend_cmd: Optional[str] = None,
         frontend_cmd: Optional[str] = None,
         detector: Optional[SingleOrDoubleClapDetector] = None,
     ):
         self.backend_url = backend_url
-        self.frontend_url = frontend_url
+        self.frontend_urls = frontend_urls or ["http://localhost:3000/", "http://localhost:3000/dashboard"]
         self.backend_cmd = backend_cmd
         self.frontend_cmd = frontend_cmd
         self.detector = detector or SingleOrDoubleClapDetector(single_clap=True, energy_threshold=0.18)
+        self.last_browser_open_time: float = 0.0
 
     def is_backend_running(self) -> bool:
-        """Check if backend HTTP health endpoint responds with 200 OK."""
         try:
             req = urllib.request.Request(self.backend_url, headers={"User-Agent": "ClapLauncher"})
             with urllib.request.urlopen(req, timeout=1.0) as resp:
@@ -151,25 +161,29 @@ class ClapLauncher:
             return False
 
     def is_frontend_running(self) -> bool:
-        """Check if Next.js frontend dev server responds on port 3000."""
         try:
-            req = urllib.request.Request(self.frontend_url, headers={"User-Agent": "ClapLauncher"})
+            req = urllib.request.Request(self.frontend_urls[0], headers={"User-Agent": "ClapLauncher"})
             with urllib.request.urlopen(req, timeout=1.0) as resp:
                 return resp.status in (200, 304, 404)
         except Exception:
             return False
 
+    def cleanup_stale_processes(self):
+        """Kills any stale process instances running on ports 8000 and 3000."""
+        logger.info("Cleaning up any stale/duplicate processes on ports 8000 & 3000...")
+        kill_stale_port_processes(8000)
+        kill_stale_port_processes(3000)
+
     def start_backend_async(self):
-        """Spawns FastAPI backend server process in background."""
         if self.is_backend_running():
             logger.info("Backend service is already healthy and running (port 8000).")
             return
 
+        # Kill stale port if process is unresponsive
+        kill_stale_port_processes(8000)
+
         logger.info("Starting FastAPI backend server process...")
-        if self.backend_cmd:
-            cmd = self.backend_cmd
-        else:
-            cmd = f"{sys.executable} -m uvicorn apps.agent.main:app --host 0.0.0.0 --port 8000"
+        cmd = self.backend_cmd or f"{sys.executable} -m uvicorn apps.agent.main:app --host 0.0.0.0 --port 8000"
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
         agent_dir = os.path.abspath(os.path.join(current_dir, ".."))
@@ -187,16 +201,15 @@ class ClapLauncher:
             logger.error(f"Failed to spawn backend process: {e}")
 
     def start_frontend_async(self):
-        """Spawns Next.js web frontend dev server process in background."""
         if self.is_frontend_running():
             logger.info("Web frontend service is already running (port 3000).")
             return
 
+        # Kill stale port if process is unresponsive
+        kill_stale_port_processes(3000)
+
         logger.info("Starting Next.js web application frontend server (npm run dev)...")
-        if self.frontend_cmd:
-            cmd = self.frontend_cmd
-        else:
-            cmd = "npm run dev"
+        cmd = self.frontend_cmd or "npm run dev"
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
         web_dir = os.path.abspath(os.path.join(current_dir, "..", "..", "web"))
@@ -213,31 +226,41 @@ class ClapLauncher:
         except Exception as e:
             logger.error(f"Failed to spawn frontend process: {e}")
 
-    def open_browser_immediately(self):
-        """Instantly launches web browser pointing to Next.js dashboard."""
-        logger.info(f"🚀 INSTANT LAUNCH: Opening browser at {self.frontend_url}...")
-        try:
-            webbrowser.open(self.frontend_url)
-        except Exception as e:
-            logger.error(f"Failed to open browser: {e}")
+    def open_browser_tabs(self):
+        """Opens required web application pages without duplicate tab spam."""
+        now = time.time()
+        # Cooldown of 5 seconds to prevent spamming duplicate browser tabs
+        if now - self.last_browser_open_time < 5.0:
+            logger.info("Browser tabs were recently opened. Skipping duplicate tab launch.")
+            return
+
+        self.last_browser_open_time = now
+
+        for idx, url in enumerate(self.frontend_urls):
+            logger.info(f"🚀 Launching browser tab #{idx + 1}: {url}")
+            try:
+                if idx == 0:
+                    webbrowser.open(url)
+                else:
+                    webbrowser.open_new_tab(url)
+                time.sleep(0.3)
+            except Exception as e:
+                logger.error(f"Failed to open browser tab for {url}: {e}")
 
     def trigger_action(self):
         """Executes non-blocking parallel kick-start sequence on clap detection."""
-        logger.info("👏 CLAP ACTIVATION CONFIRMED: Booting backend, web frontend, and opening browser!")
+        logger.info("👏 CLAP ACTIVATION CONFIRMED: Cleaning processes, booting backend, web frontend, and opening tabs!")
         
-        # Spawn backend and frontend processes in parallel background threads
+        # Clean stale instances and spawn servers in parallel background threads
         t1 = threading.Thread(target=self.start_backend_async, daemon=True)
         t2 = threading.Thread(target=self.start_frontend_async, daemon=True)
         t1.start()
         t2.start()
 
-        # Instantly open web browser without blocking!
-        self.open_browser_immediately()
+        # Instantly open web browser tabs
+        self.open_browser_tabs()
 
     def listen(self, sample_rate: int = 44100, block_size: int = 2048):
-        """
-        Starts audio input streaming from default system microphone using sounddevice.
-        """
         try:
             import sounddevice as sd
         except ImportError:
@@ -255,7 +278,7 @@ class ClapLauncher:
 
         mode_desc = "SINGLE clap" if self.detector.single_clap else "DOUBLE clap"
         logger.info(f"Listening for {mode_desc} on default microphone (sensitivity threshold={self.detector.energy_threshold})...")
-        logger.info("Clap hands to kick-start backend, boot Next.js web frontend, and launch browser. Press Ctrl+C to exit.")
+        logger.info(f"Clap hands to kick-start backend, boot Next.js web frontend, and launch {self.frontend_urls}. Press Ctrl+C to exit.")
 
         try:
             with sd.InputStream(
