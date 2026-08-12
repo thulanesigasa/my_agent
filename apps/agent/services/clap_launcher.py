@@ -226,34 +226,37 @@ class ClapLauncher:
         except Exception as e:
             logger.error(f"Failed to spawn frontend process: {e}")
 
-    def _open_url(self, url: str):
+    def _open_url(self, url: str, reuse_existing: bool = True):
         try:
-            if sys.platform == "win32":
-                os.system(f'start "" "{url}"')
-            else:
-                webbrowser.open_new_tab(url)
+            # new=0 reuses & focuses existing browser tab/window instead of opening duplicates
+            new_mode = 0 if reuse_existing else 2
+            webbrowser.open(url, new=new_mode, autoraise=True)
         except Exception as e:
             logger.error(f"Error opening browser tab {url}: {e}")
-            webbrowser.open(url)
 
     def open_browser_tabs(self):
-        """Opens required web application pages (Voice UI & Admin Dashboard) without duplicate tab spam."""
+        """Focuses existing web application tab or opens main interface without duplicate tab clutter."""
         now = time.time()
-        # Cooldown of 4 seconds to prevent spamming duplicate browser tabs
+        # Cooldown of 4 seconds to prevent duplicate activation triggers
         if now - self.last_browser_open_time < 4.0:
-            logger.info("Browser tabs were recently opened. Skipping duplicate tab launch.")
+            logger.info("Browser tab check recently executed. Skipping duplicate launch.")
             return
 
         self.last_browser_open_time = now
 
-        for idx, url in enumerate(self.frontend_urls):
-            logger.info(f"🚀 Launching browser tab #{idx + 1}: {url}")
-            self._open_url(url)
-            time.sleep(1.2)
+        frontend_active = self.is_frontend_running()
+        target_url = self.frontend_urls[0] if self.frontend_urls else "http://localhost:3000/"
+        
+        if frontend_active:
+            logger.info(f"🚀 Application already running. Focusing existing tab: {target_url}")
+            self._open_url(target_url, reuse_existing=True)
+        else:
+            logger.info(f"🚀 Opening main agent interface: {target_url}")
+            self._open_url(target_url, reuse_existing=False)
 
     def trigger_action(self):
         """Executes non-blocking parallel kick-start sequence on clap detection."""
-        logger.info("👏 CLAP ACTIVATION CONFIRMED: Cleaning processes, booting backend, web frontend, and opening tabs!")
+        logger.info("👏 CLAP ACTIVATION CONFIRMED: Cleaning processes, booting backend, web frontend, and focusing app tab!")
         
         # Clean stale instances and spawn servers in parallel background threads
         t1 = threading.Thread(target=self.start_backend_async, daemon=True)
