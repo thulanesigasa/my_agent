@@ -146,7 +146,7 @@ class ClapLauncher:
         detector: Optional[SingleOrDoubleClapDetector] = None,
     ):
         self.backend_url = backend_url
-        self.frontend_urls = frontend_urls or ["http://localhost:3000/"]
+        self.frontend_urls = frontend_urls or ["http://localhost:3000/", "http://localhost:3000/dashboard"]
         self.backend_cmd = backend_cmd
         self.frontend_cmd = frontend_cmd
         self.detector = detector or SingleOrDoubleClapDetector(single_clap=True, energy_threshold=0.18)
@@ -179,7 +179,6 @@ class ClapLauncher:
             logger.info("Backend service is already healthy and running (port 8000).")
             return
 
-        # Kill stale port if process is unresponsive
         kill_stale_port_processes(8000)
 
         logger.info("Starting FastAPI backend server process...")
@@ -205,7 +204,6 @@ class ClapLauncher:
             logger.info("Web frontend service is already running (port 3000).")
             return
 
-        # Kill stale port if process is unresponsive
         kill_stale_port_processes(3000)
 
         logger.info("Starting Next.js web application frontend server (npm run dev)...")
@@ -226,40 +224,23 @@ class ClapLauncher:
         except Exception as e:
             logger.error(f"Failed to spawn frontend process: {e}")
 
-    def focus_existing_browser_tab(self) -> bool:
-        """Brings existing open browser window/tab containing 'my_agent' or 'localhost:3000' to focus."""
-        if sys.platform == "win32":
-            for kw in ["my_agent", "localhost:3000", "Dashboard"]:
-                try:
-                    ps_cmd = f'$w = New-Object -ComObject WScript.Shell; $res = $w.AppActivate("{kw}"); if ($res) {{ exit 0 }} else {{ exit 1 }}'
-                    res = subprocess.run(["powershell", "-Command", ps_cmd], capture_output=True)
-                    if res.returncode == 0:
-                        logger.info(f"Focused open browser window/tab containing '{kw}'. No duplicate tab opened!")
-                        return True
-                except Exception:
-                    pass
-        return False
-
     def open_browser_tabs(self):
-        """Focuses existing web application tab or opens main interface without duplicate tab clutter."""
+        """Launches both web application pages: Voice UI and Admin Dashboard."""
         now = time.time()
         if now - self.last_browser_open_time < 4.0:
-            logger.info("Browser tab check recently executed. Skipping duplicate launch.")
+            logger.info("Browser tabs were recently launched. Skipping duplicate launch.")
             return
 
         self.last_browser_open_time = now
 
-        # 1. First attempt to bring an already open tab/window to focus
-        if self.focus_existing_browser_tab():
-            return
-
-        # 2. If browser window wasn't open, launch main app URL
-        target_url = self.frontend_urls[0] if self.frontend_urls else "http://localhost:3000/"
-        logger.info(f"🚀 Opening main agent interface: {target_url}")
-        try:
-            webbrowser.open(target_url, new=0, autoraise=True)
-        except Exception as e:
-            logger.error(f"Error launching browser: {e}")
+        for idx, url in enumerate(self.frontend_urls):
+            logger.info(f"🚀 Launching browser tab #{idx + 1}: {url}")
+            try:
+                webbrowser.open(url)
+            except Exception as e:
+                logger.error(f"Failed to open browser tab for {url}: {e}")
+            
+            time.sleep(1.0)
 
     def trigger_action(self):
         """Executes non-blocking parallel kick-start sequence on clap detection."""
