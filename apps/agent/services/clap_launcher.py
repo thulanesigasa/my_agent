@@ -328,8 +328,20 @@ class ClapLauncher:
                 self.trigger_action()
 
         mode_desc = "SINGLE clap" if self.detector.single_clap else "DOUBLE clap"
-        logger.info(f"Listening for {mode_desc} OR 'Agent' voice command on default microphone...")
-        logger.info("Clap hands OR say 'Agent' to kick-start backend, boot Next.js web frontend, and open tabs. Press Ctrl+C to exit.")
+        if sys.platform == "win32":
+            os.system("")
+
+        GREEN_BOLD = "\033[1;92m"
+        GREEN = "\033[92m"
+        CYAN = "\033[96m"
+        RESET = "\033[0m"
+
+        print(f"\n{GREEN}============================================================{RESET}")
+        print(f"{GREEN_BOLD}  [+] AGENT ACTIVE{RESET}")
+        print(f"{GREEN}============================================================{RESET}")
+        print(f"{CYAN}  Listening for hand claps ({mode_desc}) OR 'Agent' voice command...{RESET}\n")
+
+        logger.info(f"Listening on default microphone for hand claps OR 'Agent' voice command...")
 
         try:
             with sd.InputStream(

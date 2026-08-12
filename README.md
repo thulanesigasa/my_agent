@@ -14,18 +14,25 @@ An enterprise-grade, autonomous, voice-enabled AI agent platform representing **
 
 ---
 
-## 👏 Double Clap Hands Auto-Launcher
+## 🎙️ Hands-Free Agent Terminal Launcher (`start agent`)
 
-Kick-start the agent backend and open the web dashboard instantly using hands-free sound triggers:
+Kick-start the agent listener instantly using custom terminal commands or Python:
 
 ```bash
-# Run real-time double clap mic listener
-python run_clap_launcher.py
+# Type directly in Command Prompt / PowerShell:
+start agent
+
+# OR run python:
+python start_agent.py
 ```
-- **How it works**: Continuously monitors the default system microphone for two quick consecutive hand claps (150ms - 750ms apart).
+- **Console Response**: Responds with a vibrant green **`[+] AGENT ACTIVE`** status banner.
+- **Dual Activation Triggers**:
+  1. **👏 Hand Clap**: Single sharp sound peak trigger.
+  2. **🗣️ Voice Command**: Saying **`"Agent"`** into your microphone.
 - **Automated Actions**:
-  1. Checks if `http://localhost:8000/health` is running; if offline, spawns the FastAPI backend server process automatically.
-  2. Opens the Next.js web application UI in your primary web browser (`http://localhost:3000`).
+  1. Boots/ensures FastAPI backend server (`http://localhost:8000`).
+  2. Boots/ensures Next.js web application frontend (`http://localhost:3000`).
+  3. Launches or focuses application browser tabs without duplicate tab creation.
 
 ---
 
