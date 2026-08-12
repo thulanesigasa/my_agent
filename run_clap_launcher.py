@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Double-Clap Trigger Launcher Entrypoint.
+Unified Clap & "Agent" Voice Command Listener Launcher Entrypoint.
 
 Usage:
     python run_clap_launcher.py
 
-Clap hands TWICE in quick succession (within 150ms to 750ms) to:
+Clap hands OR say "Agent" into your microphone to:
 1. Boot/ensure the FastAPI agent backend is running (http://localhost:8000).
-2. Automatically launch the web application in your browser (http://localhost:3000).
+2. Boot/ensure the Next.js web frontend is running (http://localhost:3000).
+3. Open or focus the application tabs in your browser.
 """
 
 import os

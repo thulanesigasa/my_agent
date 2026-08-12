@@ -300,17 +300,36 @@ class ClapLauncher:
             logger.error("Please install dependencies: pip install sounddevice")
             sys.exit(1)
 
+        try:
+            from services.wake_word_service import wake_word_detector
+        except ImportError:
+            wake_word_detector = None
+
         def audio_callback(indata: np.ndarray, frames: int, time_info, status):
             if status:
                 logger.warning(f"Audio status warning: {status}")
             
             mono_data = indata[:, 0] if indata.ndim > 1 else indata
-            if self.detector.process_audio_chunk(mono_data):
+
+            # 1. Check Clap Sound Trigger
+            clap_triggered = self.detector.process_audio_chunk(mono_data)
+
+            # 2. Check "Agent" Voice Command Trigger
+            voice_triggered = False
+            if wake_word_detector:
+                v_trig, is_authed, speaker_name = wake_word_detector.process_audio_chunk(mono_data)
+                voice_triggered = v_trig
+
+            if clap_triggered:
+                logger.info("👏 CLAP SOUND TRIGGER DETECTED!")
+                self.trigger_action()
+            elif voice_triggered:
+                logger.info("🗣️ VOICE ACTIVATION COMMAND DETECTED ('Agent')!")
                 self.trigger_action()
 
         mode_desc = "SINGLE clap" if self.detector.single_clap else "DOUBLE clap"
-        logger.info(f"Listening for {mode_desc} on default microphone (sensitivity threshold={self.detector.energy_threshold})...")
-        logger.info(f"Clap hands to kick-start backend, boot Next.js web frontend, and launch {self.frontend_urls}. Press Ctrl+C to exit.")
+        logger.info(f"Listening for {mode_desc} OR 'Agent' voice command on default microphone...")
+        logger.info("Clap hands OR say 'Agent' to kick-start backend, boot Next.js web frontend, and open tabs. Press Ctrl+C to exit.")
 
         try:
             with sd.InputStream(
@@ -323,7 +342,7 @@ class ClapLauncher:
                 while True:
                     time.sleep(0.1)
         except KeyboardInterrupt:
-            logger.info("Stopped clap listener.")
+            logger.info("Stopped agent listener.")
         except Exception as e:
             logger.error(f"Microphone audio streaming error: {e}")
 
