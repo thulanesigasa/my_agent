@@ -16,16 +16,18 @@ logger = logging.getLogger("agent.wake_word_service")
 
 class WakeWordDetector:
     """
-    Algorithmic Wake-Word Detector analyzing vocal energy envelope & acoustic cadence.
+    Algorithmic Wake-Word Detector analyzing vocal energy envelope & acoustic cadence for keyword "Agent".
     Designed for fast, offline activation without external API latency.
     """
 
     def __init__(
         self,
+        wake_word: str = "Agent",
         energy_threshold: float = 0.12,
         min_syllable_count: int = 2,
         refractory_period: float = 3.0,
     ):
+        self.wake_word = wake_word
         self.energy_threshold = energy_threshold
         self.min_syllable_count = min_syllable_count
         self.refractory_period = refractory_period
@@ -65,9 +67,9 @@ class WakeWordDetector:
             if self.last_burst_time > 0 and (now - self.last_burst_time > 0.60):
                 self.vocal_bursts = 0
 
-        # Check if vocal burst cadence matches wake word ("Hey Pharez": ~2-3 syllables within 1s)
+        # Check if vocal burst cadence matches wake word ("Agent": ~2 syllables within 0.8s)
         if self.vocal_bursts >= self.min_syllable_count and (now - self.last_burst_time < 0.80):
-            logger.info("🗣️ Wake word cadence detected ('Hey Pharez')! Verifying speaker voice biometrics...")
+            logger.info(f"🗣️ Wake word detected ('{self.wake_word}')! Verifying speaker voice biometrics...")
             
             # Verify voice biometric profile
             is_authed, score, speaker_name = voice_biometrics_service.verify_speaker(
