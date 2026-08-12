@@ -241,7 +241,7 @@ class ClapLauncher:
                     title = buf.value
                     
                     title_lower = title.lower()
-                    if ("my_agent" in title_lower or "dashboard" in title_lower or "localhost:3000" in title_lower) and "antigravity" not in title_lower and "code" not in title_lower:
+                    if ("my_agent" in title_lower or "dashboard" in title_lower or "localhost" in title_lower or "3000" in title_lower) and "antigravity" not in title_lower and "code" not in title_lower:
                         logger.info(f"Focused open browser window '{title}'. No duplicate tab opened!")
                         SW_RESTORE = 9
                         user32.ShowWindow(hwnd, SW_RESTORE)
