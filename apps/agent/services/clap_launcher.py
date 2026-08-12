@@ -146,7 +146,7 @@ class ClapLauncher:
         detector: Optional[SingleOrDoubleClapDetector] = None,
     ):
         self.backend_url = backend_url
-        self.frontend_urls = frontend_urls or ["http://localhost:3000/", "http://localhost:3000/dashboard"]
+        self.frontend_urls = frontend_urls or ["http://localhost:3000/"]
         self.backend_cmd = backend_cmd
         self.frontend_cmd = frontend_cmd
         self.detector = detector or SingleOrDoubleClapDetector(single_clap=True, energy_threshold=0.18)
@@ -226,33 +226,40 @@ class ClapLauncher:
         except Exception as e:
             logger.error(f"Failed to spawn frontend process: {e}")
 
-    def _open_url(self, url: str, reuse_existing: bool = True):
-        try:
-            # new=0 reuses & focuses existing browser tab/window instead of opening duplicates
-            new_mode = 0 if reuse_existing else 2
-            webbrowser.open(url, new=new_mode, autoraise=True)
-        except Exception as e:
-            logger.error(f"Error opening browser tab {url}: {e}")
+    def focus_existing_browser_tab(self) -> bool:
+        """Brings existing open browser window/tab containing 'my_agent' or 'localhost:3000' to focus."""
+        if sys.platform == "win32":
+            for kw in ["my_agent", "localhost:3000", "Dashboard"]:
+                try:
+                    ps_cmd = f'$w = New-Object -ComObject WScript.Shell; $res = $w.AppActivate("{kw}"); if ($res) {{ exit 0 }} else {{ exit 1 }}'
+                    res = subprocess.run(["powershell", "-Command", ps_cmd], capture_output=True)
+                    if res.returncode == 0:
+                        logger.info(f"Focused open browser window/tab containing '{kw}'. No duplicate tab opened!")
+                        return True
+                except Exception:
+                    pass
+        return False
 
     def open_browser_tabs(self):
         """Focuses existing web application tab or opens main interface without duplicate tab clutter."""
         now = time.time()
-        # Cooldown of 4 seconds to prevent duplicate activation triggers
         if now - self.last_browser_open_time < 4.0:
             logger.info("Browser tab check recently executed. Skipping duplicate launch.")
             return
 
         self.last_browser_open_time = now
 
-        frontend_active = self.is_frontend_running()
+        # 1. First attempt to bring an already open tab/window to focus
+        if self.focus_existing_browser_tab():
+            return
+
+        # 2. If browser window wasn't open, launch main app URL
         target_url = self.frontend_urls[0] if self.frontend_urls else "http://localhost:3000/"
-        
-        if frontend_active:
-            logger.info(f"🚀 Application already running. Focusing existing tab: {target_url}")
-            self._open_url(target_url, reuse_existing=True)
-        else:
-            logger.info(f"🚀 Opening main agent interface: {target_url}")
-            self._open_url(target_url, reuse_existing=False)
+        logger.info(f"🚀 Opening main agent interface: {target_url}")
+        try:
+            webbrowser.open(target_url, new=0, autoraise=True)
+        except Exception as e:
+            logger.error(f"Error launching browser: {e}")
 
     def trigger_action(self):
         """Executes non-blocking parallel kick-start sequence on clap detection."""
