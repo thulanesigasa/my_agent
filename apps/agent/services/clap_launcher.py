@@ -214,15 +214,63 @@ class ClapLauncher:
         except Exception as e:
             logger.error(f"Failed to spawn frontend process: {e}")
 
+    def focus_existing_browser_window(self) -> bool:
+        """
+        Scans top-level windows for open browser windows containing 'my_agent', 'dashboard',
+        or 'localhost:3000' and brings the browser window to focus.
+        Returns True if an existing browser window was found and focused (NO duplicate tabs opened).
+        """
+        if sys.platform != "win32":
+            return False
+
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32
+            focused = False
+
+            def enum_callback(hwnd, lparam):
+                nonlocal focused
+                if not user32.IsWindowVisible(hwnd):
+                    return True
+                length = user32.GetWindowTextLengthW(hwnd)
+                if length > 0:
+                    buf = ctypes.create_unicode_buffer(length + 1)
+                    user32.GetWindowTextW(hwnd, buf, length + 1)
+                    title = buf.value
+                    
+                    title_lower = title.lower()
+                    if ("my_agent" in title_lower or "dashboard" in title_lower or "localhost:3000" in title_lower) and "antigravity" not in title_lower and "code" not in title_lower:
+                        logger.info(f"Focused open browser window '{title}'. No duplicate tab opened!")
+                        SW_RESTORE = 9
+                        user32.ShowWindow(hwnd, SW_RESTORE)
+                        user32.SetForegroundWindow(hwnd)
+                        focused = True
+                        return False
+                return True
+
+            WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+            user32.EnumWindows(WNDENUMPROC(enum_callback), 0)
+            return focused
+        except Exception as e:
+            logger.debug(f"Window focus check error: {e}")
+            return False
+
     def open_browser_tabs(self):
-        """Launches both web application pages: Voice UI and Admin Dashboard."""
+        """Focuses existing open browser window or launches initial web application pages."""
         now = time.time()
         if now - self.last_browser_open_time < 4.0:
-            logger.info("Browser tabs were recently launched. Skipping duplicate launch.")
+            logger.info("Browser tabs were recently checked. Skipping duplicate launch.")
             return
 
         self.last_browser_open_time = now
 
+        # 1. First attempt to bring an already open browser window to focus (prevents duplicate tabs)
+        if self.focus_existing_browser_window():
+            return
+
+        # 2. If no open browser window was found, launch main app tabs
         for idx, url in enumerate(self.frontend_urls):
             logger.info(f"🚀 Launching browser tab #{idx + 1}: {url}")
             try:
