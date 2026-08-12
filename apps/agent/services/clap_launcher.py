@@ -168,18 +168,10 @@ class ClapLauncher:
         except Exception:
             return False
 
-    def cleanup_stale_processes(self):
-        """Kills any stale process instances running on ports 8000 and 3000."""
-        logger.info("Cleaning up any stale/duplicate processes on ports 8000 & 3000...")
-        kill_stale_port_processes(8000)
-        kill_stale_port_processes(3000)
-
     def start_backend_async(self):
         if self.is_backend_running():
             logger.info("Backend service is already healthy and running (port 8000).")
             return
-
-        kill_stale_port_processes(8000)
 
         logger.info("Starting FastAPI backend server process...")
         cmd = self.backend_cmd or f"{sys.executable} -m uvicorn apps.agent.main:app --host 0.0.0.0 --port 8000"
@@ -203,8 +195,6 @@ class ClapLauncher:
         if self.is_frontend_running():
             logger.info("Web frontend service is already running (port 3000).")
             return
-
-        kill_stale_port_processes(3000)
 
         logger.info("Starting Next.js web application frontend server (npm run dev)...")
         cmd = self.frontend_cmd or "npm run dev"
@@ -244,9 +234,9 @@ class ClapLauncher:
 
     def trigger_action(self):
         """Executes non-blocking parallel kick-start sequence on clap detection."""
-        logger.info("👏 CLAP ACTIVATION CONFIRMED: Cleaning processes, booting backend, web frontend, and focusing app tab!")
+        logger.info("👏 CLAP ACTIVATION CONFIRMED: Checking servers and opening browser tabs!")
         
-        # Clean stale instances and spawn servers in parallel background threads
+        # Check and spawn missing servers in parallel background threads
         t1 = threading.Thread(target=self.start_backend_async, daemon=True)
         t2 = threading.Thread(target=self.start_frontend_async, daemon=True)
         t3 = threading.Thread(target=self.open_browser_tabs, daemon=True)
