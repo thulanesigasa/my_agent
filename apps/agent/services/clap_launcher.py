@@ -216,9 +216,8 @@ class ClapLauncher:
 
     def focus_existing_browser_window(self) -> bool:
         """
-        Scans top-level windows for open browser windows containing 'my_agent', 'dashboard',
-        or 'localhost:3000' and brings the browser window to focus.
-        Returns True if an existing browser window was found and focused (NO duplicate tabs opened).
+        Scans top-level windows for open browser windows containing app titles or running browsers.
+        Brings existing browser window to focus to prevent duplicate tabs on both clap and voice command triggers.
         """
         if sys.platform != "win32":
             return False
@@ -230,6 +229,10 @@ class ClapLauncher:
             user32 = ctypes.windll.user32
             focused = False
 
+            app_keywords = ["my_agent", "dashboard", "localhost:3000", "localhost", ":3000", "404: this page"]
+            browser_names = ["microsoft edge", "chrome", "firefox", "brave", "opera"]
+            frontend_active = self.is_frontend_running()
+
             def enum_callback(hwnd, lparam):
                 nonlocal focused
                 if not user32.IsWindowVisible(hwnd):
@@ -238,11 +241,18 @@ class ClapLauncher:
                 if length > 0:
                     buf = ctypes.create_unicode_buffer(length + 1)
                     user32.GetWindowTextW(hwnd, buf, length + 1)
-                    title = buf.value
-                    
-                    title_lower = title.lower()
-                    if any(kw in title_lower for kw in ["my_agent", "dashboard", "localhost:3000"]) and "antigravity" not in title_lower and "code" not in title_lower:
-                        logger.info(f"Focused open browser window '{title}'. No duplicate tab opened!")
+                    title = buf.value.lower()
+
+                    # Exclude IDE / editor titles
+                    if "antigravity" in title or "visual studio code" in title or "pycharm" in title:
+                        return True
+
+                    # Match app tab keywords OR running browser window if frontend server is active
+                    match_app = any(kw in title for kw in app_keywords)
+                    match_browser = frontend_active and any(b in title for b in browser_names)
+
+                    if match_app or match_browser:
+                        logger.info(f"Focused open browser window '{buf.value}'. No duplicate tab opened!")
                         SW_RESTORE = 9
                         user32.ShowWindow(hwnd, SW_RESTORE)
                         user32.SetForegroundWindow(hwnd)
