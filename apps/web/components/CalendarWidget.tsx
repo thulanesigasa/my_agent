@@ -47,9 +47,9 @@ export default function CalendarWidget() {
     <div style={{
       width: "100%",
       background: "transparent",
-      border: "1px solid rgba(226, 232, 240, 0.5)",
-      borderRadius: 16,
-      padding: "12px 14px",
+      border: "none",
+      boxShadow: "none",
+      padding: "8px 4px",
       display: "flex",
       flexDirection: "column",
       gap: 8,
@@ -115,7 +115,9 @@ export default function CalendarWidget() {
             <div
               key={day}
               style={{
-                height: 22,
+                width: 24,
+                height: 24,
+                margin: "0 auto",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

@@ -73,9 +73,9 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
       height: "100%",
       maxHeight: "calc(100vh - 100px)",
       background: "transparent",
-      border: "1px solid rgba(226, 232, 240, 0.5)",
-      borderRadius: 16,
-      padding: "14px 16px",
+      border: "none",
+      boxShadow: "none",
+      padding: "8px 4px",
       display: "flex",
       flexDirection: "column",
       gap: 12,
@@ -83,7 +83,7 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
       {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        paddingBottom: 8, borderBottom: "1px solid rgba(226, 232, 240, 0.7)",
+        paddingBottom: 4,
       }}>
         <div>
           <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", margin: 0 }}>
@@ -94,6 +94,14 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
           </span>
         </div>
       </div>
+
+      {/* Centered Shorter Header Divider Line */}
+      <div style={{
+        width: "75%",
+        margin: "0 auto 4px",
+        height: 1,
+        background: "rgba(226, 232, 240, 0.7)",
+      }} />
 
       {/* Daily Progress Bar */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -111,7 +119,7 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
         </div>
       </div>
 
-      {/* Task Items Stream (Minimalist Rows with Divider Lines) */}
+      {/* Task Items Stream (Minimalist Rows with Shorter Centered Separator Lines) */}
       <div style={{
         flex: 1, overflowY: "auto", display: "flex", flexDirection: "column",
         paddingRight: 2,
@@ -124,39 +132,48 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
           filteredTasks.map((task, index) => {
             const isLast = index === filteredTasks.length - 1;
             return (
-              <div
-                key={task.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "10px 4px",
-                  borderBottom: isLast ? "none" : "1px solid rgba(226, 232, 240, 0.6)",
-                  opacity: task.completed ? 0.6 : 1,
-                  transition: "all 150ms ease",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-                  <button
-                    onClick={() => toggleTask(task.id)}
-                    style={{
-                      background: "none", border: "none", cursor: "pointer",
-                      padding: 0, color: task.completed ? "#ec4899" : "#94a3b8",
-                      display: "flex", alignItems: "center",
-                    }}
-                  >
-                    {task.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
-                  </button>
-                  <span style={{
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: task.completed ? "#64748b" : "#0f172a",
-                    textDecoration: task.completed ? "line-through" : "none",
-                  }}>
-                    {task.title}
-                  </span>
+              <React.Fragment key={task.id}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 4px",
+                    opacity: task.completed ? 0.6 : 1,
+                    transition: "all 150ms ease",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+                    <button
+                      onClick={() => toggleTask(task.id)}
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        padding: 0, color: task.completed ? "#ec4899" : "#94a3b8",
+                        display: "flex", alignItems: "center",
+                      }}
+                    >
+                      {task.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                    </button>
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: task.completed ? "#64748b" : "#0f172a",
+                      textDecoration: task.completed ? "line-through" : "none",
+                    }}>
+                      {task.title}
+                    </span>
+                  </div>
                 </div>
-              </div>
+
+                {!isLast && (
+                  <div style={{
+                    width: "75%",
+                    margin: "2px auto",
+                    height: 1,
+                    background: "rgba(226, 232, 240, 0.6)",
+                  }} />
+                )}
+              </React.Fragment>
             );
           })
         )}
