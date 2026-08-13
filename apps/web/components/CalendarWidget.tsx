@@ -7,11 +7,10 @@ export default function CalendarWidget() {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewDate, setViewDate] = useState<Date>(new Date());
 
-  // Auto-update date as time moves
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentDate(new Date());
-    }, 1000 * 60); // Check every minute
+    }, 1000 * 60);
     return () => clearInterval(timer);
   }, []);
 
@@ -51,48 +50,48 @@ export default function CalendarWidget() {
       backdropFilter: "blur(12px)",
       border: "1px solid rgba(226, 232, 240, 0.8)",
       borderRadius: 16,
-      padding: "16px",
+      padding: "12px 14px",
       boxShadow: "0 4px 20px rgba(0, 0, 0, 0.03)",
       display: "flex",
       flexDirection: "column",
-      gap: 12,
+      gap: 8,
     }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{
-            width: 28, height: 28, borderRadius: 8,
+            width: 24, height: 24, borderRadius: 6,
             background: "rgba(236, 72, 153, 0.1)",
             display: "flex", alignItems: "center", justifyContent: "center",
             color: "#ec4899",
           }}>
-            <CalendarIcon size={16} />
+            <CalendarIcon size={14} />
           </div>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
             {monthNames[month]} {year}
           </span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
           <button
             onClick={handlePrevMonth}
             style={{
               background: "none", border: "none", cursor: "pointer",
-              padding: 4, borderRadius: 6, color: "#64748b",
+              padding: 2, borderRadius: 4, color: "#64748b",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={14} />
           </button>
           <button
             onClick={handleNextMonth}
             style={{
               background: "none", border: "none", cursor: "pointer",
-              padding: 4, borderRadius: 6, color: "#64748b",
+              padding: 2, borderRadius: 4, color: "#64748b",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={14} />
           </button>
         </div>
       </div>
@@ -100,14 +99,14 @@ export default function CalendarWidget() {
       {/* Days Header */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", textAlign: "center" }}>
         {dayLabels.map((day) => (
-          <span key={day} style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>
+          <span key={day} style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8" }}>
             {day}
           </span>
         ))}
       </div>
 
       {/* Days Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, textAlign: "center" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, textAlign: "center" }}>
         {Array.from({ length: firstDayOfMonth }).map((_, idx) => (
           <div key={`empty-${idx}`} />
         ))}
@@ -118,16 +117,16 @@ export default function CalendarWidget() {
             <div
               key={day}
               style={{
-                height: 28,
+                height: 22,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 borderRadius: "50%",
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: active ? 700 : 500,
                 background: active ? "#ec4899" : "transparent",
                 color: active ? "#ffffff" : "#334155",
-                boxShadow: active ? "0 0 12px rgba(236, 72, 153, 0.45)" : "none",
+                boxShadow: active ? "0 0 10px rgba(236, 72, 153, 0.45)" : "none",
                 transition: "all 150ms ease",
               }}
             >
