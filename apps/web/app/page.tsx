@@ -8,6 +8,9 @@ import {
 } from "lucide-react";
 import SiriOrb from "@/components/ui/siri-orb";
 import { AudioStreamManager, SiriOrbState } from "@/lib/audio";
+import CalendarWidget from "@/components/CalendarWidget";
+import EmployeeStack, { AGENT_EMPLOYEES } from "@/components/EmployeeStack";
+import AgentTodoList from "@/components/AgentTodoList";
 
 interface Message {
   id: string;
@@ -22,6 +25,9 @@ export default function Home() {
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [modelDropdown, setModelDropdown] = useState(false);
+  const [activeAgentId, setActiveAgentId] = useState<string>("reports_agent");
+
+  const activeAgent = AGENT_EMPLOYEES.find((a) => a.id === activeAgentId) || AGENT_EMPLOYEES[0];
 
   // Voice / Full-screen White Orb Live mode state
   const [voiceActive, setVoiceActive] = useState(false);
@@ -312,119 +318,142 @@ export default function Home() {
             </div>
           </header>
 
-          {/* Main Area */}
-          <main style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px", overflowY: "auto" }}>
-            {messages.length === 0 ? (
-              /* ── Centered Hero Title ── */
-              <div style={{ textAlign: "center", marginBottom: 36, maxWidth: 640 }}>
-                <h1 style={{ fontSize: 38, fontWeight: 400, color: "#0f172a", letterSpacing: "-0.02em", margin: "0 0 8px" }}>
-                  What's next, sir?
-                </h1>
-                <p style={{ fontSize: 14, color: "#64748b", margin: 0 }}>
-                  Ask my_agent or click the Orb to switch to speech mode.
-                </p>
-              </div>
-            ) : (
-              /* ── Message Stream ── */
-              <div style={{ width: "100%", maxWidth: 680, flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16, paddingBottom: 20 }}>
-                {messages.map((msg) => (
-                  <div key={msg.id} style={{ display: "flex", gap: 10, justifyContent: msg.sender === "user" ? "flex-end" : "flex-start" }}>
-                    {msg.sender === "assistant" && (
+          {/* Main 3-Column Layout Container */}
+          <main style={{
+            flex: 1,
+            display: "grid",
+            gridTemplateColumns: "310px 1fr 320px",
+            gap: 20,
+            padding: "16px 24px 24px",
+            overflow: "hidden",
+          }}>
+            {/* ── LEFT COLUMN (Top: Calendar | Bottom: Employee Roster) ── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, overflowY: "auto" }}>
+              {/* Top-Left Box: Live Calendar Widget */}
+              <CalendarWidget />
+
+              {/* Bottom-Left Box: AI Employee Stack */}
+              <EmployeeStack activeAgentId={activeAgentId} onSelectAgent={setActiveAgentId} />
+            </div>
+
+            {/* ── CENTER COLUMN (Main Chat / Assistant Interaction) ── */}
+            <div style={{
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              position: "relative", height: "100%", overflowY: "auto",
+            }}>
+              {messages.length === 0 ? (
+                /* Centered Hero Title */
+                <div style={{ textAlign: "center", marginBottom: 36, maxWidth: 600 }}>
+                  <h1 style={{ fontSize: 38, fontWeight: 400, color: "#0f172a", letterSpacing: "-0.02em", margin: "0 0 8px" }}>
+                    What's next, sir?
+                  </h1>
+                  <p style={{ fontSize: 14, color: "#64748b", margin: 0 }}>
+                    Interacting with <strong style={{ color: "#ec4899" }}>{activeAgent.name}</strong>. Ask a question or click the Orb for speech mode.
+                  </p>
+                </div>
+              ) : (
+                /* Message Stream */
+                <div style={{ width: "100%", maxWidth: 640, flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16, paddingBottom: 20 }}>
+                  {messages.map((msg) => (
+                    <div key={msg.id} style={{ display: "flex", gap: 10, justifyContent: msg.sender === "user" ? "flex-end" : "flex-start" }}>
+                      {msg.sender === "assistant" && (
+                        <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                          <Bot size={16} />
+                        </div>
+                      )}
+                      <div style={{
+                        maxWidth: "80%", padding: "12px 16px", fontSize: 13, lineHeight: 1.6,
+                        borderRadius: 18,
+                        background: msg.sender === "user" ? "#0f172a" : "#ffffff",
+                        color: msg.sender === "user" ? "#ffffff" : "#0f172a",
+                        border: "1px solid rgba(0,0,0,0.08)",
+                        boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+                      }}>
+                        <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
+                      </div>
+                      {msg.sender === "user" && (
+                        <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155" }}>
+                          <User size={16} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {loading && (
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                       <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-                        <Bot size={16} />
+                        <Sparkles size={16} className="animate-spin" />
                       </div>
-                    )}
-                    <div style={{
-                      maxWidth: "80%", padding: "12px 16px", fontSize: 13, lineHeight: 1.6,
-                      borderRadius: 18,
-                      background: msg.sender === "user" ? "#0f172a" : "#ffffff",
-                      color: msg.sender === "user" ? "#ffffff" : "#0f172a",
-                      border: "1px solid rgba(0,0,0,0.08)",
-                      boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
-                    }}>
-                      <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
+                      <span style={{ fontSize: 13, color: "#64748b" }}>{activeAgent.name} is thinking...</span>
                     </div>
-                    {msg.sender === "user" && (
-                      <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155" }}>
-                        <User size={16} />
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {loading && (
-                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-                      <Sparkles size={16} className="animate-spin" />
-                    </div>
-                    <span style={{ fontSize: 13, color: "#64748b" }}>my_agent is thinking...</span>
-                  </div>
-                )}
-                <div ref={chatBottomRef} />
+                  )}
+                  <div ref={chatBottomRef} />
+                </div>
+              )}
+
+              {/* Mic Error Banner */}
+              {micError && (
+                <div style={{
+                  padding: "10px 14px", fontSize: 12, borderRadius: 8,
+                  background: "#fef2f2", border: "1px solid #fca5a5", color: "#b91c1c",
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+                  marginBottom: 10, width: "100%", maxWidth: 640,
+                }}>
+                  <span>{micError}</span>
+                  <button onClick={() => setMicError(null)} style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontWeight: 700 }}>✕</button>
+                </div>
+              )}
+
+              {/* Large Floating Input Bar */}
+              <div style={{ width: "100%", maxWidth: 640, position: "relative" }}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  background: "#ffffff", borderRadius: 999,
+                  padding: "8px 12px 8px 18px",
+                  boxShadow: "0 10px 30px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.05)",
+                  border: "1px solid rgba(226, 232, 240, 0.9)",
+                }}>
+                  <button title="Add attachment" style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", padding: 2 }}>
+                    <Plus size={20} />
+                  </button>
+
+                  <input
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSendText();
+                      }
+                    }}
+                    placeholder={`Ask ${activeAgent.name}...`}
+                    style={{
+                      flex: 1, border: "none", outline: "none",
+                      fontSize: 15, color: "#0f172a", background: "transparent",
+                      fontFamily: "inherit",
+                    }}
+                  />
+
+                  <button
+                    onClick={startVoiceMode}
+                    title="Click to switch to speech mode"
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      padding: 2, borderRadius: "50%", transition: "transform 150ms",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                  >
+                    <SiriOrb size={26} animationDuration={20} />
+                  </button>
+                </div>
               </div>
-            )}
+            </div>
 
-            {/* Mic Permission Error Alert */}
-            {micError && (
-              <div style={{
-                padding: "10px 14px", fontSize: 12, borderRadius: 8,
-                background: "#fef2f2", border: "1px solid #fca5a5", color: "#b91c1c",
-                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-                marginBottom: 10,
-              }}>
-                <span>{micError}</span>
-                <button onClick={() => setMicError(null)} style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontWeight: 700 }}>✕</button>
-              </div>
-            )}
-
-            {/* ── Large Floating Input Bar ── */}
-            <div style={{ width: "100%", maxWidth: 680, position: "relative" }}>
-              <div style={{
-                display: "flex", alignItems: "center", gap: 12,
-                background: "#ffffff", borderRadius: 999,
-                padding: "8px 12px 8px 18px",
-                boxShadow: "0 10px 30px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.05)",
-                border: "1px solid rgba(226, 232, 240, 0.9)",
-              }}>
-                {/* Plus Icon */}
-                <button title="Add attachment" style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", padding: 2 }}>
-                  <Plus size={20} />
-                </button>
-
-                {/* Text Input */}
-                <input
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleSendText();
-                    }
-                  }}
-                  placeholder="Ask my_agent..."
-                  style={{
-                    flex: 1, border: "none", outline: "none",
-                    fontSize: 15, color: "#0f172a", background: "transparent",
-                    fontFamily: "inherit",
-                  }}
-                />
-
-
-
-                {/* SiriOrb Button to start voice mode */}
-                <button
-                  onClick={startVoiceMode}
-                  title="Click to switch to speech mode"
-                  style={{
-                    background: "none", border: "none", cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    padding: 2, borderRadius: "50%", transition: "transform 150ms",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                >
-                  <SiriOrb size={26} animationDuration={20} />
-                </button>
-              </div>
+            {/* ── RIGHT COLUMN (Right Box: Daily To-Do List with Glassy Gloss Effect) ── */}
+            <div style={{ height: "100%", overflow: "hidden" }}>
+              <AgentTodoList activeAgentId={activeAgentId} activeAgentName={activeAgent.name} />
             </div>
           </main>
         </div>
