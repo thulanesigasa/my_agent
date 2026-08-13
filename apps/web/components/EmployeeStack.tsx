@@ -40,19 +40,9 @@ export default function EmployeeStack({ activeAgentId = "reports_agent" }: Emplo
         paddingBottom: 6, marginBottom: 2,
         borderBottom: "1px solid rgba(226, 232, 240, 0.7)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{
-            width: 22, height: 22, borderRadius: 6,
-            background: "rgba(15, 23, 42, 0.08)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#0f172a",
-          }}>
-            <Users size={13} />
-          </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
-            AI Employees
-          </span>
-        </div>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+          AI Employees
+        </span>
       </div>
 
       {/* Employee List (Minimalist Rows with Divider Lines) */}
