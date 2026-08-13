@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { CheckCircle2, Circle, Sparkles } from "lucide-react";
+import { CheckCircle2, Circle } from "lucide-react";
 
 export interface TaskItem {
   id: string;
@@ -72,13 +72,10 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
       width: "100%",
       height: "100%",
       maxHeight: "calc(100vh - 100px)",
-      background: "linear-gradient(135deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.45))",
-      backdropFilter: "blur(20px)",
-      WebkitBackdropFilter: "blur(20px)",
-      border: "1px solid rgba(255, 255, 255, 0.7)",
+      background: "transparent",
+      border: "1px solid rgba(226, 232, 240, 0.5)",
       borderRadius: 16,
       padding: "14px 16px",
-      boxShadow: "inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 12px 32px rgba(15, 23, 42, 0.06)",
       display: "flex",
       flexDirection: "column",
       gap: 12,
@@ -95,17 +92,6 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
           <span style={{ fontSize: 11, color: "#64748b" }}>
             {activeAgentName} Tasks
           </span>
-        </div>
-
-        <div style={{
-          padding: "3px 8px", borderRadius: 999,
-          background: "rgba(236, 72, 153, 0.1)",
-          border: "1px solid rgba(236, 72, 153, 0.2)",
-          color: "#ec4899", fontSize: 10, fontWeight: 700,
-          display: "flex", alignItems: "center", gap: 4,
-        }}>
-          <Sparkles size={11} />
-          <span>{completedCount}/{filteredTasks.length} Done</span>
         </div>
       </div>
 

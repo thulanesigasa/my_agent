@@ -46,12 +46,10 @@ export default function CalendarWidget() {
   return (
     <div style={{
       width: "100%",
-      background: "rgba(255, 255, 255, 0.85)",
-      backdropFilter: "blur(12px)",
-      border: "1px solid rgba(226, 232, 240, 0.8)",
+      background: "transparent",
+      border: "1px solid rgba(226, 232, 240, 0.5)",
       borderRadius: 16,
       padding: "12px 14px",
-      boxShadow: "0 4px 20px rgba(0, 0, 0, 0.03)",
       display: "flex",
       flexDirection: "column",
       gap: 8,
