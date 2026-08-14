@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 
 export interface AgentEmployee {
   id: string;
@@ -19,7 +20,7 @@ interface EmployeeStackProps {
   onSelectAgent?: (id: string) => void;
 }
 
-export default function EmployeeStack({ activeAgentId = "reports_agent" }: EmployeeStackProps) {
+export default function EmployeeStack({ activeAgentId = "reports_agent", onSelectAgent }: EmployeeStackProps) {
   return (
     <div style={{
       width: "100%",
@@ -60,12 +61,17 @@ export default function EmployeeStack({ activeAgentId = "reports_agent" }: Emplo
 
           return (
             <React.Fragment key={agent.id}>
-              <div
+              <Link
+                href={`/${agent.id}`}
+                onClick={() => onSelectAgent && onSelectAgent(agent.id)}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
                   padding: "clamp(4px, 0.8vh, 7px) 4px",
+                  textDecoration: "none",
+                  borderRadius: 6,
+                  transition: "background 150ms ease",
                 }}
               >
                 <span style={{
@@ -84,7 +90,7 @@ export default function EmployeeStack({ activeAgentId = "reports_agent" }: Emplo
                   background: isActive ? "#ec4899" : "#94a3b8",
                   boxShadow: isActive ? "0 0 6px rgba(236, 72, 153, 0.6)" : "none",
                 }} />
-              </div>
+              </Link>
 
               {!isLast && (
                 <div style={{
