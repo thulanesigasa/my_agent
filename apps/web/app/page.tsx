@@ -128,23 +128,15 @@ export default function Home() {
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }}>
       {voiceActive ? (
         /* ── FULL-SCREEN WHITE ORB LIVE SPEECH MODE ── */
-        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#ffffff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", padding: "40px 24px", color: "#0f172a" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", maxWidth: 800 }}>
-            <span style={{ fontWeight: 700, fontSize: 18, color: "#0f172a" }}>my_agent · Live Voice</span>
-            <button onClick={stopVoiceMode} style={{ background: "rgba(0,0,0,0.05)", border: "none", borderRadius: "50%", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b" }}>
-              <X size={18} />
-            </button>
-          </div>
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#ffffff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 32, color: "#0f172a" }}>
+          <SiriOrb size={220} animationDuration={12} />
 
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24, margin: "auto" }}>
-            <SiriOrb size={220} animationDuration={12} />
-            <div style={{ textAlign: "center", maxWidth: 500 }}>
-              <p style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.1em", color: "#ec4899", fontWeight: 700, margin: "0 0 6px" }}>
-                {orbState === "listening" ? "Listening to your voice..." : orbState === "speaking" ? "Agent is speaking..." : "Processing..."}
-              </p>
-              {transcription && <p style={{ fontSize: 16, color: "#0f172a", fontWeight: 500, margin: "6px 0" }}>"{transcription}"</p>}
-              {liveResponse && <p style={{ fontSize: 14, color: "#64748b", fontStyle: "italic", margin: "6px 0" }}>{liveResponse}</p>}
-            </div>
+          <div style={{ textAlign: "center", maxWidth: 500 }}>
+            <p style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.1em", color: "#ec4899", fontWeight: 700, margin: "0 0 6px" }}>
+              {orbState === "listening" ? "Listening to your voice..." : orbState === "speaking" ? "Agent is speaking..." : "Processing..."}
+            </p>
+            {transcription && <p style={{ fontSize: 16, color: "#0f172a", fontWeight: 500, margin: "6px 0" }}>&#34;{transcription}&#34;</p>}
+            {liveResponse && <p style={{ fontSize: 14, color: "#64748b", fontStyle: "italic", margin: "6px 0" }}>{liveResponse}</p>}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
