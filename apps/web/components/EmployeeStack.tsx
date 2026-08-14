@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 
 export interface AgentEmployee {
   id: string;
@@ -53,7 +52,7 @@ export default function EmployeeStack({ activeAgentId = "reports_agent", onSelec
         background: "rgba(226, 232, 240, 0.7)",
       }} />
 
-      {/* Employee List (Minimalist Rows with Shorter Centered Separator Lines) */}
+      {/* Employee List (In-Place Agent Switcher) */}
       <div style={{ display: "flex", flexDirection: "column" }}>
         {AGENT_EMPLOYEES.map((agent, index) => {
           const isActive = agent.id === activeAgentId;
@@ -61,17 +60,17 @@ export default function EmployeeStack({ activeAgentId = "reports_agent", onSelec
 
           return (
             <React.Fragment key={agent.id}>
-              <Link
-                href={`/${agent.id}`}
+              <div
                 onClick={() => onSelectAgent && onSelectAgent(agent.id)}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
                   padding: "clamp(4px, 0.8vh, 7px) 4px",
-                  textDecoration: "none",
+                  cursor: "pointer",
                   borderRadius: 6,
-                  transition: "background 150ms ease",
+                  background: isActive ? "rgba(236, 72, 153, 0.05)" : "transparent",
+                  transition: "all 150ms ease",
                 }}
               >
                 <span style={{
@@ -90,7 +89,7 @@ export default function EmployeeStack({ activeAgentId = "reports_agent", onSelec
                   background: isActive ? "#ec4899" : "#94a3b8",
                   boxShadow: isActive ? "0 0 6px rgba(236, 72, 153, 0.6)" : "none",
                 }} />
-              </Link>
+              </div>
 
               {!isLast && (
                 <div style={{
