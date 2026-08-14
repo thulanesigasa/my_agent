@@ -11,40 +11,65 @@ export interface TaskItem {
 }
 
 const INITIAL_TASKS: TaskItem[] = [
+  // reports_agent Tasks
   {
     id: "t1",
     agentId: "reports_agent",
-    title: "Generate Q3 Weekly Performance Report",
+    title: "Generate Standerton Lead Analytics & Summary Report",
     completed: true,
   },
   {
     id: "t2",
     agentId: "reports_agent",
-    title: "Export Lead Analytics & Conversion PDF",
+    title: "Export Q3 Outreach Performance & Conversion PDF",
     completed: false,
   },
+
+  // Email Agent Tasks
   {
     id: "t3",
     agentId: "email_agent",
-    title: "Dispatch 250 Cold Outreach Emails",
+    title: "Dispatch 250 Cold Outreach Emails to Standerton Businesses",
     completed: true,
   },
   {
     id: "t4",
     agentId: "email_agent",
-    title: "Process Inbox Responses & Draft Replies",
+    title: "Process Standerton Inbox Responses & Send Follow-ups",
     completed: false,
   },
+
+  // Project Manager Agent Tasks
   {
     id: "t5",
     agentId: "project_manager",
-    title: "Update Sprint Backlog & Ticket Deadlines",
+    title: "Check & Audit Activity of Each Agent (Logs & Health)",
     completed: false,
   },
   {
     id: "t6",
+    agentId: "project_manager",
+    title: "Verify Lead Discovery & Email Pipeline Workflow Status",
+    completed: true,
+  },
+
+  // Research Agent Tasks (Standerton, Mpumalanga Focus)
+  {
+    id: "t7",
     agentId: "research_agent",
-    title: "Scrape Target Prospect Profiles & Emails",
+    title: "Search Google for Active Businesses in Standerton, Mpumalanga",
+    completed: true,
+  },
+  {
+    id: "t8",
+    agentId: "research_agent",
+    title: "Filter Standerton Companies Missing Official Websites",
+    completed: false,
+  },
+  {
+    id: "t9",
+    agentId: "research_agent",
+    title: "Scrape Contact Phone Numbers & Emails for Standerton Leads",
     completed: false,
   },
 ];

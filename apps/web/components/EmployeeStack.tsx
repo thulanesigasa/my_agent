@@ -8,10 +8,10 @@ export interface AgentEmployee {
 }
 
 export const AGENT_EMPLOYEES: AgentEmployee[] = [
-  { id: "reports_agent", name: "Reports Agent" },
-  { id: "email_agent", name: "Email Agent" },
-  { id: "project_manager", name: "Project Manager Agent" },
-  { id: "research_agent", name: "Research Agent" },
+  { id: "reports_agent", name: "reports_agent" },
+  { id: "email_agent", name: "email_agent" },
+  { id: "project_manager", name: "project_manager" },
+  { id: "research_agent", name: "research_agent" },
 ];
 
 interface EmployeeStackProps {

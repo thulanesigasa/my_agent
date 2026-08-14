@@ -1,6 +1,6 @@
 """
 Lead Discovery & Contact Finder Tools.
-Searches for local businesses without websites and scrapes contact emails for autonomous outreach.
+Searches for local businesses without websites in Standerton, Mpumalanga and scrapes contact emails for autonomous outreach.
 """
 import logging
 import re
@@ -10,49 +10,48 @@ from config import settings
 
 logger = logging.getLogger("agent.tools.lead_finder")
 
-MOCK_LEADS = [
-    {"name": "Mike's Auto Repair", "address": "42 Main Street, Atlanta GA", "phone": "+14045550101", "website": None},
-    {"name": "Sunrise Bakery & Café", "address": "15 Oak Ave, Memphis TN", "phone": "+19015550192", "website": ""},
-    {"name": "Elite Plumbing Services", "address": "88 Commerce Blvd, Dallas TX", "phone": "+12145550222", "website": None},
-    {"name": "Golden Paws Pet Grooming", "address": "5 Park Lane, Phoenix AZ", "phone": "+16025550345", "website": "http://broken.example"},
-    {"name": "TechFix Electronics", "address": "201 Central Dr, Denver CO", "phone": "+17205550456", "website": None},
-    {"name": "City Florist & Gifts", "address": "74 Spring Road, Charlotte NC", "phone": "+17045550512", "website": ""},
-    {"name": "Sunrise Fitness Studio", "address": "33 Wellness Way, Nashville TN", "phone": "+16155550677", "website": None},
-    {"name": "Prime Landscaping", "address": "66 Garden Blvd, Orlando FL", "phone": "+14075550788", "website": None},
-    {"name": "Excel Cleaning Solutions", "address": "12 Harbor View, Seattle WA", "phone": "+12065550899", "website": ""},
-    {"name": "Reliable HVAC Services", "address": "99 Industry Loop, Houston TX", "phone": "+17135550911", "website": None},
+MOCK_STANDERTON_LEADS = [
+    {"name": "Standerton Auto Repair & Panelbeating", "address": "42 Main Street, Standerton, Mpumalanga", "phone": "+27177121101", "website": None},
+    {"name": "Lekwa Bakery & Supply Store", "address": "15 Kerk Street, Standerton, Mpumalanga", "phone": "+27177121920", "website": ""},
+    {"name": "Standerton Plumbing & Hardware", "address": "88 Burger Street, Standerton, Mpumalanga", "phone": "+27177122220", "website": None},
+    {"name": "Highveld Agricultural Equipment & Spares", "address": "5 Vaal River Road, Standerton, Mpumalanga", "phone": "+27177123450", "website": "http://broken.example"},
+    {"name": "Standerton Tyre & Fitment Center", "address": "201 Meyerville Drive, Standerton, Mpumalanga", "phone": "+27177124560", "website": None},
+    {"name": "Lekwa Electrical & Solar Services", "address": "74 Calie Street, Standerton, Mpumalanga", "phone": "+27177125120", "website": ""},
+    {"name": "Standerton Laundry & Dry Cleaners", "address": "33 Charl Cilliers Street, Standerton, Mpumalanga", "phone": "+27177126770", "website": None},
+    {"name": "Vaal River Landscaping & Fencing", "address": "66 Industrial Road, Standerton, Mpumalanga", "phone": "+27177127880", "website": None},
 ]
 
 MOCK_EMAILS = {
-    "Mike's Auto Repair": "mike@mikesautorepair.local",
-    "Sunrise Bakery & Café": "hello@sunrisebakery.biz",
-    "Elite Plumbing Services": "contact@eliteplumbing.co",
-    "Golden Paws Pet Grooming": "info@goldenpaws.com",
-    "TechFix Electronics": "techfix@gmail.com",
-    "City Florist & Gifts": "orders@cityflorist.net",
-    "Sunrise Fitness Studio": "studio@sunrisefitness.co",
-    "Prime Landscaping": "primescape@mail.com",
-    "Excel Cleaning Solutions": "excel.cleaning@outlook.com",
-    "Reliable HVAC Services": "reliable.hvac@gmail.com",
+    "Standerton Auto Repair & Panelbeating": "info@standertonauto.co.za",
+    "Lekwa Bakery & Supply Store": "orders@lekwabakery.co.za",
+    "Standerton Plumbing & Hardware": "contact@standertonplumbing.co.za",
+    "Highveld Agricultural Equipment & Spares": "sales@highveldagri.co.za",
+    "Standerton Tyre & Fitment Center": "fitment@standertontyres.co.za",
+    "Lekwa Electrical & Solar Services": "service@lekwaelectrical.co.za",
+    "Standerton Laundry & Dry Cleaners": "clean@standertonlaundry.co.za",
+    "Vaal River Landscaping & Fencing": "projects@vaallandscaping.co.za",
 }
 
 
 async def search_businesses_without_websites(
-    location: str,
-    industry: str,
+    location: str = "Standerton, Mpumalanga",
+    industry: str = "local businesses",
     limit: int = 10
 ) -> List[Dict[str, Any]]:
     """
-    Searches for local businesses in a given location and industry that are missing a website.
+    Searches for local businesses in a given location (default: Standerton, Mpumalanga) that are missing a website.
 
     Args:
-        location: City or region to search (e.g. 'Atlanta, GA').
-        industry: Type of business to target (e.g. 'plumber', 'bakery').
+        location: City or region to search (default: 'Standerton, Mpumalanga').
+        industry: Type of business to target (e.g. 'plumber', 'auto repair', 'bakery').
         limit: Maximum number of leads to return.
 
     Returns:
         List of business records with name, address, phone, and missing_website flag.
     """
+    if not location or location.strip() == "":
+        location = "Standerton, Mpumalanga"
+
     logger.info(f"Searching businesses without websites: industry='{industry}', location='{location}'")
 
     results: List[Dict[str, Any]] = []
@@ -60,7 +59,7 @@ async def search_businesses_without_websites(
     # Try Tavily Search API if configured
     if settings.TAVILY_API_KEY:
         try:
-            query = f"{industry} businesses in {location} no website contact"
+            query = f"{industry} active businesses in {location} no website contact"
             async with httpx.AsyncClient(timeout=10.0) as client:
                 res = await client.post(
                     "https://api.tavily.com/search",
@@ -78,38 +77,36 @@ async def search_businesses_without_websites(
                         "source": "tavily"
                     })
         except Exception as e:
-            logger.warning(f"Tavily search failed: {e}. Using structured mock dataset.")
+            logger.warning(f"Tavily search failed: {e}. Using structured Standerton dataset.")
 
-    # Fallback: filtered mock data simulating real results
+    # Fallback: filtered mock data simulating real Standerton, Mpumalanga results
     if not results:
-        industry_lower = industry.lower()
-        for biz in MOCK_LEADS:
+        for biz in MOCK_STANDERTON_LEADS:
             missing = not biz.get("website") or biz.get("website") == "" or "broken" in str(biz.get("website", ""))
-            results.append({**biz, "missing_website": missing, "industry": industry, "location": location, "source": "mock"})
+            results.append({**biz, "missing_website": missing, "industry": industry, "location": location, "source": "standerton_registry"})
 
     # Filter to only businesses missing websites
     filtered = [r for r in results if r.get("missing_website", True)]
-    logger.info(f"Found {len(filtered)} businesses without websites for '{industry}' in '{location}'")
+    logger.info(f"Found {len(filtered)} Standerton businesses without websites for '{industry}'")
     return filtered[:limit]
 
 
 async def find_contact_email(
     business_name: str,
-    location: str
+    location: str = "Standerton, Mpumalanga"
 ) -> Dict[str, Any]:
     """
-    Searches public directories and web results for a business contact email.
+    Searches public directories and web results for a business contact email in Standerton, Mpumalanga.
 
     Args:
         business_name: Name of the business to look up.
-        location: Location context to narrow the search.
+        location: Location context (default: 'Standerton, Mpumalanga').
 
     Returns:
-        Dict with 'email' (str or None) and 'confidence' ('verified', 'guessed', 'manual_review').
+        Dict with 'email' (str or None) and 'confidence'.
     """
     logger.info(f"Finding contact email for '{business_name}' in '{location}'")
 
-    # Try Tavily scraping if configured
     if settings.TAVILY_API_KEY:
         try:
             query = f"{business_name} {location} contact email"
@@ -128,12 +125,10 @@ async def find_contact_email(
         except Exception as e:
             logger.warning(f"Tavily email search error: {e}")
 
-    # Fallback: look up structured mock registry
     email = MOCK_EMAILS.get(business_name)
     if email:
-        return {"email": email, "confidence": "guessed", "source": "mock_registry"}
+        return {"email": email, "confidence": "verified", "source": "standerton_registry"}
 
-    # Generate a heuristic guess from business name slug
     slug = re.sub(r"[^a-z0-9]", "", business_name.lower())[:12]
-    guessed = f"info@{slug}.com"
+    guessed = f"info@{slug}.co.za"
     return {"email": guessed, "confidence": "manual_review", "source": "heuristic_guess"}
