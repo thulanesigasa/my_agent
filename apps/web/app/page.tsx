@@ -290,14 +290,13 @@ export default function Home() {
         </div>
       ) : (
         /* ── CLIENT HOME UI (White Faded Background) ─────────────────── */
-        <div style={{
-          position: "fixed", inset: 0, display: "flex", flexDirection: "column",
+        <div className="dashboard-container" style={{
           backgroundImage: "linear-gradient(to bottom, rgba(255,255,255,0.85), rgba(255,255,255,0.95)), url('/gemini-bg.png')",
           backgroundSize: "cover", backgroundPosition: "center",
           color: "#1e293b",
         }}>
           {/* Top Bar Header */}
-          <header style={{ height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
+          <header style={{ height: 54, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontWeight: 700, fontSize: 16, color: "#0f172a" }}>my_agent</span>
             </div>
@@ -318,15 +317,8 @@ export default function Home() {
             </div>
           </header>
 
-          {/* Main 3-Column Layout Container */}
-          <main style={{
-            flex: 1,
-            display: "grid",
-            gridTemplateColumns: "310px 1fr 320px",
-            gap: 20,
-            padding: "16px 24px 24px",
-            overflow: "hidden",
-          }}>
+          {/* Main Responsive 3-Column Layout Container */}
+          <main className="dashboard-main-grid">
             {/* ── LEFT COLUMN (Top: Calendar | Bottom: Employee Roster) ── */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16, overflowY: "auto" }}>
               {/* Top-Left Box: Live Calendar Widget */}
