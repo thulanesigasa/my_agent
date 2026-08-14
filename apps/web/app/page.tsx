@@ -2,10 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import {
-  Plus, Square, X, MicOff, LayoutDashboard,
-  Bot, User, Sparkles
-} from "lucide-react";
+import { Plus, Square, X, MicOff, LayoutDashboard, Bot, User, Sparkles } from "lucide-react";
 import SiriOrb from "@/components/ui/siri-orb";
 import { AudioStreamManager, SiriOrbState } from "@/lib/audio";
 import CalendarWidget from "@/components/CalendarWidget";
@@ -23,7 +20,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
-  const [activeAgentId, setActiveAgentId] = useState<string>("reports_agent");
+  const [activeAgentId, setActiveAgentId] = useState<string>("research_agent");
 
   // Voice / Full-screen White Orb Live mode state
   const [voiceActive, setVoiceActive] = useState(false);
@@ -182,7 +179,7 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        /* ── CLEAN MINIMAL CLIENT HOME UI ─────────────────── */
+        /* ── PURE CLEAN MINIMAL MAIN HUB UI MATCHING USER SCREENSHOT 1:1 ── */
         <div className="dashboard-container" style={{
           backgroundImage: "linear-gradient(to bottom, rgba(255,255,255,0.85), rgba(255,255,255,0.95)), url('/gemini-bg.png')",
           backgroundSize: "cover", backgroundPosition: "center",
@@ -218,7 +215,7 @@ export default function Home() {
               <EmployeeStack activeAgentId={activeAgentId} onSelectAgent={setActiveAgentId} />
             </div>
 
-            {/* ── CENTER COLUMN (Clean Minimal Assistant Interaction) ── */}
+            {/* ── CENTER COLUMN (Pure Minimal Assistant Input Capsule) ── */}
             <div style={{
               display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center",
@@ -226,12 +223,12 @@ export default function Home() {
               paddingRight: 4,
             }}>
               {messages.length === 0 ? (
-                /* Centered Hero Title & Subtitle */
+                /* Centered Hero Title & Subtitle Matching Screenshot 1:1 */
                 <div style={{ textAlign: "center", marginBottom: 32, maxWidth: 600 }}>
                   <h1 style={{ fontSize: 38, fontWeight: 400, color: "#0f172a", letterSpacing: "-0.02em", margin: "0 0 8px" }}>
                     What's next, sir?
                   </h1>
-                  <p style={{ fontSize: 14, color: "#64748b", margin: 0 }}>
+                  <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>
                     Interacting with <strong style={{ color: "#ec4899" }}>{activeAgent.name}</strong>. Ask a question or click the Orb for speech mode.
                   </p>
                 </div>
@@ -240,11 +237,6 @@ export default function Home() {
                 <div style={{ width: "100%", maxWidth: 640, flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16, paddingBottom: 20 }}>
                   {messages.map((msg) => (
                     <div key={msg.id} style={{ display: "flex", gap: 10, justifyContent: msg.sender === "user" ? "flex-end" : "flex-start" }}>
-                      {msg.sender === "assistant" && (
-                        <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-                          <Bot size={16} />
-                        </div>
-                      )}
                       <div style={{
                         maxWidth: "80%", padding: "12px 16px", fontSize: 13, lineHeight: 1.6,
                         borderRadius: 18,
@@ -255,18 +247,10 @@ export default function Home() {
                       }}>
                         <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
                       </div>
-                      {msg.sender === "user" && (
-                        <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155" }}>
-                          <User size={16} />
-                        </div>
-                      )}
                     </div>
                   ))}
                   {loading && (
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-                        <Sparkles size={16} className="animate-spin" />
-                      </div>
                       <span style={{ fontSize: 13, color: "#64748b" }}>{activeAgent.name} is thinking...</span>
                     </div>
                   )}
@@ -274,8 +258,8 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Large Floating Input Bar with Glowing Pink Voice Orb */}
-              <div style={{ width: "100%", maxWidth: 640, position: "relative" }}>
+              {/* Floating Input Bar with Glowing Pink Voice Orb */}
+              <div style={{ width: "100%", maxWidth: 600, position: "relative" }}>
                 <div style={{
                   display: "flex", alignItems: "center", gap: 12,
                   background: "#ffffff", borderRadius: 999,
@@ -299,7 +283,7 @@ export default function Home() {
                     placeholder={`Ask ${activeAgent.name}...`}
                     style={{
                       flex: 1, border: "none", outline: "none",
-                      fontSize: 15, color: "#0f172a", background: "transparent",
+                      fontSize: 14, color: "#0f172a", background: "transparent",
                       fontFamily: "inherit",
                     }}
                   />
@@ -315,7 +299,7 @@ export default function Home() {
                     onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
                     onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
                   >
-                    <SiriOrb size={26} animationDuration={20} />
+                    <SiriOrb size={24} animationDuration={20} />
                   </button>
                 </div>
               </div>
