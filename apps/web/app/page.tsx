@@ -320,7 +320,7 @@ export default function Home() {
           {/* Main Responsive 3-Column Layout Container */}
           <main className="dashboard-main-grid">
             {/* ── LEFT COLUMN (Top: Calendar | Bottom: Employee Roster) ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, overflowY: "auto" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "clamp(6px, 1.2vh, 14px)", overflow: "hidden", height: "100%" }}>
               {/* Top-Left Box: Live Calendar Widget */}
               <CalendarWidget />
 

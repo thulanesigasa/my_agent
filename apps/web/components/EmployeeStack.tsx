@@ -26,17 +26,20 @@ export default function EmployeeStack({ activeAgentId = "reports_agent" }: Emplo
       background: "transparent",
       border: "none",
       boxShadow: "none",
-      padding: "8px 4px",
+      padding: "clamp(4px, 0.8vh, 8px) clamp(4px, 1vw, 10px)",
       display: "flex",
       flexDirection: "column",
-      gap: 4,
+      gap: "clamp(2px, 0.5vh, 4px)",
+      flexShrink: 1,
+      minHeight: 0,
+      overflow: "hidden",
     }}>
       {/* Roster Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        paddingBottom: 4,
+        paddingBottom: "clamp(2px, 0.4vh, 4px)",
       }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+        <span style={{ fontSize: "clamp(11px, 1.4vh, 13px)", fontWeight: 700, color: "#0f172a" }}>
           AI Employees
         </span>
       </div>
@@ -44,7 +47,7 @@ export default function EmployeeStack({ activeAgentId = "reports_agent" }: Emplo
       {/* Centered Shorter Header Divider Line */}
       <div style={{
         width: "75%",
-        margin: "0 auto 4px",
+        margin: "0 auto clamp(2px, 0.4vh, 4px)",
         height: 1,
         background: "rgba(226, 232, 240, 0.7)",
       }} />
@@ -62,11 +65,11 @@ export default function EmployeeStack({ activeAgentId = "reports_agent" }: Emplo
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "8px 4px",
+                  padding: "clamp(4px, 0.8vh, 7px) 4px",
                 }}
               >
                 <span style={{
-                  fontSize: 12,
+                  fontSize: "clamp(10px, 1.3vh, 12px)",
                   fontWeight: isActive ? 700 : 500,
                   color: isActive ? "#0f172a" : "#475569",
                 }}>
@@ -75,18 +78,18 @@ export default function EmployeeStack({ activeAgentId = "reports_agent" }: Emplo
 
                 {/* Status Dot: Pink Dot (Active) | Gray Dot (Sleeping) */}
                 <span style={{
-                  width: 8,
-                  height: 8,
+                  width: "clamp(6px, 1vh, 8px)",
+                  height: "clamp(6px, 1vh, 8px)",
                   borderRadius: "50%",
                   background: isActive ? "#ec4899" : "#94a3b8",
-                  boxShadow: isActive ? "0 0 8px rgba(236, 72, 153, 0.6)" : "none",
+                  boxShadow: isActive ? "0 0 6px rgba(236, 72, 153, 0.6)" : "none",
                 }} />
               </div>
 
               {!isLast && (
                 <div style={{
                   width: "75%",
-                  margin: "2px auto",
+                  margin: "1px auto",
                   height: 1,
                   background: "rgba(226, 232, 240, 0.6)",
                 }} />

@@ -71,25 +71,27 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
     <div style={{
       width: "100%",
       height: "100%",
-      maxHeight: "calc(100vh - 100px)",
       background: "transparent",
       border: "none",
       boxShadow: "none",
-      padding: "8px 4px",
+      padding: "clamp(4px, 1vh, 10px) clamp(4px, 1vw, 10px)",
       display: "flex",
       flexDirection: "column",
-      gap: 12,
+      gap: "clamp(6px, 1.2vh, 12px)",
+      flexShrink: 1,
+      minHeight: 0,
+      overflow: "hidden",
     }}>
       {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        paddingBottom: 4,
+        paddingBottom: "clamp(2px, 0.4vh, 4px)",
       }}>
         <div>
-          <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", margin: 0 }}>
+          <h3 style={{ fontSize: "clamp(11px, 1.4vh, 13px)", fontWeight: 700, color: "#0f172a", margin: 0 }}>
             Daily To-Do List
           </h3>
-          <span style={{ fontSize: 11, color: "#64748b" }}>
+          <span style={{ fontSize: "clamp(9px, 1.2vh, 11px)", color: "#64748b" }}>
             {activeAgentName} Tasks
           </span>
         </div>
@@ -98,18 +100,18 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
       {/* Centered Shorter Header Divider Line */}
       <div style={{
         width: "75%",
-        margin: "0 auto 4px",
+        margin: "0 auto clamp(2px, 0.4vh, 4px)",
         height: 1,
         background: "rgba(226, 232, 240, 0.7)",
       }} />
 
       {/* Daily Progress Bar */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 600, color: "#64748b" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "clamp(8px, 1.1vh, 10px)", fontWeight: 600, color: "#64748b" }}>
           <span>Agent Progress</span>
           <span>{progressPercent}%</span>
         </div>
-        <div style={{ width: "100%", height: 5, borderRadius: 999, background: "rgba(226, 232, 240, 0.8)", overflow: "hidden" }}>
+        <div style={{ width: "100%", height: 4, borderRadius: 999, background: "rgba(226, 232, 240, 0.8)", overflow: "hidden" }}>
           <div style={{
             width: `${progressPercent}%`, height: "100%",
             borderRadius: 999,
@@ -125,7 +127,7 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
         paddingRight: 2,
       }}>
         {filteredTasks.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "20px 0", color: "#94a3b8", fontSize: 11 }}>
+          <div style={{ textAlign: "center", padding: "16px 0", color: "#94a3b8", fontSize: 11 }}>
             No daily tasks assigned to this agent yet.
           </div>
         ) : (
@@ -138,12 +140,12 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    padding: "10px 4px",
+                    padding: "clamp(4px, 0.8vh, 8px) 4px",
                     opacity: task.completed ? 0.6 : 1,
                     transition: "all 150ms ease",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
                     <button
                       onClick={() => toggleTask(task.id)}
                       style={{
@@ -152,10 +154,10 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
                         display: "flex", alignItems: "center",
                       }}
                     >
-                      {task.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                      {task.completed ? <CheckCircle2 size={14} /> : <Circle size={14} />}
                     </button>
                     <span style={{
-                      fontSize: 12,
+                      fontSize: "clamp(10px, 1.3vh, 12px)",
                       fontWeight: 500,
                       color: task.completed ? "#64748b" : "#0f172a",
                       textDecoration: task.completed ? "line-through" : "none",
@@ -168,7 +170,7 @@ export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentT
                 {!isLast && (
                   <div style={{
                     width: "75%",
-                    margin: "2px auto",
+                    margin: "1px auto",
                     height: 1,
                     background: "rgba(226, 232, 240, 0.6)",
                   }} />
