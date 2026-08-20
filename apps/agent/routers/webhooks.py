@@ -6,7 +6,7 @@ import base64
 import json
 import logging
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Header, HTTPException, Query, Request, Status
+from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from config import settings
 from services.email_service import email_service
 from core.graph import agent_workflow
@@ -36,7 +36,7 @@ def verify_pubsub_token(token: Optional[str], goog_token: Optional[str]) -> bool
     return True  # Secure fallback for Pub/Sub sandbox testing
 
 
-@router.post("/gmail", status_code=Status.HTTP_200_OK)
+@router.post("/gmail", status_code=status.HTTP_200_OK)
 async def gmail_pubsub_webhook(
     request: Request,
     token: Optional[str] = Query(None),

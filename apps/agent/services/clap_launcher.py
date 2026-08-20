@@ -180,11 +180,12 @@ class ClapLauncher:
         logger.info("Starting FastAPI backend server process...")
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        # Run from project root so .env is found by config.py
-        project_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
+        # Run from apps/agent so local imports (core, services, etc.) resolve correctly.
+        # config.py uses an absolute path for .env so it still finds the root .env file.
+        agent_dir = os.path.abspath(os.path.join(current_dir, ".."))
 
         cmd = self.backend_cmd or (
-            f"{sys.executable} -m uvicorn apps.agent.main:app "
+            f"{sys.executable} -m uvicorn main:app "
             f"--host 0.0.0.0 --port 8000"
         )
 
@@ -192,13 +193,14 @@ class ClapLauncher:
             subprocess.Popen(
                 cmd,
                 shell=True,
-                cwd=project_root,
+                cwd=agent_dir,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
             logger.info("Backend process spawned asynchronously.")
         except Exception as e:
             logger.error(f"Failed to spawn backend process: {e}")
+
 
 
     def start_frontend_async(self):
