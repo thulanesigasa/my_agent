@@ -197,11 +197,9 @@ async def root_status_page():
     <body>
         <header>
             <span class="logo">my_agent</span>
-            <div class="status-badge"><span class="dot"></span>Backend Online &mdash; port 8000</div>
         </header>
 
         <main>
-            <div class="pill"><span class="dot"></span>FastAPI Engine Running</div>
             <h1>T.s Industries Agent</h1>
             <p class="subtitle">
                 LangGraph multi-agent orchestrator. Groq Whisper STT, ElevenLabs TTS, Supabase pgvector memory and Human-in-the-Loop engine.
@@ -257,7 +255,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -266,14 +264,18 @@ app.add_middleware(
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     """
-    Middleware injecting standard security headers into all responses.
+    Middleware injecting standard security headers into all non-preflight responses.
     """
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     response = await call_next(request)
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
+
 
 
 # Request Models
