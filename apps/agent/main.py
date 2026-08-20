@@ -331,7 +331,10 @@ async def chat_endpoint(request: Request, payload: ChatRequest, token: str = Dep
     try:
         final_state = await agent_workflow.ainvoke(initial_state, config=config)
         output_text = final_state.get("final_output") or final_state.get("draft_response") or "Request processed."
-        audio_b64 = await audio_service.synthesize_speech_bytes(str(output_text)[:250])
+        try:
+            audio_bytes = await asyncio.wait_for(audio_service.synthesize_speech_bytes(str(output_text)[:250]), timeout=1.5)
+        except Exception:
+            audio_bytes = b""
 
         return {
             "status": "success",
