@@ -1,5 +1,5 @@
 """
-Audio Processing Pipeline: Groq Whisper Speech-to-Text (STT) and Edge-TTS Speech Synthesis.
+Audio Processing Pipeline: Groq Whisper Speech-to-Text (STT) and ElevenLabs / Edge-TTS Speech Synthesis.
 """
 import logging
 import os
@@ -10,12 +10,18 @@ from config import settings
 
 logger = logging.getLogger("agent.audio_service")
 
+# ElevenLabs voice to use — "Rachel" is calm, clear, professional
+# Browse voices at https://elevenlabs.io/voice-library
+ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Rachel
+ELEVENLABS_MODEL    = "eleven_flash_v2_5"  # lowest latency model
+
 
 class AudioService:
     """
     Asynchronous Speech Pipeline:
     - Transcribes WebM/PCM audio byte streams into text using Groq Whisper API.
-    - Synthesizes text responses into binary MP3/WAV audio bytes using Edge-TTS.
+    - Synthesizes text responses into MP3 audio bytes using ElevenLabs API.
+      Falls back to Edge-TTS if ELEVENLABS_API_KEY is not set.
     """
 
     @staticmethod
@@ -59,30 +65,57 @@ class AudioService:
     @staticmethod
     async def synthesize_speech_bytes(text: str, voice: Optional[str] = None) -> bytes:
         """
-        Synthesize text response into audio bytes using Edge-TTS.
+        Synthesize text response into MP3 audio bytes.
+        Uses ElevenLabs API if ELEVENLABS_API_KEY is set, otherwise falls back to Edge-TTS.
         """
         if not text:
             return b""
 
-        selected_voice = voice or settings.DEFAULT_TTS_VOICE
+        elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
+
+        # ── ElevenLabs (primary) ──────────────────────────────────────────
+        if elevenlabs_key:
+            voice_id = voice or ELEVENLABS_VOICE_ID
+            url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+            headers = {
+                "xi-api-key": elevenlabs_key,
+                "Content-Type": "application/json",
+                "Accept": "audio/mpeg",
+            }
+            payload = {
+                "text": text[:500],
+                "model_id": ELEVENLABS_MODEL,
+                "voice_settings": {
+                    "stability": 0.5,
+                    "similarity_boost": 0.75,
+                    "style": 0.0,
+                    "use_speaker_boost": True,
+                },
+            }
+            try:
+                async with httpx.AsyncClient(timeout=20.0) as client:
+                    response = await client.post(url, headers=headers, json=payload)
+                    response.raise_for_status()
+                    logger.info(f"ElevenLabs TTS: {len(response.content)} bytes")
+                    return response.content
+            except Exception as e:
+                logger.warning(f"ElevenLabs TTS error, falling back to Edge-TTS: {e}")
+
+        # ── Edge-TTS fallback ─────────────────────────────────────────────
+        selected_voice = settings.DEFAULT_TTS_VOICE
         try:
             import edge_tts
-
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
                 tmp_path = tmp.name
-
             communicate = edge_tts.Communicate(text[:300], selected_voice)
             await communicate.save(tmp_path)
-
             with open(tmp_path, "rb") as f:
                 mp3_data = f.read()
-
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
-
             return mp3_data
         except Exception as e:
-            logger.warning(f"Edge-TTS synthesis error: {e}")
+            logger.warning(f"Edge-TTS fallback error: {e}")
             return b""
 
     @staticmethod
