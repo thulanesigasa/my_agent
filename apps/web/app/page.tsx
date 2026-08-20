@@ -213,7 +213,7 @@ export default function Home() {
                       </div>
                     </div>
                   ))}
-                  {loading && <div style={{ fontSize: 13, color: "#64748b" }}>{activeAgent?.name} is thinking...</div>}
+                  {loading && <div style={{ fontSize: 13, color: "#64748b" }}>{activeAgent?.name ?? "Agent"} is thinking...</div>}
                   <div ref={chatBottomRef} />
                 </div>
               )}

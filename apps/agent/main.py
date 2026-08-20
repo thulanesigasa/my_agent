@@ -55,105 +55,161 @@ async def root_status_page():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>T.s Industries - Agent Backend API</title>
+        <title>my_agent - Backend API</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
         <style>
-            :root {
-                --bg: #090d16;
-                --card-bg: #111827;
-                --accent: #3b82f6;
-                --accent-glow: rgba(59, 130, 246, 0.3);
-                --text: #f3f4f6;
-                --text-muted: #9ca3af;
-                --border: #1f2937;
-            }
+            *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
             body {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                background-color: var(--bg);
-                color: var(--text);
-                margin: 0;
-                padding: 0;
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                background: linear-gradient(135deg, #fafafa 0%, #f1f5f9 100%);
+                min-height: 100vh;
                 display: flex;
+                flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                min-height: 100vh;
+                color: #0f172a;
+                padding: 24px;
             }
-            .container {
-                max-width: 600px;
-                width: 90%;
-                background-color: var(--card-bg);
-                border: 1px solid var(--border);
-                border-radius: 16px;
-                padding: 32px;
-                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 0 40px var(--accent-glow);
-                text-align: center;
+            header {
+                position: fixed;
+                top: 0; left: 0; right: 0;
+                height: 54px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 28px;
+                background: rgba(255,255,255,0.85);
+                backdrop-filter: blur(12px);
+                border-bottom: 1px solid rgba(226,232,240,0.8);
             }
+            .logo { font-weight: 700; font-size: 15px; color: #0f172a; }
             .status-badge {
                 display: inline-flex;
                 align-items: center;
-                gap: 8px;
-                background: rgba(16, 185, 129, 0.15);
-                color: #10b981;
-                border: 1px solid rgba(16, 185, 129, 0.3);
-                padding: 6px 16px;
+                gap: 7px;
+                background: rgba(16,185,129,0.08);
+                color: #059669;
+                border: 1px solid rgba(16,185,129,0.25);
+                padding: 5px 14px;
                 border-radius: 9999px;
-                font-size: 14px;
+                font-size: 12px;
                 font-weight: 600;
-                margin-bottom: 20px;
+                letter-spacing: 0.02em;
             }
-            .status-dot {
-                width: 8px;
-                height: 8px;
-                background-color: #10b981;
+            .dot {
+                width: 7px; height: 7px;
+                background: #10b981;
                 border-radius: 50%;
-                box-shadow: 0 0 10px #10b981;
+                animation: pulse 2s infinite;
             }
-            h1 { font-size: 24px; font-weight: 700; margin: 0 0 8px 0; }
-            p { color: var(--text-muted); font-size: 14px; line-height: 1.5; margin-bottom: 24px; }
-            .links { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.4; }
+            }
+            .card {
+                background: #ffffff;
+                border: 1px solid rgba(226,232,240,0.9);
+                border-radius: 20px;
+                padding: 40px 40px 36px;
+                max-width: 520px;
+                width: 100%;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+                text-align: center;
+            }
+            h1 {
+                font-size: 28px;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+                margin: 20px 0 8px;
+                color: #0f172a;
+            }
+            .subtitle {
+                font-size: 13px;
+                color: #64748b;
+                line-height: 1.6;
+                margin-bottom: 32px;
+                max-width: 380px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+            .links { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
             .btn {
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                padding: 12px 16px;
-                background-color: #1f2937;
-                color: var(--text);
-                text-decoration: none;
-                border-radius: 8px;
-                font-size: 14px;
+                padding: 11px 16px;
+                border-radius: 10px;
+                font-size: 13px;
                 font-weight: 500;
-                border: 1px solid var(--border);
-                transition: all 0.2s ease;
+                text-decoration: none;
+                transition: all 0.15s ease;
+                border: 1px solid rgba(226,232,240,0.9);
+                color: #334155;
+                background: #f8fafc;
             }
             .btn:hover {
-                background-color: var(--accent);
-                border-color: var(--accent);
-                color: #ffffff;
-                transform: translateY(-2px);
+                border-color: #ec4899;
+                color: #ec4899;
+                background: #fff;
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(236,72,153,0.12);
             }
-            .btn-primary { grid-column: span 2; background-color: #2563eb; border-color: #2563eb; }
-            .btn-primary:hover { background-color: #1d4ed8; }
+            .btn-primary {
+                grid-column: span 2;
+                background: #0f172a;
+                color: #ffffff;
+                border-color: #0f172a;
+                font-weight: 600;
+                padding: 13px 16px;
+            }
+            .btn-primary:hover {
+                background: #1e293b;
+                border-color: #1e293b;
+                color: #ffffff;
+                box-shadow: 0 4px 16px rgba(15,23,42,0.2);
+            }
+            .divider {
+                height: 1px;
+                background: rgba(226,232,240,0.8);
+                margin: 28px 0;
+            }
+            .meta {
+                font-size: 11px;
+                color: #94a3b8;
+                letter-spacing: 0.04em;
+            }
         </style>
     </head>
     <body>
-        <div class="container">
-            <div class="status-badge">
-                <span class="status-dot"></span>
-                FastAPI Backend Online
+        <header>
+            <span class="logo">my_agent</span>
+            <div class="status-badge"><span class="dot"></span>Backend Online — port 8000</div>
+        </header>
+
+        <div class="card">
+            <div class="status-badge" style="margin-bottom:0;">
+                <span class="dot"></span>FastAPI Running
             </div>
-            <h1>T.s Industries Autonomous Agent</h1>
-            <p>LangGraph multi-agent orchestrator, Groq/Gemini voice synthesis, Supabase pgvector memory & Human-in-the-Loop engine.</p>
+            <h1>T.s Industries Agent</h1>
+            <p class="subtitle">
+                LangGraph multi-agent orchestrator. Groq Whisper STT, ElevenLabs TTS, Supabase pgvector memory and Human-in-the-Loop engine.
+            </p>
             <div class="links">
-                <a href="http://localhost:3000/dashboard" class="btn btn-primary">📊 Launch Web Admin Dashboard</a>
-                <a href="http://localhost:3000/" class="btn">🎙️ Launch Voice UI</a>
-                <a href="/docs" class="btn">📘 Swagger API Docs</a>
-                <a href="/health" class="btn">💚 Health Check JSON</a>
-                <a href="/api/skills" class="btn">🧠 Active SOP Skills</a>
+                <a href="http://localhost:3000/dashboard" class="btn btn-primary">Launch Admin Dashboard</a>
+                <a href="http://localhost:3000/" class="btn">Voice Hub</a>
+                <a href="/docs" class="btn">Swagger API Docs</a>
+                <a href="/health" class="btn">Health Check</a>
+                <a href="/api/skills" class="btn">Active Skills</a>
             </div>
+            <div class="divider"></div>
+            <p class="meta">LangGraph &middot; Groq &middot; ElevenLabs &middot; Supabase pgvector</p>
         </div>
     </body>
     </html>
     """
     return HTMLResponse(content=html_content, status_code=200)
+
 
 
 @app.on_event("startup")
