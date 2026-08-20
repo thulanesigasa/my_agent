@@ -96,7 +96,7 @@ export default function Home() {
     setLiveResponse("");
   };
 
-  const handleSend = (text?: string) => {
+  const handleSend = async (text?: string) => {
     const userText = (text || inputValue).trim();
     if (!userText || loading) return;
     setInputValue("");
@@ -110,19 +110,42 @@ export default function Home() {
       },
     ]);
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_AGENT_API_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userText,
+          user_id: "web_user",
+          thread_id: activeAgentId ?? "default",
+        }),
+      });
+      const data = await res.json();
+      const reply = data.response || data.detail || "No response from agent.";
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 1).toString(),
           sender: "assistant",
-          text: `[${activeAgent?.name ?? "agent"}] Processing: "${userText}"`,
+          text: reply,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          sender: "assistant",
+          text: "Could not reach the agent backend. Make sure it is running on port 8000.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+    } finally {
       setLoading(false);
-    }, 900);
+    }
   };
+
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }}>
