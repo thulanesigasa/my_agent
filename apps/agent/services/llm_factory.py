@@ -149,9 +149,15 @@ def get_triage_llm() -> BaseChatModel:
 
 def get_drafting_llm() -> BaseChatModel:
     """
-    Returns ChatGoogleGenerativeAI (or ChatOpenAI fallback) using model Gemini 1.5 Pro
-    for long-context reasoning and response synthesis.
+    Returns high-speed Groq LLM for fast reasoning and sub-second response synthesis.
+    Falls back to Gemini or OpenRouter if Groq is unavailable.
     """
+    if settings.GROQ_API_KEY:
+        try:
+            return get_triage_llm()
+        except Exception as e:
+            logger.warning(f"Groq drafting LLM init warning: {e}")
+
     if settings.GEMINI_API_KEY:
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI  # type: ignore
@@ -162,11 +168,10 @@ def get_drafting_llm() -> BaseChatModel:
                 max_output_tokens=2048,
             )
         except Exception as e:
-            logger.warning(f"langchain_google_genai import/init warning: {e}. Using ChatOpenAI / Groq endpoint for drafting.")
-            if settings.GROQ_API_KEY:
-                return get_triage_llm()
+            logger.warning(f"langchain_google_genai import/init warning: {e}")
 
     return get_fallback_llm()
+
 
 
 def get_fallback_llm() -> BaseChatModel:

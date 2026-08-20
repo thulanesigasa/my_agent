@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # AI Model API Keys
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "groq/compound-mini"
+    GROQ_MODEL: str = "openai/gpt-oss-20b"
     GROQ_WHISPER_MODEL: str = "whisper-large-v3"
 
     GEMINI_API_KEY: str = ""
