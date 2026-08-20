@@ -270,7 +270,7 @@ class ClapLauncher:
             return False
 
     def open_browser_tabs(self):
-        """Focuses existing open browser window or launches initial web application pages."""
+        """Opens the 3 app browser tabs. Skips if triggered within 30 seconds of last open."""
         now = time.time()
         if now - self.last_browser_open_time < 30.0:
             logger.info("Browser tabs were recently opened. Skipping duplicate launch.")
@@ -278,19 +278,14 @@ class ClapLauncher:
 
         self.last_browser_open_time = now
 
-        # 1. First attempt to bring an already open browser window to focus (prevents duplicate tabs)
-        if self.focus_existing_browser_window():
-            return
-
-        # 2. If no open browser window was found, launch main app tabs
         for idx, url in enumerate(self.frontend_urls):
-            logger.info(f"🚀 Launching browser tab #{idx + 1}: {url}")
+            logger.info(f"Launching browser tab #{idx + 1}: {url}")
             try:
-                webbrowser.open(url)
+                webbrowser.open_new_tab(url)
             except Exception as e:
                 logger.error(f"Failed to open browser tab for {url}: {e}")
-            
-            time.sleep(1.0)
+            time.sleep(0.6)
+
 
     def trigger_action(self):
         """Executes non-blocking parallel kick-start sequence on clap detection."""
