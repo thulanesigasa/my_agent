@@ -10,9 +10,9 @@ from config import settings
 
 logger = logging.getLogger("agent.audio_service")
 
-# ElevenLabs voice to use — "Rachel" is calm, clear, professional
+# ElevenLabs voice — Arnold (deep, powerful, commanding)
 # Browse voices at https://elevenlabs.io/voice-library
-ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Rachel
+ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "VR6AewLTigWG4xSOukaG")  # Arnold
 ELEVENLABS_MODEL    = "eleven_flash_v2_5"  # lowest latency model
 
 
