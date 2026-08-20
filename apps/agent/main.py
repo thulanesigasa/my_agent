@@ -60,45 +60,40 @@ async def root_status_page():
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
         <style>
             *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+            html, body { width: 100%; height: 100%; overflow-x: hidden; }
             body {
                 font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-                background: linear-gradient(135deg, #fafafa 0%, #f1f5f9 100%);
-                min-height: 100vh;
+                background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+                color: #0f172a;
                 display: flex;
                 flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                color: #0f172a;
-                padding: 24px;
+                min-height: 100vh;
             }
             header {
-                position: fixed;
-                top: 0; left: 0; right: 0;
-                height: 54px;
+                height: 60px;
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                padding: 0 28px;
-                background: rgba(255,255,255,0.85);
+                padding: 0 32px;
+                background: rgba(255, 255, 255, 0.85);
                 backdrop-filter: blur(12px);
-                border-bottom: 1px solid rgba(226,232,240,0.8);
+                border-bottom: 1px solid rgba(226, 232, 240, 0.8);
             }
-            .logo { font-weight: 700; font-size: 15px; color: #0f172a; }
+            .logo { font-weight: 700; font-size: 16px; color: #0f172a; letter-spacing: -0.01em; }
             .status-badge {
                 display: inline-flex;
                 align-items: center;
-                gap: 7px;
-                background: rgba(16,185,129,0.08);
+                gap: 8px;
+                background: rgba(16, 185, 129, 0.08);
                 color: #059669;
-                border: 1px solid rgba(16,185,129,0.25);
-                padding: 5px 14px;
+                border: 1px solid rgba(16, 185, 129, 0.25);
+                padding: 6px 16px;
                 border-radius: 9999px;
-                font-size: 12px;
+                font-size: 13px;
                 font-weight: 600;
-                letter-spacing: 0.02em;
             }
             .dot {
-                width: 7px; height: 7px;
+                width: 8px; height: 8px;
                 background: #10b981;
                 border-radius: 50%;
                 animation: pulse 2s infinite;
@@ -107,108 +102,127 @@ async def root_status_page():
                 0%, 100% { opacity: 1; }
                 50% { opacity: 0.4; }
             }
-            .card {
-                background: #ffffff;
-                border: 1px solid rgba(226,232,240,0.9);
-                border-radius: 20px;
-                padding: 40px 40px 36px;
-                max-width: 520px;
-                width: 100%;
-                box-shadow: 0 10px 40px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+            main {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 60px 24px;
                 text-align: center;
+                max-width: 800px;
+                margin: 0 auto;
+                width: 100%;
+            }
+            .pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                background: #ffffff;
+                border: 1px solid rgba(226, 232, 240, 0.9);
+                padding: 6px 16px;
+                border-radius: 9999px;
+                font-size: 12px;
+                font-weight: 600;
+                color: #059669;
+                margin-bottom: 24px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.03);
             }
             h1 {
-                font-size: 28px;
+                font-size: 38px;
                 font-weight: 600;
                 letter-spacing: -0.02em;
-                margin: 20px 0 8px;
+                margin: 0 0 16px;
                 color: #0f172a;
             }
             .subtitle {
-                font-size: 13px;
+                font-size: 15px;
                 color: #64748b;
                 line-height: 1.6;
-                margin-bottom: 32px;
-                max-width: 380px;
-                margin-left: auto;
-                margin-right: auto;
+                margin-bottom: 40px;
+                max-width: 580px;
             }
-            .links { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 14px;
+                width: 100%;
+                max-width: 680px;
+            }
             .btn {
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                padding: 11px 16px;
-                border-radius: 10px;
-                font-size: 13px;
+                padding: 14px 20px;
+                border-radius: 12px;
+                font-size: 14px;
                 font-weight: 500;
                 text-decoration: none;
                 transition: all 0.15s ease;
-                border: 1px solid rgba(226,232,240,0.9);
+                border: 1px solid rgba(226, 232, 240, 0.9);
                 color: #334155;
-                background: #f8fafc;
+                background: #ffffff;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
             }
             .btn:hover {
                 border-color: #ec4899;
                 color: #ec4899;
-                background: #fff;
-                transform: translateY(-1px);
-                box-shadow: 0 4px 12px rgba(236,72,153,0.12);
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(236, 72, 153, 0.12);
             }
             .btn-primary {
-                grid-column: span 2;
+                grid-column: 1 / -1;
                 background: #0f172a;
                 color: #ffffff;
                 border-color: #0f172a;
                 font-weight: 600;
-                padding: 13px 16px;
+                padding: 16px 24px;
             }
             .btn-primary:hover {
                 background: #1e293b;
                 border-color: #1e293b;
                 color: #ffffff;
-                box-shadow: 0 4px 16px rgba(15,23,42,0.2);
+                box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
             }
-            .divider {
-                height: 1px;
-                background: rgba(226,232,240,0.8);
-                margin: 28px 0;
-            }
-            .meta {
-                font-size: 11px;
+            footer {
+                padding: 24px;
+                text-align: center;
+                font-size: 12px;
                 color: #94a3b8;
-                letter-spacing: 0.04em;
+                border-top: 1px solid rgba(226, 232, 240, 0.8);
+                background: rgba(255, 255, 255, 0.5);
             }
         </style>
     </head>
     <body>
         <header>
             <span class="logo">my_agent</span>
-            <div class="status-badge"><span class="dot"></span>Backend Online — port 8000</div>
+            <div class="status-badge"><span class="dot"></span>Backend Online &mdash; port 8000</div>
         </header>
 
-        <div class="card">
-            <div class="status-badge" style="margin-bottom:0;">
-                <span class="dot"></span>FastAPI Running
-            </div>
+        <main>
+            <div class="pill"><span class="dot"></span>FastAPI Engine Running</div>
             <h1>T.s Industries Agent</h1>
             <p class="subtitle">
                 LangGraph multi-agent orchestrator. Groq Whisper STT, ElevenLabs TTS, Supabase pgvector memory and Human-in-the-Loop engine.
             </p>
-            <div class="links">
+            <div class="grid">
                 <a href="http://localhost:3000/dashboard" class="btn btn-primary">Launch Admin Dashboard</a>
                 <a href="http://localhost:3000/" class="btn">Voice Hub</a>
                 <a href="/docs" class="btn">Swagger API Docs</a>
                 <a href="/health" class="btn">Health Check</a>
                 <a href="/api/skills" class="btn">Active Skills</a>
             </div>
-            <div class="divider"></div>
-            <p class="meta">LangGraph &middot; Groq &middot; ElevenLabs &middot; Supabase pgvector</p>
-        </div>
+        </main>
+
+        <footer>
+            LangGraph &middot; Groq &middot; ElevenLabs &middot; Supabase pgvector &middot; T.s Industries
+        </footer>
     </body>
     </html>
     """
     return HTMLResponse(content=html_content, status_code=200)
+
 
 
 
