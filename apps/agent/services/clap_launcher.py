@@ -146,7 +146,11 @@ class ClapLauncher:
         detector: Optional[SingleOrDoubleClapDetector] = None,
     ):
         self.backend_url = backend_url
-        self.frontend_urls = frontend_urls or ["http://localhost:3000/", "http://localhost:3000/dashboard"]
+        self.frontend_urls = frontend_urls or [
+            "http://localhost:3000/",
+            "http://localhost:3000/dashboard",
+            "http://localhost:8000",
+        ]
         self.backend_cmd = backend_cmd
         self.frontend_cmd = frontend_cmd
         self.detector = detector or SingleOrDoubleClapDetector(single_clap=True, energy_threshold=0.18)
