@@ -61,7 +61,7 @@ class SingleOrDoubleClapDetector:
         single_clap: bool = True,
         min_clap_interval: float = 0.12,
         max_clap_interval: float = 0.75,
-        refractory_period: float = 3.0,
+        refractory_period: float = 8.0,
     ):
         self.energy_threshold = energy_threshold
         self.single_clap = single_clap
@@ -270,8 +270,8 @@ class ClapLauncher:
     def open_browser_tabs(self):
         """Focuses existing open browser window or launches initial web application pages."""
         now = time.time()
-        if now - self.last_browser_open_time < 4.0:
-            logger.info("Browser tabs were recently checked. Skipping duplicate launch.")
+        if now - self.last_browser_open_time < 30.0:
+            logger.info("Browser tabs were recently opened. Skipping duplicate launch.")
             return
 
         self.last_browser_open_time = now
