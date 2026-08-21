@@ -190,12 +190,16 @@ class ClapLauncher:
         )
 
         try:
+            env = os.environ.copy()
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["PYTHONUTF8"] = "1"
             subprocess.Popen(
                 cmd,
                 shell=True,
                 cwd=agent_dir,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                env=env,
             )
             logger.info("Backend process spawned asynchronously.")
         except Exception as e:

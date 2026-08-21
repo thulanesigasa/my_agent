@@ -4,7 +4,16 @@ Twilio WhatsApp webhooks, OpenTelemetry observability, SlowAPI rate limiting, an
 """
 import logging
 import json
+import sys
 from typing import Dict, Any, Optional
+
+# Force UTF-8 on Windows so logging of Unicode LLM responses never raises UnicodeEncodeError
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # Initialize Telemetry Tracing first before framework startup
 import core.telemetry
@@ -333,6 +342,15 @@ async def chat_endpoint(request: Request, payload: ChatRequest, token: str = Dep
     try:
         final_state = await agent_workflow.ainvoke(initial_state, config=config)
         output_text = final_state.get("final_output") or final_state.get("draft_response") or "Request processed."
+        # Normalize Unicode characters that break Windows cp1252 encoding in logging/TTS
+        if isinstance(output_text, str):
+            output_text = (
+                output_text
+                .replace("\u2011", "-")   # non-breaking hyphen → hyphen
+                .replace("\u2014", " - ")  # em dash → spaced hyphen
+                .replace("\u2013", "-")   # en dash → hyphen
+                .replace("\u00a0", " ")   # non-breaking space → space
+            )
         try:
             audio_bytes = await asyncio.wait_for(audio_service.synthesize_speech_bytes(str(output_text)[:250]), timeout=1.5)
         except Exception:
