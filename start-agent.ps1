@@ -13,6 +13,12 @@ foreach ($port in $ports) {
 }
 
 Start-Sleep -Seconds 2
+
+# Clear stale Next.js build cache to prevent vendor chunk resolution errors
+if (Test-Path "apps/web/.next") {
+    Remove-Item -Recurse -Force "apps/web/.next" -ErrorAction SilentlyContinue
+}
+
 Write-Host "Starting agent..." -ForegroundColor Cyan
 
 $env:PYTHONIOENCODING = "utf-8"
