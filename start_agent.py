@@ -49,4 +49,15 @@ def print_active_banner():
 if __name__ == "__main__":
     print_active_banner()
     launcher = ClapLauncher()
+
+    # ── Start backend + frontend immediately on launch ──────────────────
+    import threading
+    print(f"{CYAN}  Starting backend (port 8000) and frontend (port 3000)...{RESET}")
+    t_back = threading.Thread(target=launcher.start_backend_async, daemon=True)
+    t_front = threading.Thread(target=launcher.start_frontend_async, daemon=True)
+    t_back.start()
+    t_front.start()
+    t_back.join()   # brief wait so backend is up before listening begins
+    t_front.join()
+
     launcher.listen()
