@@ -111,9 +111,12 @@ export default function Home() {
     ]);
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_AGENT_API_URL}/api/chat`, {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
+      const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           message: userText,
           user_id: "web_user",
@@ -121,7 +124,8 @@ export default function Home() {
         }),
       });
       const data = await res.json();
-      const reply = data.response || data.detail || "No response from agent.";
+      clearTimeout(timeoutId);
+      const reply = data.response || data.message || data.detail || "No response from agent.";
       setMessages((prev) => [
         ...prev,
         {
@@ -137,7 +141,9 @@ export default function Home() {
         {
           id: (Date.now() + 1).toString(),
           sender: "assistant",
-          text: "Could not reach the agent backend. Make sure it is running on port 8000.",
+          text: (err instanceof DOMException && err.name === "AbortError")
+            ? "The agent took too long to respond. The backend may still be processing — try again."
+            : "Could not reach the agent backend. Make sure it is running on port 8000.",
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
