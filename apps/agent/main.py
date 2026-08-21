@@ -2,6 +2,7 @@
 FastAPI Backend Entrypoint featuring real-time WebSocket audio endpoints, HTTP API handlers,
 Twilio WhatsApp webhooks, OpenTelemetry observability, SlowAPI rate limiting, and Human-in-the-Loop approvals.
 """
+import asyncio
 import logging
 import json
 import sys
