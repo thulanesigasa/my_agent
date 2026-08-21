@@ -1,76 +1,110 @@
+"""
+Triage Agent Node: Classifies incoming user messages or emails into intent categories for T.s Industries.
+Uses runtime dynamic reading of knowledge/*.md files, unbreakable rules, and procedural skills.
+"""
 import json
 import logging
 from core.state import AgentState
 from services.llm_factory import llm_factory
-from core.memory import memory_store
+from core.memory import memory_manager
+from tools.knowledge_tools import read_company_knowledge
+from tools.procedural_tools import load_unbreakable_rules, fetch_skill
 
 logger = logging.getLogger("agent.node.triage")
 
 TRIAGE_SYSTEM_PROMPT = """
-You are the Triage Agent node in an autonomous multi-agent platform powered by Groq Llama 3.3 70B.
-Your task is to analyze user messages, categorize intent, query relevant long-term memory, and decide routing.
+You are an expert Triage Agent representing T.s Industries, a high-performance software engineering firm led by Pharez (Thulane).
 
-Intents:
-- "email_dispatch": Creating or sending emails (requires human approval if sending).
-- "whatsapp_dispatch": Messaging via WhatsApp (requires human approval).
-- "draft_response": Complex reasoning, project planning, drafting documents.
-- "general_qa": Quick answers, conversation, status inquiries.
+Analyze incoming user messages or email inputs and classify them into one of these intents:
+- "skill_learning": User or admin teaching a new step-by-step procedure/skill or declaring a strict business rule.
+- "knowledge_update": Admin or user teaching a new fact, tech stack capability, or company guideline.
+- "quote_request": Client requesting pricing estimates, proposals, or project quotations.
+- "sales": Inquiries regarding pricing options, product upgrades, or purchase intentions.
+- "support": Bug reports, platform issues, or technical help requests.
+- "client_inquiry": High-priority client questions, contract requests, or custom engineering work.
+- "general": General questions, greeting, or status checks.
+- "spam": Unsolicited promotional mail, irrelevant text, or noise.
 
-Respond ONLY with a valid JSON object matching this schema:
+Directives:
+1. Always represent T.s Industries.
+2. Flag "needs_human_approval" as true ONLY if intent is "client_inquiry" or involves sending sensitive communications.
+
+Respond strictly with a JSON object matching:
 {
-    "intent": "<email_dispatch|whatsapp_dispatch|draft_response|general_qa>",
-    "requires_human_approval": true|false,
-    "reason": "<brief justification>",
-    "action_payload": {"recipient": "...", "subject": "...", "body": "..."} // if email/whatsapp
+    "intent": "skill_learning|knowledge_update|quote_request|sales|support|client_inquiry|general|spam",
+    "needs_human_approval": true|false,
+    "reason": "<brief justification>"
 }
 """
 
 async def triage_node(state: AgentState) -> AgentState:
     """
-    Triage Node: Fast intent classification using Groq Llama 3.3 70B & memory lookup.
+    Triage Node function for intent classification and initial context routing.
+    Dynamically loads knowledge/*.md and unbreakable rules at runtime for every task.
     """
-    logger.info("Executing Triage Node...")
+    logger.info("Executing Triage Node for T.s Industries...")
     messages = state.get("messages", [])
-    user_input = ""
-    if messages:
+    email_input = state.get("email_input")
+
+    # Read company knowledge and rules dynamically at runtime
+    company_knowledge = read_company_knowledge()
+    unbreakable_rules = load_unbreakable_rules()
+
+    input_text = ""
+    if email_input and isinstance(email_input, dict):
+        input_text = f"Subject: {email_input.get('subject', '')}\nFrom: {email_input.get('sender', '')}\nBody: {email_input.get('body', '')}"
+    elif messages:
         last_msg = messages[-1]
-        user_input = last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg)
+        input_text = last_msg.get("content", "") if isinstance(last_msg, dict) else str(getattr(last_msg, "content", last_msg))
 
-    # 1. Recall memory from Supabase pgvector
-    memories = await memory_store.recall_memories(user_input, limit=3)
-    memory_context = "\n".join([f"- {m['content']}" for m in memories])
+    # Recall relevant context memories
+    memories = await memory_manager.search_memory(input_text, limit=3)
 
-    # 2. Call Groq for fast triage analysis
-    prompt = f"User Input: {user_input}\n\nRetrieved Long-term Memories:\n{memory_context}"
-    llm_output = await llm_factory.call_groq(prompt, TRIAGE_SYSTEM_PROMPT, temperature=0.1)
+    combined_system = f"""
+{company_knowledge}
 
-    intent = "general_qa"
-    requires_approval = False
-    action_payload = None
+CRITICAL CONSTRAINTS:
+{unbreakable_rules}
+
+{TRIAGE_SYSTEM_PROMPT}
+""".strip()
+
+    prompt = f"User Input:\n{input_text}"
+    output_str = await llm_factory.invoke_triage(prompt, combined_system)
+
+    intent = "general"
+    needs_approval = False
 
     try:
-        # Extract JSON from output
-        start_idx = llm_output.find("{")
-        end_idx = llm_output.rfind("}")
+        start_idx = output_str.find("{")
+        end_idx = output_str.rfind("}")
         if start_idx != -1 and end_idx != -1:
-            parsed = json.loads(llm_output[start_idx:end_idx + 1])
-            intent = parsed.get("intent", "general_qa")
-            requires_approval = parsed.get("requires_human_approval", False)
-            action_payload = parsed.get("action_payload", None)
+            data = json.loads(output_str[start_idx:end_idx + 1])
+            intent = data.get("intent", "general")
+            needs_approval = data.get("needs_human_approval", False)
     except Exception as e:
-        logger.warning(f"Triage JSON parsing warning: {e}. Falling back to default heuristics.")
-        if "email" in user_input.lower():
-            intent = "email_dispatch"
-            requires_approval = True
-        elif "whatsapp" in user_input.lower():
-            intent = "whatsapp_dispatch"
-            requires_approval = True
+        logger.warning(f"Triage JSON extraction warning: {e}")
+        text_lower = input_text.lower()
+        if "how to" in text_lower or "step by step" in text_lower or "procedure:" in text_lower:
+            intent = "skill_learning"
+        elif "quote" in text_lower or "pricing" in text_lower or "estimate" in text_lower:
+            intent = "quote_request"
+        elif "remember that" in text_lower or "update knowledge" in text_lower:
+            intent = "knowledge_update"
+
+    # Fetch skill procedure if specific job requested
+    if intent in ("quote_request", "sales"):
+        skill_text = fetch_skill("quote")
+        if skill_text:
+            logger.info("Found procedural skill for quote generation.")
+
+    if intent == "client_inquiry":
+        needs_approval = True
 
     return {
         **state,
+        "sender": "triage",
         "intent": intent,
-        "retrieved_memory": memories,
-        "requires_human_approval": requires_approval,
-        "proposed_action": action_payload,
-        "active_node": "triage_node"
+        "needs_human_approval": needs_approval,
+        "retrieved_context": memories
     }

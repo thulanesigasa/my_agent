@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # Supabase Local Postgres with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agent_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Python LangGraph & FastAPI Backend Agent API
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: agent_backend
+    restart: always
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.example
+    environment:
+      - SUPABASE_DB_URL=postgresql://postgres:password@postgres:5432/postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # 24/7 Background Scheduler Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: agent_worker
+    restart: always
+    command: python worker.py
+    env_file:
+      - .env.example
+    depends_on:
+      agent:
+        condition: service_healthy
+
+  # Next.js App Router Web Frontend
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: agent_web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_AGENT_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_AGENT_WS_URL=ws://localhost:8000/ws/agent
+    depends_on:
+      - agent
+
+volumes:
+  pgdata:

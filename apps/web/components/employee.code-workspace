@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "../../.."
+		},
+		{
+			"path": "../../../../reports_agent"
+		},
+		{
+			"path": "../../../../project_manager"
+		},
+		{
+			"path": "../../../../email_agent"
+		},
+		{
+			"path": "../../../../research_agent"
+		}
+	],
+	"settings": {}
+}

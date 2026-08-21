@@ -1,0 +1,210 @@
+"use client";
+
+import React, { useState } from "react";
+import { CheckCircle2, Circle } from "lucide-react";
+
+export interface TaskItem {
+  id: string;
+  agentId: string;
+  title: string;
+  completed: boolean;
+}
+
+const INITIAL_TASKS: TaskItem[] = [
+  // reports_agent Tasks
+  {
+    id: "t1",
+    agentId: "reports_agent",
+    title: "Generate Standerton Lead Analytics & Summary Report",
+    completed: true,
+  },
+  {
+    id: "t2",
+    agentId: "reports_agent",
+    title: "Export Q3 Outreach Performance & Conversion PDF",
+    completed: false,
+  },
+
+  // Email Agent Tasks
+  {
+    id: "t3",
+    agentId: "email_agent",
+    title: "Dispatch 250 Cold Outreach Emails to Standerton Businesses",
+    completed: true,
+  },
+  {
+    id: "t4",
+    agentId: "email_agent",
+    title: "Process Standerton Inbox Responses & Send Follow-ups",
+    completed: false,
+  },
+
+  // Project Manager Agent Tasks
+  {
+    id: "t5",
+    agentId: "project_manager",
+    title: "Check & Audit Activity of Each Agent (Logs & Health)",
+    completed: false,
+  },
+  {
+    id: "t6",
+    agentId: "project_manager",
+    title: "Verify Lead Discovery & Email Pipeline Workflow Status",
+    completed: true,
+  },
+
+  // Research Agent Tasks (Standerton, Mpumalanga Focus)
+  {
+    id: "t7",
+    agentId: "research_agent",
+    title: "Search Google for Active Businesses in Standerton, Mpumalanga",
+    completed: true,
+  },
+  {
+    id: "t8",
+    agentId: "research_agent",
+    title: "Filter Standerton Companies Missing Official Websites",
+    completed: false,
+  },
+  {
+    id: "t9",
+    agentId: "research_agent",
+    title: "Scrape Contact Phone Numbers & Emails for Standerton Leads",
+    completed: false,
+  },
+];
+
+interface AgentTodoListProps {
+  activeAgentId: string;
+  activeAgentName: string;
+}
+
+export default function AgentTodoList({ activeAgentId, activeAgentName }: AgentTodoListProps) {
+  const [tasks, setTasks] = useState<TaskItem[]>(INITIAL_TASKS);
+
+  const filteredTasks = tasks.filter((t) => t.agentId === activeAgentId);
+  const completedCount = filteredTasks.filter((t) => t.completed).length;
+  const progressPercent = filteredTasks.length > 0 ? Math.round((completedCount / filteredTasks.length) * 100) : 0;
+
+  const toggleTask = (id: string) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))
+    );
+  };
+
+  return (
+    <div style={{
+      width: "100%",
+      height: "100%",
+      background: "transparent",
+      border: "none",
+      boxShadow: "none",
+      padding: "clamp(4px, 1vh, 10px) clamp(4px, 1vw, 10px)",
+      display: "flex",
+      flexDirection: "column",
+      gap: "clamp(6px, 1.2vh, 12px)",
+      flexShrink: 1,
+      minHeight: 0,
+      overflow: "hidden",
+    }}>
+      {/* Header */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        paddingBottom: "clamp(2px, 0.4vh, 4px)",
+      }}>
+        <div>
+          <h3 style={{ fontSize: "clamp(11px, 1.4vh, 13px)", fontWeight: 700, color: "#0f172a", margin: 0 }}>
+            Daily To-Do List
+          </h3>
+          <span style={{ fontSize: "clamp(9px, 1.2vh, 11px)", color: "#64748b" }}>
+            {activeAgentName} Tasks
+          </span>
+        </div>
+      </div>
+
+      {/* Centered Shorter Header Divider Line */}
+      <div style={{
+        width: "75%",
+        margin: "0 auto clamp(2px, 0.4vh, 4px)",
+        height: 1,
+        background: "rgba(226, 232, 240, 0.7)",
+      }} />
+
+      {/* Daily Progress Bar */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "clamp(8px, 1.1vh, 10px)", fontWeight: 600, color: "#64748b" }}>
+          <span>Agent Progress</span>
+          <span>{progressPercent}%</span>
+        </div>
+        <div style={{ width: "100%", height: 4, borderRadius: 999, background: "rgba(226, 232, 240, 0.8)", overflow: "hidden" }}>
+          <div style={{
+            width: `${progressPercent}%`, height: "100%",
+            borderRadius: 999,
+            background: "linear-gradient(90deg, #ec4899, #f43f5e)",
+            transition: "width 300ms ease-in-out",
+          }} />
+        </div>
+      </div>
+
+      {/* Task Items Stream (Minimalist Rows with Shorter Centered Separator Lines) */}
+      <div style={{
+        flex: 1, overflowY: "auto", display: "flex", flexDirection: "column",
+        paddingRight: 2,
+      }}>
+        {filteredTasks.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "16px 0", color: "#94a3b8", fontSize: 11 }}>
+            No daily tasks assigned to this agent yet.
+          </div>
+        ) : (
+          filteredTasks.map((task, index) => {
+            const isLast = index === filteredTasks.length - 1;
+            return (
+              <React.Fragment key={task.id}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "clamp(4px, 0.8vh, 8px) 4px",
+                    opacity: task.completed ? 0.6 : 1,
+                    transition: "all 150ms ease",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
+                    <button
+                      onClick={() => toggleTask(task.id)}
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        padding: 0, color: task.completed ? "#ec4899" : "#94a3b8",
+                        display: "flex", alignItems: "center",
+                      }}
+                    >
+                      {task.completed ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+                    </button>
+                    <span style={{
+                      fontSize: "clamp(10px, 1.3vh, 12px)",
+                      fontWeight: 500,
+                      color: task.completed ? "#64748b" : "#0f172a",
+                      textDecoration: task.completed ? "line-through" : "none",
+                    }}>
+                      {task.title}
+                    </span>
+                  </div>
+                </div>
+
+                {!isLast && (
+                  <div style={{
+                    width: "75%",
+                    margin: "1px auto",
+                    height: 1,
+                    background: "rgba(226, 232, 240, 0.6)",
+                  }} />
+                )}
+              </React.Fragment>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
