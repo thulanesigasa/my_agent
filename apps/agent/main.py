@@ -323,6 +323,101 @@ class SandboxRequest(BaseModel):
     max_retries: Optional[int] = 3
 
 
+OUTREACH_LOGS_DATABASE = [
+    {
+        "id": "log_001",
+        "recipient": "cto@techcorp.io",
+        "company": "TechCorp",
+        "subject": "Enterprise License Proposal – Custom Pricing",
+        "dateSent": "2026-08-08",
+        "status": "Responded",
+        "thread": "We are interested in the 50-seat enterprise license. Please share the full proposal document.",
+        "reply": "Hi! We reviewed your proposal and would love to schedule a call this week. Can we connect Friday at 10am EST?",
+    },
+    {
+        "id": "log_002",
+        "recipient": "founder@startupco.com",
+        "company": "StartupCo",
+        "subject": "Autonomous AI Agent – Pilot Program Invitation",
+        "dateSent": "2026-08-07",
+        "status": "Opened",
+        "thread": "We're inviting 10 selected startups to our AI agent pilot program. Interested in a 14-day trial?",
+        "reply": None,
+    },
+    {
+        "id": "log_003",
+        "recipient": "ops@retailgiant.com",
+        "company": "RetailGiant",
+        "subject": "AI-Powered Customer Support Automation",
+        "dateSent": "2026-08-06",
+        "status": "Responded",
+        "thread": "Our autonomous agent can handle tier-1 customer support with full escalation controls.",
+        "reply": "We're very interested. Can you send a case study or demo video first?",
+    },
+    {
+        "id": "log_004",
+        "recipient": "partnerships@finplus.co",
+        "company": "FinancePlus",
+        "subject": "LangGraph AI Compliance Automation – Partnership Inquiry",
+        "dateSent": "2026-08-05",
+        "status": "Sent",
+        "thread": "Exploring a compliance automation partnership between our LangGraph system and your risk platform.",
+        "reply": None,
+    },
+    {
+        "id": "log_005",
+        "recipient": "ceo@healthsys.org",
+        "company": "HealthSystem",
+        "subject": "Healthcare Document Processing Agent",
+        "dateSent": "2026-08-04",
+        "status": "Bounced",
+        "thread": "Our agent can automate complex medical document intake and routing.",
+        "reply": None,
+    },
+    {
+        "id": "log_006",
+        "recipient": "tech@mediahouse.tv",
+        "company": "MediaHouse",
+        "subject": "Real-time Transcription & Summary Agent",
+        "dateSent": "2026-08-03",
+        "status": "Responded",
+        "thread": "Our AI can transcribe and summarize broadcast content in near real-time.",
+        "reply": "This sounds exactly what we need for our weekly production pipeline. Let's talk.",
+    },
+]
+
+
+@app.get("/api/outreach/logs")
+async def get_outreach_logs_endpoint(filter: Optional[str] = "all"):
+    """Returns unified outreach logs for Dashboard & Conversational Agent."""
+    logs = OUTREACH_LOGS_DATABASE
+    if filter == "responded":
+        logs = [l for l in logs if l["status"] == "Responded"]
+    elif filter == "opened":
+        logs = [l for l in logs if l["status"] == "Opened"]
+    elif filter == "sent":
+        logs = [l for l in logs if l["status"] == "Sent"]
+    return JSONResponse({"status": "success", "logs": logs})
+
+
+@app.get("/api/outreach/metrics")
+async def get_outreach_metrics_endpoint():
+    """Returns unified outreach metrics for Dashboard & Conversational Agent."""
+    total = len(OUTREACH_LOGS_DATABASE)
+    responded = len([l for l in OUTREACH_LOGS_DATABASE if l["status"] == "Responded"])
+    rate = round((responded / total * 100), 1) if total > 0 else 0.0
+    return JSONResponse({
+        "status": "success",
+        "metrics": {
+            "totalEmailsSent": 284,
+            "totalResponsesReceived": 91,
+            "responseRatePercent": 32.0,
+            "activeLeadsInPipeline": 47,
+            "recentOutreachLogs": OUTREACH_LOGS_DATABASE
+        }
+    })
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint for Docker & frontend monitoring."""

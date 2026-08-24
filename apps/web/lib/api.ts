@@ -64,6 +64,18 @@ export async function getSystemHealth(): Promise<SystemHealth> {
 }
 
 export async function getOutreachMetrics(): Promise<OutreachMetrics> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/outreach/metrics`, {
+      headers: getHeaders(),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.metrics) return data.metrics;
+    }
+  } catch (e) {
+    console.warn("Outreach metrics API fetch warning:", e);
+  }
   return {
     totalEmailsSent: 284,
     totalResponsesReceived: 91,
@@ -73,6 +85,19 @@ export async function getOutreachMetrics(): Promise<OutreachMetrics> {
 }
 
 export async function getEmailLogs(filter: string = "all"): Promise<EmailLog[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/outreach/logs?filter=${encodeURIComponent(filter)}`, {
+      headers: getHeaders(),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.logs)) return data.logs;
+    }
+  } catch (e) {
+    console.warn("Email logs API fetch warning:", e);
+  }
+
   const allLogs: EmailLog[] = [
     {
       id: "log_001",

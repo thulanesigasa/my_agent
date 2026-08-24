@@ -76,7 +76,19 @@ async def drafter_node(state: AgentState) -> AgentState:
         except Exception as e:
             logger.warning(f"CRM query warning: {e}")
 
-        # 3. Sent Email Outbox Logs
+        # 3. Dashboard Recent Outreach Logs (Matching Admin Dashboard UI)
+        try:
+            from main import OUTREACH_LOGS_DATABASE
+            live_dashboard_lines.append("• Dashboard Recent Outreach Logs (as shown on Admin Dashboard):")
+            for log in OUTREACH_LOGS_DATABASE:
+                reply_info = f" (Client Reply: '{log['reply']}')" if log.get('reply') else ""
+                live_dashboard_lines.append(
+                    f"   - {log['company']} ({log['recipient']}) | Subject: '{log['subject']}' | Status: {log['status']}{reply_info}"
+                )
+        except Exception as e:
+            logger.warning(f"Dashboard outreach logs import notice: {e}")
+
+        # 4. Sent Email Outbox Logs
         try:
             sent_info = await get_sent_emails(limit=10)
             live_dashboard_lines.append(f"• Email Outbox Log:\n{sent_info}")
