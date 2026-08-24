@@ -5,9 +5,9 @@ $ports = @(8000, 3000)
 foreach ($port in $ports) {
     $connections = netstat -ano 2>$null | Select-String ":$port\s" | Select-String "LISTENING"
     foreach ($line in $connections) {
-        $pid = ($line -split '\s+')[-1]
-        if ($pid -match '^\d+$' -and $pid -ne '0') {
-            try { taskkill /PID $pid /F 2>$null | Out-Null; Write-Host "  Killed PID $pid on port $port" -ForegroundColor Gray } catch {}
+        $procId = ($line -split '\s+')[-1]
+        if ($procId -match '^\d+$' -and $procId -ne '0') {
+            try { taskkill /PID $procId /F 2>$null | Out-Null; Write-Host "  Killed PID $procId on port $port" -ForegroundColor Gray } catch {}
         }
     }
 }
