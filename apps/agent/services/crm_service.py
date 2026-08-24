@@ -158,3 +158,35 @@ async def get_client_and_projects(email: str) -> Dict[str, Any]:
         "client": IN_MEMORY_CLIENTS.get(email_clean, {}),
         "projects": [IN_MEMORY_PROJECTS.get(email_clean, {})] if email_clean in IN_MEMORY_PROJECTS else []
     }
+
+
+async def get_all_clients() -> List[Dict[str, Any]]:
+    """
+    Returns list of all registered CRM clients.
+    """
+    client = _get_supabase_client()
+    if client:
+        try:
+            res = client.table("clients").select("*").execute()
+            if res.data:
+                return res.data
+        except Exception as e:
+            logger.error(f"Error fetching all CRM clients: {e}")
+
+    return list(IN_MEMORY_CLIENTS.values())
+
+
+async def get_all_projects() -> List[Dict[str, Any]]:
+    """
+    Returns list of all CRM projects.
+    """
+    client = _get_supabase_client()
+    if client:
+        try:
+            res = client.table("projects").select("*").execute()
+            if res.data:
+                return res.data
+        except Exception as e:
+            logger.error(f"Error fetching all CRM projects: {e}")
+
+    return list(IN_MEMORY_PROJECTS.values())
