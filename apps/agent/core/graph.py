@@ -228,7 +228,7 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
     builder.add_edge("admin_tools", END)
     builder.add_edge("outreach_bridge", END)
     builder.add_edge("human_approval", "drafter")
-    builder.add_edge("drafter", "learner")
+    builder.add_edge("drafter", END)
     builder.add_edge("learner", END)
 
     if checkpointer is None:

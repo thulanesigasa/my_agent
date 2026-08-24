@@ -44,6 +44,11 @@ export class AudioStreamManager {
   private lastSpeechTime: number = 0;
   private hasSpoken: boolean = false;
 
+  private disposed = false;
+  private restartTimer: number | null = null;
+  private muted = false;
+  private sendCurrentRecording = true;
+
   constructor(callbacks: AudioStreamCallbacks = {}) {
     this.callbacks = callbacks;
   }
@@ -53,6 +58,7 @@ export class AudioStreamManager {
    * Resolves true when socket reaches WebSocket.OPEN.
    */
   public async connect(url?: string): Promise<boolean> {
+    this.disposed = false;
     const wsUrl =
       url ||
       process.env.NEXT_PUBLIC_AGENT_AUDIO_WS_URL ||
@@ -113,11 +119,45 @@ export class AudioStreamManager {
   }
 
   /**
+   * Set microphone mute state.
+   */
+  public setMuted(muted: boolean): void {
+    this.muted = muted;
+    this.mediaStream?.getAudioTracks().forEach((track) => {
+      track.enabled = !muted;
+    });
+  }
+
+  /**
+   * Schedule the next conversation turn after speech playback completes.
+   */
+  private scheduleNextTurn(): void {
+    if (
+      this.disposed ||
+      !this.socket ||
+      this.socket.readyState !== WebSocket.OPEN
+    ) {
+      this.callbacks.onStateChange?.("idle");
+      return;
+    }
+
+    this.callbacks.onStateChange?.("listening");
+
+    this.restartTimer = window.setTimeout(() => {
+      this.restartTimer = null;
+      void this.startStreaming();
+    }, 250);
+  }
+
+  /**
    * Start microphone capture using MediaRecorder and VAD 3-second silence detector.
    */
   public async startStreaming(): Promise<boolean> {
     try {
       this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.mediaStream.getAudioTracks().forEach((track) => {
+        track.enabled = !this.muted;
+      });
 
       let mimeType = "audio/webm";
       if (!MediaRecorder.isTypeSupported("audio/webm")) {
@@ -143,6 +183,13 @@ export class AudioStreamManager {
 
       this.mediaRecorder.onstop = async () => {
         this.stopVAD();
+        const shouldSend = this.sendCurrentRecording;
+        this.sendCurrentRecording = true;
+
+        if (!shouldSend || this.disposed) {
+          return;
+        }
+
         const fullBlob = new Blob(chunks, { type: mimeType || "audio/webm" });
         const arrayBuffer = await fullBlob.arrayBuffer();
 
@@ -213,7 +260,7 @@ export class AudioStreamManager {
           // 3.0s of silence after speech detected -> auto-send audio payload
           console.log("3 seconds of silence detected after speech. Auto-transmitting audio payload...");
           this.stopVAD();
-          this.stopStreaming();
+          this.stopStreaming(true);
         }
       }, 100);
     } catch (e) {
@@ -229,10 +276,12 @@ export class AudioStreamManager {
   }
 
   /**
-   * Stop recording and transmit captured audio over the open WebSocket.
+   * Stop recording and optionally transmit captured audio over the open WebSocket.
    */
-  public stopStreaming(): void {
+  public stopStreaming(sendRecording: boolean = true): void {
     this.stopVAD();
+    this.sendCurrentRecording = sendRecording;
+
     if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
       this.mediaRecorder.stop();
     }
@@ -258,13 +307,13 @@ export class AudioStreamManager {
       source.connect(this.audioContext.destination);
 
       source.onended = () => {
-        this.callbacks.onStateChange?.("idle");
+        this.scheduleNextTurn();
       };
 
       source.start(0);
     } catch (e) {
       console.warn("Audio decoding error:", e);
-      this.callbacks.onStateChange?.("idle");
+      this.scheduleNextTurn();
     }
   }
 
@@ -272,14 +321,23 @@ export class AudioStreamManager {
    * Close WebSocket connection and cleanup resources.
    */
   public disconnect(): void {
+    this.disposed = true;
     this.stopVAD();
-    this.stopStreaming();
+
+    if (this.restartTimer !== null) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+
+    this.stopStreaming(false);
+
     if (this.socket) {
       this.socket.close();
       this.socket = null;
     }
+
     if (this.audioContext) {
-      this.audioContext.close();
+      void this.audioContext.close();
       this.audioContext = null;
     }
   }

@@ -38,12 +38,27 @@ from services.sandbox_service import sandbox_service
 from services.voice_biometrics import voice_biometrics_service
 from tools.procedural_tools import list_available_skills
 from agents.human_approval import get_pending_approvals, approve_draft, reject_or_edit_draft
+from agents.learner import learner_node
 from routers import health, webhooks
 from scheduler import agent_scheduler
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("agent.main")
+
+
+async def learn_in_background(state: AgentState) -> None:
+    if state.get("sender") != "drafter":
+        return
+
+    try:
+        await learner_node(state)
+    except Exception as exc:
+        logger.warning(f"Background learning failed: {exc}")
+
+
+def schedule_background_learning(state: AgentState) -> None:
+    asyncio.create_task(learn_in_background(state))
 
 app = FastAPI(
     title="Autonomous AI Agent Platform Backend",
@@ -343,6 +358,7 @@ async def chat_endpoint(request: Request, payload: ChatRequest, token: str = Dep
     try:
         final_state = await agent_workflow.ainvoke(initial_state, config=config)
         output_text = final_state.get("final_output") or final_state.get("draft_response") or "Request processed."
+        schedule_background_learning(final_state)
         # Normalize Unicode characters that break Windows cp1252 encoding in logging/TTS
         if isinstance(output_text, str):
             output_text = (
@@ -504,6 +520,7 @@ async def websocket_audio_endpoint(websocket: WebSocket):
                     
                     final_state = await agent_workflow.ainvoke(state, config=config)
                     output_text = final_state.get("final_output") or final_state.get("draft_response") or "Audio request complete."
+                    schedule_background_learning(final_state)
                     
                     await websocket.send_json({"type": "state_change", "state": "speaking"})
                     await websocket.send_json({

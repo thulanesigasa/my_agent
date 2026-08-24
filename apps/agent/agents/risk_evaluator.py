@@ -62,12 +62,40 @@ async def risk_evaluator_node(state: AgentState) -> AgentState:
     guardrails_text = load_guardrails()
     intent = state.get("intent", "general")
     draft = state.get("draft_response", "")
-    messages = state.get("messages", [])
-
     last_msg = ""
     if messages:
         m = messages[-1]
         last_msg = m.get("content", "") if isinstance(m, dict) else str(getattr(m, "content", m))
+
+    text_lower = last_msg.lower()
+
+    action_terms = (
+        "send ",
+        "email ",
+        "whatsapp",
+        "publish",
+        "deploy",
+        "delete",
+        "forget",
+        "unlearn",
+        "update memory",
+        "quote",
+        "payment",
+        "password",
+        "api key",
+        "secret",
+    )
+
+    if intent in ("general", "support") and not any(
+        term in text_lower for term in action_terms
+    ):
+        return {
+            **state,
+            "sender": "risk_evaluator",
+            "risk_level": "LOW",
+            "needs_human_approval": False,
+            "is_forbidden": False,
+        }
 
     action_context = f"Intent: '{intent}'\nDraft Content: '{draft[:300]}'\nLast User Message: '{last_msg[:300]}'"
 
