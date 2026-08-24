@@ -14,7 +14,28 @@ from core.memory import memory_manager
 logger = logging.getLogger("agent.node.human_approval")
 
 # In-memory approval queue (persisted via Supabase/MemorySaver in production)
-PENDING_APPROVAL_QUEUE: Dict[str, Dict[str, Any]] = {}
+PENDING_APPROVAL_QUEUE: Dict[str, Dict[str, Any]] = {
+    "a1": {
+        "thread_id": "a1",
+        "client_name": "Mike's Auto Repair",
+        "recipient_email": "mike@mikesauto.com",
+        "subject": "Web Presence Proposal",
+        "intent": "quote_request",
+        "draft_response": "Hi Mike's Auto Repair,\n\nWe help local businesses get online fast. Claim your free 30-min strategy call.\n\nBest,\nAgent Team",
+        "status": "pending",
+        "created_at": "Just now"
+    },
+    "a2": {
+        "thread_id": "a2",
+        "client_name": "Sunrise Bakery",
+        "recipient_email": "hello@sunrisebakery.biz",
+        "subject": "Grow Your Bakery Online",
+        "intent": "sales",
+        "draft_response": "Hi Sunrise Bakery,\n\nA professional website could bring dozens of new customers weekly.\n\nBest,\nAgent Team",
+        "status": "pending",
+        "created_at": "Just now"
+    }
+}
 
 
 async def human_approval_node(state: AgentState) -> AgentState:

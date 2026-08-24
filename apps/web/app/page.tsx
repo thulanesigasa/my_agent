@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Plus, Square, X, MicOff, LayoutDashboard, Mail, Phone, CheckCircle2, Info, AlertTriangle, XCircle } from "lucide-react";
+import { Plus, Square, X, MicOff, LayoutDashboard, Mail, Phone, CheckCircle2, Info, AlertTriangle, XCircle, ShieldCheck } from "lucide-react";
 import SiriOrb from "@/components/ui/siri-orb";
 import { AudioStreamManager, SiriOrbState } from "@/lib/audio";
 import CalendarWidget from "@/components/CalendarWidget";
@@ -93,9 +93,37 @@ const renderFormattedText = (text: string) => {
       if (part.startsWith("[") && part.includes("](") && part.endsWith(")")) {
         const match = part.match(/^\[(.*?)\]\((.*?)\)$/);
         if (match) {
+          const label = match[1];
+          const href = match[2];
+          if (href.includes("/dashboard") || label.toLowerCase().includes("approval")) {
+            return (
+              <Link
+                key={i}
+                href={href}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 14px",
+                  marginTop: 6,
+                  marginBottom: 4,
+                  background: "#0f172a",
+                  color: "#ffffff",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  boxShadow: "0 2px 8px rgba(15,23,42,0.2)",
+                }}
+              >
+                <ShieldCheck size={14} style={{ color: "#ec4899" }} />
+                <span>{label}</span>
+              </Link>
+            );
+          }
           return (
-            <a key={i} href={match[2]} target="_blank" rel="noopener noreferrer" style={{ color: "#ec4899", textDecoration: "underline" }}>
-              {match[1]}
+            <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{ color: "#ec4899", textDecoration: "underline" }}>
+              {label}
             </a>
           );
         }

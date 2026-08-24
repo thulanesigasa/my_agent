@@ -32,6 +32,16 @@ export function AppShell({ children }: AppShellProps) {
   const [tab, setTab] = useState<NavTab>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get("tab") as NavTab;
+      if (urlTab && ["overview", "logs", "approvals", "memory", "settings"].includes(urlTab)) {
+        setTab(urlTab);
+      }
+    }
+  }, []);
+
   const activeNav = ALL_NAV.find(n => n.id === tab) || WORKSPACE_NAV[0];
   const ActiveIcon = activeNav.icon;
 
