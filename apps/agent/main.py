@@ -352,11 +352,6 @@ async def chat_endpoint(request: Request, payload: ChatRequest, token: str = Dep
                 .replace("\u2013", "-")   # en dash → hyphen
                 .replace("\u00a0", " ")   # non-breaking space → space
             )
-        try:
-            audio_bytes = await asyncio.wait_for(audio_service.synthesize_speech_bytes(str(output_text)[:250]), timeout=1.5)
-        except Exception:
-            audio_bytes = b""
-
         return JSONResponse({
             "status": "success",
             "sender": final_state.get("sender"),

@@ -39,6 +39,11 @@ export class AudioStreamManager {
   private mediaStream: MediaStream | null = null;
   private callbacks: AudioStreamCallbacks = {};
 
+  private analyser: AnalyserNode | null = null;
+  private vadInterval: number | null = null;
+  private lastSpeechTime: number = 0;
+  private hasSpoken: boolean = false;
+
   constructor(callbacks: AudioStreamCallbacks = {}) {
     this.callbacks = callbacks;
   }
@@ -108,7 +113,7 @@ export class AudioStreamManager {
   }
 
   /**
-   * Start microphone capture using MediaRecorder and collect audio chunks.
+   * Start microphone capture using MediaRecorder and VAD 3-second silence detector.
    */
   public async startStreaming(): Promise<boolean> {
     try {
@@ -137,6 +142,7 @@ export class AudioStreamManager {
       };
 
       this.mediaRecorder.onstop = async () => {
+        this.stopVAD();
         const fullBlob = new Blob(chunks, { type: mimeType || "audio/webm" });
         const arrayBuffer = await fullBlob.arrayBuffer();
 
@@ -150,6 +156,10 @@ export class AudioStreamManager {
 
       this.mediaRecorder.start();
       this.callbacks.onStateChange?.("listening");
+
+      // Setup Web Audio AnalyserNode for 3-second VAD silence detection
+      this.setupVAD();
+
       return true;
     } catch (err: any) {
       console.warn("Microphone access error:", err);
@@ -163,9 +173,66 @@ export class AudioStreamManager {
   }
 
   /**
+   * Setup Web Audio API VAD silence detection: monitors RMS audio energy.
+   * Triggers automatic payload send after 3.0s of silence following active speech.
+   */
+  private setupVAD(): void {
+    if (!this.mediaStream) return;
+
+    try {
+      if (!this.audioContext) {
+        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+
+      const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+      this.analyser = this.audioContext.createAnalyser();
+      this.analyser.fftSize = 512;
+      source.connect(this.analyser);
+
+      const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+      this.lastSpeechTime = Date.now();
+      this.hasSpoken = false;
+
+      this.stopVAD();
+
+      this.vadInterval = window.setInterval(() => {
+        if (!this.analyser) return;
+        this.analyser.getByteFrequencyData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const avgVolume = sum / dataArray.length;
+
+        // Speech activity threshold (~12)
+        if (avgVolume > 12) {
+          this.lastSpeechTime = Date.now();
+          this.hasSpoken = true;
+        } else if (this.hasSpoken && Date.now() - this.lastSpeechTime >= 3000) {
+          // 3.0s of silence after speech detected -> auto-send audio payload
+          console.log("3 seconds of silence detected after speech. Auto-transmitting audio payload...");
+          this.stopVAD();
+          this.stopStreaming();
+        }
+      }, 100);
+    } catch (e) {
+      console.warn("VAD setup notice:", e);
+    }
+  }
+
+  private stopVAD(): void {
+    if (this.vadInterval !== null) {
+      clearInterval(this.vadInterval);
+      this.vadInterval = null;
+    }
+  }
+
+  /**
    * Stop recording and transmit captured audio over the open WebSocket.
    */
   public stopStreaming(): void {
+    this.stopVAD();
     if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
       this.mediaRecorder.stop();
     }
@@ -205,6 +272,7 @@ export class AudioStreamManager {
    * Close WebSocket connection and cleanup resources.
    */
   public disconnect(): void {
+    this.stopVAD();
     this.stopStreaming();
     if (this.socket) {
       this.socket.close();

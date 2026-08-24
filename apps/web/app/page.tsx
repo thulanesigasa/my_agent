@@ -44,6 +44,42 @@ const AGENT_SUGGESTIONS: Record<string, string[]> = {
   ],
 };
 
+const renderFormattedText = (text: string) => {
+  const lines = text.split("\n");
+  return lines.map((line, idx) => {
+    const isBullet = line.trim().startsWith("- ") || line.trim().startsWith("• ");
+    const content = isBullet ? line.trim().replace(/^[-•]\s*/, "") : line;
+
+    const parts = content.split(/(\*\*.*?\*\*|\[.*?\]\(.*?\))/g);
+    const parsed = parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={i} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("[") && part.includes("](") && part.endsWith(")")) {
+        const match = part.match(/^\[(.*?)\]\((.*?)\)$/);
+        if (match) {
+          return (
+            <a key={i} href={match[2]} target="_blank" rel="noopener noreferrer" style={{ color: "#ec4899", textDecoration: "underline" }}>
+              {match[1]}
+            </a>
+          );
+        }
+      }
+      return part;
+    });
+
+    if (isBullet) {
+      return (
+        <div key={idx} style={{ display: "flex", gap: 8, marginLeft: 6, marginTop: 3 }}>
+          <span style={{ color: "#ec4899" }}>•</span>
+          <div>{parsed}</div>
+        </div>
+      );
+    }
+    return <div key={idx} style={{ minHeight: line.trim() ? "auto" : "0.4em" }}>{parsed}</div>;
+  });
+};
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -232,7 +268,7 @@ export default function Home() {
                   {messages.map((msg) => (
                     <div key={msg.id} style={{ display: "flex", justifyContent: msg.sender === "user" ? "flex-end" : "flex-start" }}>
                       <div style={{ maxWidth: "80%", padding: "12px 16px", fontSize: 13, lineHeight: 1.6, borderRadius: 18, background: msg.sender === "user" ? "#0f172a" : "#ffffff", color: msg.sender === "user" ? "#ffffff" : "#0f172a", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}>
-                        <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
+                        <div>{renderFormattedText(msg.text)}</div>
                       </div>
                     </div>
                   ))}
