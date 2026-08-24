@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Plus, Square, X, MicOff, LayoutDashboard } from "lucide-react";
+import { Plus, Square, X, MicOff, LayoutDashboard, Mail, Phone } from "lucide-react";
 import SiriOrb from "@/components/ui/siri-orb";
 import { AudioStreamManager, SiriOrbState } from "@/lib/audio";
 import CalendarWidget from "@/components/CalendarWidget";
@@ -50,8 +50,14 @@ const renderFormattedText = (text: string) => {
     const isBullet = line.trim().startsWith("- ") || line.trim().startsWith("• ");
     const content = isBullet ? line.trim().replace(/^[-•]\s*/, "") : line;
 
-    const parts = content.split(/(\*\*.*?\*\*|\[.*?\]\(.*?\))/g);
+    const parts = content.split(/(\*\*.*?\*\*|\[.*?\]\(.*?\)|📧|📞|✉️|📱)/g);
     const parsed = parts.map((part, i) => {
+      if (part === "📧" || part === "✉️") {
+        return <Mail key={i} size={14} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ec4899", marginRight: 6 }} />;
+      }
+      if (part === "📞" || part === "📱") {
+        return <Phone key={i} size={14} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ec4899", marginRight: 6 }} />;
+      }
       if (part.startsWith("**") && part.endsWith("**")) {
         return <strong key={i} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
       }

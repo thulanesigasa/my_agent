@@ -16,6 +16,25 @@ ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "VR6AewLTigWG4xSOukaG")  
 ELEVENLABS_MODEL    = "eleven_flash_v2_5"  # lowest latency model
 
 
+import re
+
+def clean_text_for_speech(raw_text: str) -> str:
+    """Clean markdown tags, URLs, and emojis so speech synthesis reads clean, natural prose."""
+    if not raw_text:
+        return ""
+    # Strip markdown links [label](url) -> label
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', raw_text)
+    # Strip markdown bold/italic asterisks **bold** -> bold
+    text = re.sub(r'\*{1,2}([^*]+)\*{1,2}', r'\1', text)
+    # Convert bullet points at line starts to smooth natural pauses
+    text = re.sub(r'^\s*[-•]\s*', '. ', text, flags=re.MULTILINE)
+    # Remove raw emojis so TTS engine doesn't stutter or read emoji codes
+    text = re.sub(r'[\U00010000-\U0010ffff\u2600-\u27ff\u2300-\u23ff]', '', text)
+    # Normalize extra spaces
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
+
 class AudioService:
     """
     Asynchronous Speech Pipeline:
@@ -71,6 +90,10 @@ class AudioService:
         if not text:
             return b""
 
+        clean_text = clean_text_for_speech(text)
+        if not clean_text:
+            return b""
+
         elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
 
         # ── ElevenLabs (primary) ──────────────────────────────────────────
@@ -83,7 +106,7 @@ class AudioService:
                 "Accept": "audio/mpeg",
             }
             payload = {
-                "text": text[:500],
+                "text": clean_text[:3000],
                 "model_id": ELEVENLABS_MODEL,
                 "voice_settings": {
                     "stability": 0.5,
@@ -107,7 +130,7 @@ class AudioService:
             import edge_tts
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
                 tmp_path = tmp.name
-            communicate = edge_tts.Communicate(text[:300], selected_voice)
+            communicate = edge_tts.Communicate(clean_text[:3000], selected_voice)
             await communicate.save(tmp_path)
             with open(tmp_path, "rb") as f:
                 mp3_data = f.read()
