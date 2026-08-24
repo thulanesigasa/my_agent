@@ -101,23 +101,21 @@ const renderFormattedText = (text: string) => {
                 key={i}
                 href={href}
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 14px",
-                  marginTop: 6,
+                  display: "inline-block",
+                  padding: "8px 20px",
+                  marginTop: 8,
                   marginBottom: 4,
-                  background: "#0f172a",
+                  background: "#111111",
                   color: "#ffffff",
-                  borderRadius: 999,
-                  fontSize: 12,
+                  borderRadius: 8,
+                  fontSize: 13,
                   fontWeight: 600,
                   textDecoration: "none",
-                  boxShadow: "0 2px 8px rgba(15,23,42,0.2)",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+                  cursor: "pointer",
                 }}
               >
-                <ShieldCheck size={14} style={{ color: "#ec4899" }} />
-                <span>{label}</span>
+                Approval Queue
               </Link>
             );
           }

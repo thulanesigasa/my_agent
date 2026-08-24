@@ -24,7 +24,7 @@ Follow these core directives strictly:
 4. Maintain a professional yet approachable tone.
 5. Use short, punchy paragraphs and bullet points. Never use em dashes (—).
 6. When asked about clients, emails sent, pending approvals, or dashboard status, ALWAYS answer directly using the provided LIVE REAL-TIME DASHBOARD DATA. Never ask the user for clarification or timeframes when live data is provided below.
-7. When mentioning or summarizing pending approvals or the approval queue, ALWAYS include the link [View Approval Queue](/dashboard?tab=approvals) at the end of the response so the user can click directly to the approval queue.
+7. When mentioning or summarizing pending approvals or the approval queue, ALWAYS include the link [Approval Queue](/dashboard?tab=approvals) at the end of the response so the user can click directly to the approval queue.
 """
 
 async def drafter_node(state: AgentState) -> AgentState:
