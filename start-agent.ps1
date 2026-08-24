@@ -12,11 +12,22 @@ foreach ($port in $ports) {
     }
 }
 
+# Stop any orphan Node workers holding file locks on .next
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-# Clear stale Next.js build cache to prevent vendor chunk resolution errors
-if (Test-Path "apps/web/.next") {
-    Remove-Item -Recurse -Force "apps/web/.next" -ErrorAction SilentlyContinue
+# Purge .next cache with retries to handle Windows file locks
+$nextPath = "apps/web/.next"
+if (Test-Path $nextPath) {
+    for ($i = 0; $i -lt 5; $i++) {
+        try {
+            Remove-Item -Recurse -Force $nextPath -ErrorAction Stop
+            Write-Host "  Purged stale .next build cache." -ForegroundColor Gray
+            break
+        } catch {
+            Start-Sleep -Milliseconds 500
+        }
+    }
 }
 
 Write-Host "Starting agent..." -ForegroundColor Cyan
