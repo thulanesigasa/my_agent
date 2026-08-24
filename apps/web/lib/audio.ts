@@ -48,6 +48,7 @@ export class AudioStreamManager {
   private restartTimer: number | null = null;
   private muted = false;
   private sendCurrentRecording = true;
+  private currentAudioSource: AudioBufferSourceNode | null = null;
 
   constructor(callbacks: AudioStreamCallbacks = {}) {
     this.callbacks = callbacks;
@@ -252,6 +253,14 @@ export class AudioStreamManager {
         }
         const avgVolume = sum / dataArray.length;
 
+        // Automatic Barge-In Interruption:
+        // If the AI is currently speaking and the user speaks into microphone (> 15 energy), interrupt playback instantly!
+        if (this.currentAudioSource && avgVolume > 15) {
+          console.log("User speech detected during AI playback. Triggering automatic barge-in interruption...");
+          this.interrupt();
+          return;
+        }
+
         // Speech activity threshold (~12)
         if (avgVolume > 12) {
           this.lastSpeechTime = Date.now();
@@ -276,6 +285,31 @@ export class AudioStreamManager {
   }
 
   /**
+   * Instantly stop current AI speech playback.
+   */
+  public stopSpeech(): void {
+    if (this.currentAudioSource) {
+      try {
+        this.currentAudioSource.onended = null;
+        this.currentAudioSource.stop(0);
+        this.currentAudioSource.disconnect();
+      } catch (e) {
+        console.warn("Error stopping audio playback node:", e);
+      }
+      this.currentAudioSource = null;
+    }
+  }
+
+  /**
+   * Interrupt AI speech manually or via voice activity and immediately switch to listening.
+   */
+  public interrupt(): void {
+    console.log("Interrupting AI speech and starting listening...");
+    this.stopSpeech();
+    this.scheduleNextTurn();
+  }
+
+  /**
    * Stop recording and optionally transmit captured audio over the open WebSocket.
    */
   public stopStreaming(sendRecording: boolean = true): void {
@@ -296,6 +330,8 @@ export class AudioStreamManager {
    */
   private async playAudioBuffer(buffer: ArrayBuffer): Promise<void> {
     try {
+      this.stopSpeech();
+
       if (!this.audioContext) {
         this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
@@ -306,8 +342,13 @@ export class AudioStreamManager {
       source.buffer = decodedData;
       source.connect(this.audioContext.destination);
 
+      this.currentAudioSource = source;
+
       source.onended = () => {
-        this.scheduleNextTurn();
+        if (this.currentAudioSource === source) {
+          this.currentAudioSource = null;
+          this.scheduleNextTurn();
+        }
       };
 
       source.start(0);

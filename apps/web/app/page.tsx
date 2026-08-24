@@ -290,14 +290,24 @@ export default function Home() {
       {voiceActive ? (
         /* ── FULL-SCREEN WHITE ORB LIVE SPEECH MODE ── */
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#ffffff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 32, color: "#0f172a" }}>
-          <SiriOrb size={220} animationDuration={12} />
+          <div
+            onClick={() => {
+              if (orbState === "speaking") {
+                audioManagerRef.current?.interrupt();
+              }
+            }}
+            style={{ cursor: orbState === "speaking" ? "pointer" : "default" }}
+            title={orbState === "speaking" ? "Click to interrupt agent" : ""}
+          >
+            <SiriOrb size={220} animationDuration={12} />
+          </div>
 
           <div style={{ textAlign: "center", maxWidth: 500 }}>
             <p style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.1em", color: "#ec4899", fontWeight: 700, margin: "0 0 6px" }}>
               {orbState === "listening"
                 ? "Listening, pause for 3 seconds to send..."
                 : orbState === "speaking"
-                  ? "Agent is speaking..."
+                  ? "Agent is speaking... Speak into mic or tap Orb to interrupt"
                   : "Processing..."}
             </p>
             {transcription && <p style={{ fontSize: 16, color: "#0f172a", fontWeight: 500, margin: "6px 0" }}>&#34;{transcription}&#34;</p>}
