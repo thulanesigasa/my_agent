@@ -1,44 +1,42 @@
-from typing import TypedDict, List, Dict, Any, Optional
+"""
+AgentState TypedDict definition for LangGraph multi-agent orchestration.
+"""
+from typing import TypedDict, List, Dict, Any, Optional, Union
 from typing_extensions import Annotated
 from langgraph.graph.message import add_messages
+from langchain_core.messages import BaseMessage
 
 
 class AgentState(TypedDict, total=False):
     """
-    Shared AgentState passed across LangGraph nodes in the state machine.
+    Shared state container passed between LangGraph nodes.
     """
-    # Chat message history with automated message reducer
-    messages: Annotated[List[Dict[str, Any]], add_messages]
-    
-    # Active user intent (e.g., 'triage', 'draft_response', 'email_dispatch', 'whatsapp_dispatch', 'general_qa')
+    # Conversation message history (HumanMessage, AIMessage, SystemMessage)
+    messages: Annotated[List[Union[BaseMessage, Dict[str, Any]]], add_messages]
+
+    # Node identifier of the current active worker or user (e.g. 'triage', 'drafter', 'learner')
+    sender: str
+
+    # Optional email context payload ({'sender': ..., 'subject': ..., 'body': ..., 'thread_id': ...})
+    email_input: Optional[Dict[str, Any]]
+
+    # Classified user intent ('sales', 'support', 'client_inquiry', 'general', 'spam')
     intent: str
-    
-    # Retrieved memories from Supabase pgvector semantic search
-    retrieved_memory: List[Dict[str, Any]]
-    
-    # Context payload for email operations
-    email_context: Dict[str, Any]
-    
-    # Drafted response synthesized by Drafter (Gemini 1.5 Pro)
-    draft_response: str
-    
-    # Base64 encoded or binary audio payload for TTS / STT
-    audio_payload: Optional[str]
-    
-    # Flag indicating whether human approval is required for high-risk action
-    requires_human_approval: bool
-    
-    # Status of approval: 'pending', 'approved', 'rejected'
-    approval_status: str
-    
-    # Proposed external tool action payload (e.g. email details, WhatsApp text)
-    proposed_action: Optional[Dict[str, Any]]
-    
-    # Extracted facts/learnings to be indexed into memory
+
+    # Context memories retrieved from Supabase pgvector vector store
+    retrieved_context: List[Dict[str, Any]]
+
+    # Generated message or email response draft
+    draft_response: Optional[str]
+
+    # Flag for human-in-the-loop approval gate on high-risk actions
+    needs_human_approval: bool
+
+    # Approval status ('pending', 'approved', 'rejected')
+    approval_status: Optional[str]
+
+    # Final output response payload (text or voice audio base64)
+    final_output: Optional[Union[str, Dict[str, Any]]]
+
+    # Extracted learnings/facts to index in Supabase pgvector
     extracted_learnings: List[str]
-    
-    # Current active agent node executing
-    active_node: str
-    
-    # Error message if any step failed
-    error: Optional[str]

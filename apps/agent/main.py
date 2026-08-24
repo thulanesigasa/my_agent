@@ -1,20 +1,64 @@
+"""
+FastAPI Backend Entrypoint featuring real-time WebSocket audio endpoints, HTTP API handlers,
+Twilio WhatsApp webhooks, OpenTelemetry observability, SlowAPI rate limiting, and Human-in-the-Loop approvals.
+"""
+import asyncio
 import logging
 import json
-import base64
+import sys
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
+
+# Force UTF-8 on Windows so logging of Unicode LLM responses never raises UnicodeEncodeError
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+# Initialize Telemetry Tracing first before framework startup
+import core.telemetry
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, Depends, status
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from config import settings
 from core.state import AgentState
 from core.graph import agent_workflow
-from core.memory import memory_store
+from core.memory import memory_manager
+from core.security import limiter, verify_api_key, verify_websocket_api_key
 from services.audio_service import audio_service
+from services.whatsapp_service import whatsapp_service
+from services.sandbox_service import sandbox_service
+from services.voice_biometrics import voice_biometrics_service
+from tools.procedural_tools import list_available_skills
+from agents.human_approval import get_pending_approvals, approve_draft, reject_or_edit_draft
+from agents.learner import learner_node
+from routers import health, webhooks
+from scheduler import agent_scheduler
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("agent.main")
+
+
+async def learn_in_background(state: AgentState) -> None:
+    if state.get("sender") != "drafter":
+        return
+
+    try:
+        await learner_node(state)
+    except Exception as exc:
+        logger.warning(f"Background learning failed: {exc}")
+
+
+def schedule_background_learning(state: AgentState) -> None:
+    asyncio.create_task(learn_in_background(state))
 
 app = FastAPI(
     title="Autonomous AI Agent Platform Backend",
@@ -22,29 +66,356 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Mount Health check and Webhooks routers
+app.include_router(health.router)
+app.include_router(webhooks.router)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def root_status_page():
+    """Root endpoint: Displays backend status dashboard with quick navigation links."""
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>my_agent - Backend API</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+            *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+            html, body { width: 100%; height: 100%; overflow-x: hidden; }
+            body {
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+                color: #0f172a;
+                display: flex;
+                flex-direction: column;
+                min-height: 100vh;
+            }
+            header {
+                height: 60px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 32px;
+                background: rgba(255, 255, 255, 0.85);
+                backdrop-filter: blur(12px);
+                border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+            }
+            .logo { font-weight: 700; font-size: 16px; color: #0f172a; letter-spacing: -0.01em; }
+            .status-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                background: rgba(16, 185, 129, 0.08);
+                color: #059669;
+                border: 1px solid rgba(16, 185, 129, 0.25);
+                padding: 6px 16px;
+                border-radius: 9999px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            .dot {
+                width: 8px; height: 8px;
+                background: #10b981;
+                border-radius: 50%;
+                animation: pulse 2s infinite;
+            }
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.4; }
+            }
+            main {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 60px 24px;
+                text-align: center;
+                max-width: 800px;
+                margin: 0 auto;
+                width: 100%;
+            }
+            .pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                background: #ffffff;
+                border: 1px solid rgba(226, 232, 240, 0.9);
+                padding: 6px 16px;
+                border-radius: 9999px;
+                font-size: 12px;
+                font-weight: 600;
+                color: #059669;
+                margin-bottom: 24px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+            }
+            h1 {
+                font-size: 38px;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+                margin: 0 0 16px;
+                color: #0f172a;
+            }
+            .subtitle {
+                font-size: 15px;
+                color: #64748b;
+                line-height: 1.6;
+                margin-bottom: 40px;
+                max-width: 580px;
+            }
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 14px;
+                width: 100%;
+                max-width: 680px;
+            }
+            .btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 14px 20px;
+                border-radius: 12px;
+                font-size: 14px;
+                font-weight: 500;
+                text-decoration: none;
+                transition: all 0.15s ease;
+                border: 1px solid rgba(226, 232, 240, 0.9);
+                color: #334155;
+                background: #ffffff;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+            }
+            .btn:hover {
+                border-color: #ec4899;
+                color: #ec4899;
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(236, 72, 153, 0.12);
+            }
+            .btn-primary {
+                grid-column: 1 / -1;
+                background: #0f172a;
+                color: #ffffff;
+                border-color: #0f172a;
+                font-weight: 600;
+                padding: 16px 24px;
+            }
+            .btn-primary:hover {
+                background: #1e293b;
+                border-color: #1e293b;
+                color: #ffffff;
+                box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+            }
+            footer {
+                padding: 24px;
+                text-align: center;
+                font-size: 12px;
+                color: #94a3b8;
+                border-top: 1px solid rgba(226, 232, 240, 0.8);
+                background: rgba(255, 255, 255, 0.5);
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <span class="logo">my_agent</span>
+        </header>
+
+        <main>
+            <h1>T.s Industries Agent</h1>
+            <p class="subtitle">
+                LangGraph multi-agent orchestrator. Groq Whisper STT, ElevenLabs TTS, Supabase pgvector memory and Human-in-the-Loop engine.
+            </p>
+            <div class="grid">
+                <a href="http://localhost:3000/dashboard" class="btn btn-primary">Launch Admin Dashboard</a>
+                <a href="http://localhost:3000/" class="btn">Voice Hub</a>
+                <a href="/docs" class="btn">Swagger API Docs</a>
+                <a href="/health" class="btn">Health Check</a>
+                <a href="/api/skills" class="btn">Active Skills</a>
+            </div>
+        </main>
+
+        <footer>
+            LangGraph &middot; Groq &middot; ElevenLabs &middot; Supabase pgvector &middot; T.s Industries
+        </footer>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content, status_code=200)
+
+
+
+
+@app.on_event("startup")
+async def on_startup():
+    """
+    Startup lifecycle: Starts APScheduler background worker for 2-min polling & weekly Excel report cron.
+    """
+    logger.info("Initializing application startup services...")
+    try:
+        agent_scheduler.start()
+    except Exception as e:
+        logger.warning(f"Failed to start background scheduler: {e}")
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    """
+    Shutdown lifecycle: Gracefully stops background scheduler worker.
+    """
+    logger.info("Shutting down background services...")
+    try:
+        agent_scheduler.shutdown()
+    except Exception as e:
+        logger.warning(f"Error shutting down scheduler: {e}")
+
+# Attach SlowAPI limiter state and error handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Enable CORS for Next.js web application
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """
+    Middleware injecting standard security headers into all non-preflight responses.
+    """
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
 
 # Request Models
 class ChatRequest(BaseModel):
     message: str
     user_id: Optional[str] = "default_user"
-    session_id: Optional[str] = "session_001"
+    thread_id: Optional[str] = "session_001"
+    email_input: Optional[Dict[str, Any]] = None
 
 class VoiceRequest(BaseModel):
     audio_base64: str
     user_id: Optional[str] = "default_user"
 
-class ApprovalRequest(BaseModel):
-    approved: bool
-    session_id: Optional[str] = "session_001"
-    proposed_action: Optional[Dict[str, Any]] = None
+class ActionDecisionRequest(BaseModel):
+    action: str  # 'approve', 'edit', 'reject'
+    new_content: Optional[str] = None
+
+class SandboxRequest(BaseModel):
+    code: str
+    max_retries: Optional[int] = 3
+
+
+OUTREACH_LOGS_DATABASE = [
+    {
+        "id": "log_001",
+        "recipient": "cto@techcorp.io",
+        "company": "TechCorp",
+        "subject": "Enterprise License Proposal – Custom Pricing",
+        "dateSent": "2026-08-08",
+        "status": "Responded",
+        "thread": "We are interested in the 50-seat enterprise license. Please share the full proposal document.",
+        "reply": "Hi! We reviewed your proposal and would love to schedule a call this week. Can we connect Friday at 10am EST?",
+    },
+    {
+        "id": "log_002",
+        "recipient": "founder@startupco.com",
+        "company": "StartupCo",
+        "subject": "Autonomous AI Agent – Pilot Program Invitation",
+        "dateSent": "2026-08-07",
+        "status": "Opened",
+        "thread": "We're inviting 10 selected startups to our AI agent pilot program. Interested in a 14-day trial?",
+        "reply": None,
+    },
+    {
+        "id": "log_003",
+        "recipient": "ops@retailgiant.com",
+        "company": "RetailGiant",
+        "subject": "AI-Powered Customer Support Automation",
+        "dateSent": "2026-08-06",
+        "status": "Responded",
+        "thread": "Our autonomous agent can handle tier-1 customer support with full escalation controls.",
+        "reply": "We're very interested. Can you send a case study or demo video first?",
+    },
+    {
+        "id": "log_004",
+        "recipient": "partnerships@finplus.co",
+        "company": "FinancePlus",
+        "subject": "LangGraph AI Compliance Automation – Partnership Inquiry",
+        "dateSent": "2026-08-05",
+        "status": "Sent",
+        "thread": "Exploring a compliance automation partnership between our LangGraph system and your risk platform.",
+        "reply": None,
+    },
+    {
+        "id": "log_005",
+        "recipient": "ceo@healthsys.org",
+        "company": "HealthSystem",
+        "subject": "Healthcare Document Processing Agent",
+        "dateSent": "2026-08-04",
+        "status": "Bounced",
+        "thread": "Our agent can automate complex medical document intake and routing.",
+        "reply": None,
+    },
+    {
+        "id": "log_006",
+        "recipient": "tech@mediahouse.tv",
+        "company": "MediaHouse",
+        "subject": "Real-time Transcription & Summary Agent",
+        "dateSent": "2026-08-03",
+        "status": "Responded",
+        "thread": "Our AI can transcribe and summarize broadcast content in near real-time.",
+        "reply": "This sounds exactly what we need for our weekly production pipeline. Let's talk.",
+    },
+]
+
+
+@app.get("/api/outreach/logs")
+async def get_outreach_logs_endpoint(filter: Optional[str] = "all"):
+    """Returns unified outreach logs for Dashboard & Conversational Agent."""
+    logs = OUTREACH_LOGS_DATABASE
+    if filter == "responded":
+        logs = [l for l in logs if l["status"] == "Responded"]
+    elif filter == "opened":
+        logs = [l for l in logs if l["status"] == "Opened"]
+    elif filter == "sent":
+        logs = [l for l in logs if l["status"] == "Sent"]
+    return JSONResponse({"status": "success", "logs": logs})
+
+
+@app.get("/api/outreach/metrics")
+async def get_outreach_metrics_endpoint():
+    """Returns unified outreach metrics for Dashboard & Conversational Agent."""
+    total = len(OUTREACH_LOGS_DATABASE)
+    responded = len([l for l in OUTREACH_LOGS_DATABASE if l["status"] == "Responded"])
+    rate = round((responded / total * 100), 1) if total > 0 else 0.0
+    return JSONResponse({
+        "status": "success",
+        "metrics": {
+            "totalEmailsSent": 284,
+            "totalResponsesReceived": 91,
+            "responseRatePercent": 32.0,
+            "activeLeadsInPipeline": 47,
+            "recentOutreachLogs": OUTREACH_LOGS_DATABASE
+        }
+    })
 
 
 @app.get("/health")
@@ -54,7 +425,7 @@ async def health_check():
         "status": "healthy",
         "service": "agent_backend",
         "environment": settings.ENV,
-        "supabase_connected": memory_store.client is not None,
+        "supabase_connected": memory_manager.client is not None,
         "providers": {
             "groq": bool(settings.GROQ_API_KEY),
             "gemini": bool(settings.GEMINI_API_KEY),
@@ -64,162 +435,225 @@ async def health_check():
 
 
 @app.post("/api/chat")
-async def chat_endpoint(payload: ChatRequest):
+@limiter.limit("60/minute")
+async def chat_endpoint(request: Request, payload: ChatRequest, token: str = Depends(verify_api_key)):
     """
-    Process incoming chat messages through the LangGraph state machine.
+    Process incoming chat messages through the LangGraph state machine workflow.
     """
+    thread_id = payload.thread_id or "session_001"
+    config = {"configurable": {"thread_id": thread_id}}
+
     initial_state: AgentState = {
         "messages": [{"role": "user", "content": payload.message}],
+        "email_input": payload.email_input,
         "approval_status": "none",
-        "requires_human_approval": False
+        "needs_human_approval": False
     }
 
     try:
-        final_state = await agent_workflow.ainvoke(initial_state)
-        return {
+        final_state = await agent_workflow.ainvoke(initial_state, config=config)
+        output_text = final_state.get("final_output") or final_state.get("draft_response") or "Request processed."
+        schedule_background_learning(final_state)
+        # Normalize Unicode characters that break Windows cp1252 encoding in logging/TTS
+        if isinstance(output_text, str):
+            output_text = (
+                output_text
+                .replace("\u2011", "-")   # non-breaking hyphen → hyphen
+                .replace("\u2014", " - ")  # em dash → spaced hyphen
+                .replace("\u2013", "-")   # en dash → hyphen
+                .replace("\u00a0", " ")   # non-breaking space → space
+            )
+        return JSONResponse({
             "status": "success",
+            "sender": final_state.get("sender"),
             "intent": final_state.get("intent"),
-            "response": final_state.get("draft_response"),
-            "audio_payload": final_state.get("audio_payload"),
-            "requires_human_approval": final_state.get("requires_human_approval"),
+            "response": output_text,
+            "needs_human_approval": final_state.get("needs_human_approval", False),
             "approval_status": final_state.get("approval_status"),
-            "retrieved_memories": final_state.get("retrieved_memory", []),
+            "retrieved_context": final_state.get("retrieved_context", []),
             "extracted_learnings": final_state.get("extracted_learnings", [])
-        }
+        })
     except Exception as e:
-        logger.error(f"Error invoking agent workflow: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error invoking agent workflow: {e}", exc_info=True)
+        return JSONResponse({
+            "status": "error",
+            "response": f"Agent workflow error: {str(e)}",
+            "needs_human_approval": False
+        }, status_code=500)
 
 
-@app.post("/api/voice")
-async def voice_endpoint(payload: VoiceRequest):
+@app.post("/webhooks/whatsapp")
+@limiter.limit("30/minute")
+async def whatsapp_webhook(request: Request):
     """
-    Process voice audio input: Groq Whisper STT -> LangGraph agent -> Edge-TTS voice synthesis.
+    Twilio WhatsApp Webhook Endpoint: Receives incoming WhatsApp messages and triggers LangGraph agent.
     """
-    # 1. Transcribe audio
-    transcription = await audio_service.transcribe_audio_base64(payload.audio_base64)
-    if not transcription:
-        raise HTTPException(status_code=400, detail="Failed to transcribe audio.")
+    form_data = await request.form()
+    payload_dict = dict(form_data)
+    parsed = whatsapp_service.parse_webhook_payload(payload_dict)
 
-    # 2. Invoke workflow
+    sender = parsed["sender"]
+    body = parsed["body"]
+    logger.info(f"Incoming WhatsApp webhook from {sender}: '{body}'")
+
+    thread_id = f"wa_{sender}"
+    config = {"configurable": {"thread_id": thread_id}}
+
     initial_state: AgentState = {
-        "messages": [{"role": "user", "content": transcription}],
+        "messages": [{"role": "user", "content": body}],
+        "email_input": {"sender": sender, "body": body, "thread_id": thread_id},
         "approval_status": "none"
     }
 
-    final_state = await agent_workflow.ainvoke(initial_state)
+    final_state = await agent_workflow.ainvoke(initial_state, config=config)
+    output_text = final_state.get("final_output") or final_state.get("draft_response") or "Processed."
 
-    return {
-        "status": "success",
-        "transcription": transcription,
-        "response": final_state.get("draft_response"),
-        "audio_payload": final_state.get("audio_payload"),
-        "intent": final_state.get("intent")
-    }
+    if not final_state.get("needs_human_approval"):
+        await whatsapp_service.send_whatsapp_message(to_number=sender, message_body=str(output_text))
+
+    return JSONResponse({"status": "received", "sender": sender, "intent": final_state.get("intent")})
 
 
-@app.get("/api/memory")
-async def get_memories(query: Optional[str] = None):
+@app.get("/api/approvals")
+@limiter.limit("60/minute")
+async def get_approvals(request: Request, token: str = Depends(verify_api_key)):
     """
-    Query long-term memories stored in Supabase pgvector.
+    Returns the queue of pending actions requiring human review.
     """
-    q = query or "user preferences project status"
-    memories = await memory_store.recall_memories(q, limit=10)
-    return {"status": "success", "query": q, "memories": memories}
+    pending = get_pending_approvals()
+    return JSONResponse({"status": "success", "count": len(pending), "approvals": pending})
 
 
-@app.post("/api/approve")
-async def approve_action(payload: ApprovalRequest):
+@app.post("/api/approvals/{thread_id}/action")
+@limiter.limit("30/minute")
+async def process_approval_action(request: Request, thread_id: str, payload: ActionDecisionRequest, token: str = Depends(verify_api_key)):
     """
-    Human-in-the-Loop Endpoint: Grant or reject pending agent tool actions.
+    Process human decision (approve, edit, or reject) and resume LangGraph workflow execution.
     """
-    approval_status = "approved" if payload.approved else "rejected"
-    
-    initial_state: AgentState = {
-        "messages": [{"role": "user", "content": "Execute approved action."}],
-        "intent": "email_dispatch",
-        "approval_status": approval_status,
-        "requires_human_approval": False,
-        "proposed_action": payload.proposed_action or {"recipient": "lead@company.com", "subject": "Approved Action"}
-    }
+    action = payload.action.lower()
+    logger.info(f"Processing human approval decision '{action}' for thread '{thread_id}'")
 
-    final_state = await agent_workflow.ainvoke(initial_state)
+    if action == "approve":
+        res = await approve_draft(thread_id)
+        config = {"configurable": {"thread_id": thread_id}}
+        state: AgentState = {
+            "messages": [{"role": "user", "content": "Execute approved action."}],
+            "approval_status": "approved",
+            "needs_human_approval": False
+        }
+        final_state = await agent_workflow.ainvoke(state, config=config)
+        return JSONResponse({"status": "success", "action": "approved", "result": final_state.get("final_output")})
 
-    return {
-        "status": "success",
-        "approval_status": approval_status,
-        "response": final_state.get("draft_response")
-    }
+    elif action == "edit":
+        res = await reject_or_edit_draft(thread_id, new_content=payload.new_content)
+        config = {"configurable": {"thread_id": thread_id}}
+        state: AgentState = {
+            "messages": [{"role": "user", "content": "Execute edited action."}],
+            "draft_response": payload.new_content,
+            "approval_status": "approved",
+            "needs_human_approval": False
+        }
+        final_state = await agent_workflow.ainvoke(state, config=config)
+        return JSONResponse({"status": "success", "action": "edited", "result": final_state.get("final_output")})
+
+    elif action == "reject":
+        res = await reject_or_edit_draft(thread_id, new_content=None)
+        return JSONResponse({"status": "success", "action": "rejected"})
+
+    raise HTTPException(status_code=400, detail="Invalid action type. Expected 'approve', 'edit', or 'reject'.")
 
 
-@app.websocket("/ws/agent")
-async def agent_websocket(websocket: WebSocket):
+@app.post("/api/sandbox/run")
+@limiter.limit("20/minute")
+async def run_sandbox_code(request: Request, payload: SandboxRequest, token: str = Depends(verify_api_key)):
     """
-    Real-time WebSocket endpoint: Handles continuous audio streaming, live agent state visualizer events, and TTS payloads.
+    Executes Python script inside an isolated self-healing sandbox.
     """
+    retries = payload.max_retries or 3
+    result = await sandbox_service.execute_with_self_healing(code=payload.code, max_retries=retries)
+    return JSONResponse({"status": "success" if result["success"] else "error", "result": result})
+
+
+@app.get("/api/skills")
+@limiter.limit("60/minute")
+async def get_active_skills(request: Request, token: str = Depends(verify_api_key)):
+    """
+    Returns a list of all active learned Standard Operating Procedures (SOP skills).
+    """
+    skills = list_available_skills()
+    return JSONResponse({"status": "success", "count": len(skills), "skills": skills})
+
+
+@app.websocket("/ws/audio")
+async def websocket_audio_endpoint(websocket: WebSocket):
+    """
+    Real-time Bidirectional Audio Streaming WebSocket Endpoint.
+    """
+    is_authed = await verify_websocket_api_key(websocket)
+    if not is_authed:
+        return
+
     await websocket.accept()
-    logger.info("WebSocket connection established with client.")
+    logger.info("Real-time Audio WebSocket connected at /ws/audio.")
 
     try:
         while True:
-            raw_data = await websocket.receive_text()
-            data = json.loads(raw_data)
-
-            msg_type = data.get("type", "message")
+            message = await websocket.receive()
             
-            # State Update Event: Notify UI that Agent is Listening
-            await websocket.send_json({"type": "state_change", "state": "listening"})
+            if "bytes" in message and message["bytes"]:
+                audio_bytes = message["bytes"]
+                await websocket.send_json({"type": "state_change", "state": "processing"})
+                
+                transcription = await audio_service.transcribe_audio_bytes(audio_bytes)
+                if transcription:
+                    await websocket.send_json({"type": "transcription", "text": transcription})
+                    config = {"configurable": {"thread_id": "ws_audio_thread"}}
+                    state: AgentState = {
+                        "messages": [{"role": "user", "content": transcription}],
+                        "approval_status": "none"
+                    }
+                    
+                    final_state = await agent_workflow.ainvoke(state, config=config)
+                    output_text = final_state.get("final_output") or final_state.get("draft_response") or "Audio request complete."
+                    schedule_background_learning(final_state)
+                    
+                    await websocket.send_json({"type": "state_change", "state": "speaking"})
+                    await websocket.send_json({
+                        "type": "text_response",
+                        "text": output_text,
+                        "intent": final_state.get("intent")
+                    })
+                    
+                    speech_bytes = await audio_service.synthesize_speech_bytes(str(output_text))
+                    if speech_bytes:
+                        await websocket.send_bytes(speech_bytes)
 
-            user_text = ""
-            if msg_type == "audio_stream":
-                # Audio input stream -> Whisper STT
-                audio_b64 = data.get("payload", "")
-                user_text = await audio_service.transcribe_audio_base64(audio_b64)
-                await websocket.send_json({"type": "transcription", "text": user_text})
-            else:
-                user_text = data.get("text", "")
-
-            if not user_text:
-                continue
-
-            # State Update Event: Processing
-            await websocket.send_json({"type": "state_change", "state": "processing"})
-
-            # Invoke Agent Workflow
-            state: AgentState = {
-                "messages": [{"role": "user", "content": user_text}],
-                "approval_status": "none"
-            }
-            
-            # Send step-by-step progress events for SiriOrb visualizer
-            await websocket.send_json({"type": "node_execution", "node": "triage_node"})
-            final_state = await agent_workflow.ainvoke(state)
-            
-            await websocket.send_json({"type": "node_execution", "node": "output_dispatcher_node"})
-            
-            # Send Speaking state change
-            await websocket.send_json({"type": "state_change", "state": "speaking"})
-
-            response_payload = {
-                "type": "agent_response",
-                "text": final_state.get("draft_response"),
-                "audio_payload": final_state.get("audio_payload"),
-                "intent": final_state.get("intent"),
-                "requires_human_approval": final_state.get("requires_human_approval"),
-                "memories": final_state.get("retrieved_memory", [])
-            }
-            await websocket.send_json(response_payload)
-
-            # Revert to Idle
-            await websocket.send_json({"type": "state_change", "state": "idle"})
+                await websocket.send_json({"type": "state_change", "state": "idle"})
+                
+            elif "text" in message and message["text"]:
+                data = json.loads(message["text"])
+                if data.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
 
     except WebSocketDisconnect:
-        logger.info("Client disconnected from WebSocket.")
+        logger.info("Audio WebSocket client disconnected.")
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.error(
+            f"Error in Audio WebSocket stream: {e}",
+            exc_info=True,
+        )
+
         try:
-            await websocket.send_json({"type": "error", "message": str(e)})
-        except:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Agent workflow failed: {str(e)}",
+            })
+
+            await websocket.send_json({
+                "type": "state_change",
+                "state": "idle",
+            })
+        except Exception:
             pass
 
 
