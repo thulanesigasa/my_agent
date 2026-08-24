@@ -49,7 +49,7 @@ async def human_approval_node(state: AgentState) -> AgentState:
                 scope_summary=draft[:150]
             )
 
-            state["final_output"] = f"✅ Approved & Sent Email to {recipient_email}. Updated CRM status to '{crm_status}'."
+            state["final_output"] = f"[SUCCESS] Approved & Sent Email to {recipient_email}. Updated CRM status to '{crm_status}'."
 
         state["needs_human_approval"] = False
         if thread_id in PENDING_APPROVAL_QUEUE:
@@ -59,7 +59,7 @@ async def human_approval_node(state: AgentState) -> AgentState:
     # If action was edited or rejected
     if approval_status == "rejected":
         logger.info(f"Action rejected by human for thread '{thread_id}'.")
-        state["final_output"] = "❌ Action rejected by human review."
+        state["final_output"] = "[ERROR] Action rejected by human review."
         state["needs_human_approval"] = False
         if thread_id in PENDING_APPROVAL_QUEUE:
             del PENDING_APPROVAL_QUEUE[thread_id]

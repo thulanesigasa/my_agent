@@ -28,7 +28,7 @@ async def unlearn_memory(query: str = "", delete_all: bool = False) -> str:
         if delete_all:
             count = len(memory_manager._local_memories)
             memory_manager._local_memories.clear()
-            return f"✅ Cleared all {count} in-memory records (offline mode)."
+            return f"[SUCCESS] Cleared all {count} in-memory records (offline mode)."
         else:
             before = len(memory_manager._local_memories)
             query_words = set(query.lower().split())
@@ -37,17 +37,17 @@ async def unlearn_memory(query: str = "", delete_all: bool = False) -> str:
                 if not query_words.intersection(set(str(m.get("value", {})).lower().split()))
             ]
             after = len(memory_manager._local_memories)
-            return f"✅ Removed {before - after} memory record(s) matching '{query}' (offline mode)."
+            return f"[SUCCESS] Removed {before - after} memory record(s) matching '{query}' (offline mode)."
 
     try:
         if delete_all:
             res = memory_manager.client.table("langgraph_memory").delete().neq("id", "").execute()
-            return "✅ All memory records wiped from langgraph_memory store."
+            return "[SUCCESS] All memory records wiped from langgraph_memory store."
 
         # Semantic search then delete matching records
         matches = await memory_manager.search_past_interactions(query=query, user_id="default_user", limit=10)
         if not matches:
-            return f"ℹ️ No memory records found matching '{query}'. Nothing was deleted."
+            return f"[INFO] No memory records found matching '{query}'. Nothing was deleted."
 
         deleted_summaries = []
         for record in matches:
@@ -57,12 +57,12 @@ async def unlearn_memory(query: str = "", delete_all: bool = False) -> str:
                 memory_manager.client.table("langgraph_memory").delete().eq("id", record_id).execute()
                 deleted_summaries.append(str(content)[:60])
 
-        return f"✅ Removed {len(deleted_summaries)} memory record(s) matching '{query}':\n" + "\n".join(
+        return f"[SUCCESS] Removed {len(deleted_summaries)} memory record(s) matching '{query}':\n" + "\n".join(
             f"  – {s}" for s in deleted_summaries
         )
     except Exception as e:
         logger.error(f"Error in unlearn_memory: {e}")
-        return f"❌ Memory unlearn failed: {e}"
+        return f"[ERROR] Memory unlearn failed: {e}"
 
 
 async def get_sent_emails(limit: int = 5) -> str:
@@ -79,9 +79,9 @@ async def get_sent_emails(limit: int = 5) -> str:
     try:
         emails = await email_service.fetch_unread_emails(max_results=limit)
         if not emails:
-            return "📭 No recent emails found in the outbox."
+            return "[OUTBOX] No recent emails found in the outbox."
 
-        lines = [f"📧 Last {len(emails)} sent email(s):"]
+        lines = [f"[OUTBOX] Last {len(emails)} sent email(s):"]
         for i, email in enumerate(emails, 1):
             lines.append(
                 f"  {i}. To: {email.get('sender')} | Subject: {email.get('subject')} | "
@@ -90,4 +90,4 @@ async def get_sent_emails(limit: int = 5) -> str:
         return "\n".join(lines)
     except Exception as e:
         logger.error(f"Error in get_sent_emails: {e}")
-        return f"❌ Failed to retrieve email log: {e}"
+        return f"[ERROR] Failed to retrieve email log: {e}"

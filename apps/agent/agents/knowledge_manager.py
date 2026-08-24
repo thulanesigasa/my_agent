@@ -80,13 +80,13 @@ Analyze what new knowledge, rule, or capability was stated and format the update
                 "new_content": content_to_write,
                 "append": append
             })
-            result_text = f"✅ Knowledge base updated: {summary} ({tool_result})"
+            result_text = f"[SUCCESS] Knowledge base updated: {summary} ({tool_result})"
         else:
-            result_text = "ℹ️ No explicit knowledge modification extracted from message."
+            result_text = "[INFO] No explicit knowledge modification extracted from message."
 
     except Exception as e:
         logger.error(f"Error in knowledge_updater_node: {e}")
-        result_text = f"❌ Failed to update knowledge base: {e}"
+        result_text = f"[ERROR] Failed to update knowledge base: {e}"
 
     return {
         **state,

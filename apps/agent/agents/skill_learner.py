@@ -69,7 +69,7 @@ async def skill_learner_node(state: AgentState) -> AgentState:
             rules_path = mem_dir / "rules.md"
             with open(rules_path, "a", encoding="utf-8") as f:
                 f.write(f"\n\n{content.strip()}\n")
-            result_text = f"✅ New unbreakable rule saved to memory/rules.md: {summary}"
+            result_text = f"[SUCCESS] New unbreakable rule saved to memory/rules.md: {summary}"
         else:
             proc_dir = mem_dir / "procedures"
             proc_dir.mkdir(parents=True, exist_ok=True)
@@ -79,11 +79,11 @@ async def skill_learner_node(state: AgentState) -> AgentState:
             target_path = proc_dir / clean_fn
             with open(target_path, "w", encoding="utf-8") as f:
                 f.write(f"# PROCEDURE: {clean_fn.replace('.md', '').replace('_', ' ').title()}\n\n{content.strip()}\n")
-            result_text = f"✅ New procedural skill saved to memory/procedures/{clean_fn}: {summary}"
+            result_text = f"[SUCCESS] New procedural skill saved to memory/procedures/{clean_fn}: {summary}"
 
     except Exception as e:
         logger.error(f"Error in skill_learner_node: {e}")
-        result_text = f"❌ Failed to process skill learning: {e}"
+        result_text = f"[ERROR] Failed to process skill learning: {e}"
 
     return {
         **state,

@@ -158,7 +158,7 @@ async def outreach_dispatcher_node(state: OutreachState) -> OutreachState:
         }
 
     summary = (
-        f"✅ {len(pitches)} personalized outreach email(s) drafted and placed in the Approval Queue.\n"
+        f"[SUCCESS] {len(pitches)} personalized outreach email(s) drafted and placed in the Approval Queue.\n"
         f"Go to the Admin Dashboard > Approval Queue to review and send them."
     )
     return {**state, "outreach_status": summary, "sender": "outreach_dispatcher_node"}

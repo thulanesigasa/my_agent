@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Plus, Square, X, MicOff, LayoutDashboard, Mail, Phone } from "lucide-react";
+import { Plus, Square, X, MicOff, LayoutDashboard, Mail, Phone, CheckCircle2, Info, AlertTriangle, XCircle } from "lucide-react";
 import SiriOrb from "@/components/ui/siri-orb";
 import { AudioStreamManager, SiriOrbState } from "@/lib/audio";
 import CalendarWidget from "@/components/CalendarWidget";
@@ -50,13 +50,42 @@ const renderFormattedText = (text: string) => {
     const isBullet = line.trim().startsWith("- ") || line.trim().startsWith("• ");
     const content = isBullet ? line.trim().replace(/^[-•]\s*/, "") : line;
 
-    const parts = content.split(/(\*\*.*?\*\*|\[.*?\]\(.*?\)|📧|📞|✉️|📱)/g);
+    const parts = content.split(/(\*\*.*?\*\*|\[.*?\]\(.*?\)|\[SUCCESS\]|\[INFO\]|\[WARNING\]|\[ERROR\]|\[OUTBOX\]|✅|ℹ️|⚠️|❌|📧|📞|✉️|📱|pharezsigasa@gmail\.com|\+447544357979)/g);
+
     const parsed = parts.map((part, i) => {
-      if (part === "📧" || part === "✉️") {
+      if (part === "✅" || part === "[SUCCESS]") {
+        return <CheckCircle2 key={i} size={15} style={{ display: "inline-block", verticalAlign: "-2px", color: "#10b981", marginRight: 6 }} />;
+      }
+      if (part === "ℹ️" || part === "[INFO]") {
+        return <Info key={i} size={15} style={{ display: "inline-block", verticalAlign: "-2px", color: "#3b82f6", marginRight: 6 }} />;
+      }
+      if (part === "⚠️" || part === "[WARNING]") {
+        return <AlertTriangle key={i} size={15} style={{ display: "inline-block", verticalAlign: "-2px", color: "#f59e0b", marginRight: 6 }} />;
+      }
+      if (part === "❌" || part === "[ERROR]") {
+        return <XCircle key={i} size={15} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ef4444", marginRight: 6 }} />;
+      }
+      if (part === "📧" || part === "✉️" || part === "[OUTBOX]") {
         return <Mail key={i} size={14} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ec4899", marginRight: 6 }} />;
       }
       if (part === "📞" || part === "📱") {
         return <Phone key={i} size={14} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ec4899", marginRight: 6 }} />;
+      }
+      if (part === "pharezsigasa@gmail.com") {
+        return (
+          <span key={i} style={{ display: "inline-flex", alignItems: "center" }}>
+            <Mail size={14} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ec4899", marginRight: 4, marginLeft: 2 }} />
+            <a href="mailto:pharezsigasa@gmail.com" style={{ color: "inherit", textDecoration: "underline" }}>pharezsigasa@gmail.com</a>
+          </span>
+        );
+      }
+      if (part === "+447544357979") {
+        return (
+          <span key={i} style={{ display: "inline-flex", alignItems: "center" }}>
+            <Phone size={14} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ec4899", marginRight: 4, marginLeft: 2 }} />
+            <a href="tel:+447544357979" style={{ color: "inherit", textDecoration: "underline" }}>+447544357979</a>
+          </span>
+        );
       }
       if (part.startsWith("**") && part.endsWith("**")) {
         return <strong key={i} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
