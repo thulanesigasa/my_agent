@@ -50,9 +50,13 @@ const renderFormattedText = (text: string) => {
     const isBullet = line.trim().startsWith("- ") || line.trim().startsWith("• ");
     const content = isBullet ? line.trim().replace(/^[-•]\s*/, "") : line;
 
-    const parts = content.split(/(\*\*.*?\*\*|\[.*?\]\(.*?\)|\[SUCCESS\]|\[INFO\]|\[WARNING\]|\[ERROR\]|\[OUTBOX\]|✅|ℹ️|⚠️|❌|📧|📞|✉️|📱|pharezsigasa@gmail\.com|\+447544357979)/g);
+    // Split markdown links [label](url), status tags, and markdown bold **text**
+    const parts = content.split(/(\[.*?\]\(.*?\)|\[SUCCESS\]|\[INFO\]|\[WARNING\]|\[ERROR\]|\[OUTBOX\]|✅|ℹ️|⚠️|❌|\*\*.*?\*\*)/g);
 
     const parsed = parts.map((part, i) => {
+      if (!part) return null;
+
+      // 1. Status Icons / Tags
       if (part === "✅" || part === "[SUCCESS]") {
         return <CheckCircle2 key={i} size={15} style={{ display: "inline-block", verticalAlign: "-2px", color: "#10b981", marginRight: 6 }} />;
       }
@@ -71,25 +75,8 @@ const renderFormattedText = (text: string) => {
       if (part === "📞" || part === "📱") {
         return <Phone key={i} size={14} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ec4899", marginRight: 6 }} />;
       }
-      if (part === "pharezsigasa@gmail.com") {
-        return (
-          <span key={i} style={{ display: "inline-flex", alignItems: "center" }}>
-            <Mail size={14} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ec4899", marginRight: 4, marginLeft: 2 }} />
-            <a href="mailto:pharezsigasa@gmail.com" style={{ color: "inherit", textDecoration: "underline" }}>pharezsigasa@gmail.com</a>
-          </span>
-        );
-      }
-      if (part === "+447544357979") {
-        return (
-          <span key={i} style={{ display: "inline-flex", alignItems: "center" }}>
-            <Phone size={14} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ec4899", marginRight: 4, marginLeft: 2 }} />
-            <a href="tel:+447544357979" style={{ color: "inherit", textDecoration: "underline" }}>+447544357979</a>
-          </span>
-        );
-      }
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={i} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
-      }
+
+      // 2. Interactive Approval Queue Button (Black pill, titled 'Approval Queue', NO ICON)
       if (part.startsWith("[") && part.includes("](") && part.endsWith(")")) {
         const match = part.match(/^\[(.*?)\]\((.*?)\)$/);
         if (match) {
@@ -126,7 +113,41 @@ const renderFormattedText = (text: string) => {
           );
         }
       }
-      return part;
+
+      // 3. Markdown Bold **text**
+      let isBold = false;
+      let rawText = part;
+      if (rawText.startsWith("**") && rawText.endsWith("**") && rawText.length >= 4) {
+        isBold = true;
+        rawText = rawText.slice(2, -2);
+      }
+
+      // Format email & phone numbers inside rawText
+      const subParts = rawText.split(/(pharezsigasa@gmail\.com|\+447544357979)/g);
+      const subElements = subParts.map((sub, j) => {
+        if (sub === "pharezsigasa@gmail.com") {
+          return (
+            <span key={j} style={{ display: "inline-flex", alignItems: "center" }}>
+              <Mail size={14} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ec4899", marginRight: 4, marginLeft: 2 }} />
+              <a href="mailto:pharezsigasa@gmail.com" style={{ color: "inherit", textDecoration: "underline" }}>pharezsigasa@gmail.com</a>
+            </span>
+          );
+        }
+        if (sub === "+447544357979") {
+          return (
+            <span key={j} style={{ display: "inline-flex", alignItems: "center" }}>
+              <Phone size={14} style={{ display: "inline-block", verticalAlign: "-2px", color: "#ec4899", marginRight: 4, marginLeft: 2 }} />
+              <a href="tel:+447544357979" style={{ color: "inherit", textDecoration: "underline" }}>+447544357979</a>
+            </span>
+          );
+        }
+        return sub;
+      });
+
+      if (isBold) {
+        return <strong key={i} style={{ fontWeight: 700 }}>{subElements}</strong>;
+      }
+      return <React.Fragment key={i}>{subElements}</React.Fragment>;
     });
 
     if (isBullet) {
