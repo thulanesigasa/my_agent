@@ -311,7 +311,11 @@ export default function Home() {
                   : "Processing..."}
             </p>
             {transcription && <p style={{ fontSize: 16, color: "#0f172a", fontWeight: 500, margin: "6px 0" }}>&#34;{transcription}&#34;</p>}
-            {liveResponse && <p style={{ fontSize: 14, color: "#64748b", fontStyle: "italic", margin: "6px 0" }}>{liveResponse}</p>}
+            {liveResponse && (
+              <div style={{ fontSize: 14, color: "#334155", margin: "10px 0", textAlign: "center" }}>
+                {renderFormattedText(liveResponse)}
+              </div>
+            )}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
