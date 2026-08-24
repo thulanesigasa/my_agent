@@ -62,10 +62,16 @@ async def risk_evaluator_node(state: AgentState) -> AgentState:
     guardrails_text = load_guardrails()
     intent = state.get("intent", "general")
     draft = state.get("draft_response", "")
+    messages = state.get("messages", [])
+
     last_msg = ""
     if messages:
-        m = messages[-1]
-        last_msg = m.get("content", "") if isinstance(m, dict) else str(getattr(m, "content", m))
+        message = messages[-1]
+        last_msg = (
+            message.get("content", "")
+            if isinstance(message, dict)
+            else str(getattr(message, "content", message))
+        )
 
     text_lower = last_msg.lower()
 

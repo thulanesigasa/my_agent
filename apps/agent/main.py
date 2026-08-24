@@ -543,7 +543,23 @@ async def websocket_audio_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         logger.info("Audio WebSocket client disconnected.")
     except Exception as e:
-        logger.error(f"Error in Audio WebSocket stream: {e}")
+        logger.error(
+            f"Error in Audio WebSocket stream: {e}",
+            exc_info=True,
+        )
+
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Agent workflow failed: {str(e)}",
+            })
+
+            await websocket.send_json({
+                "type": "state_change",
+                "state": "idle",
+            })
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
