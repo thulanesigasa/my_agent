@@ -45,54 +45,70 @@ export class AudioStreamManager {
 
   /**
    * Connect to backend audio streaming WebSocket at /ws/audio.
+   * Resolves true when socket reaches WebSocket.OPEN.
    */
-  public connect(url?: string): void {
-    const wsUrl = url || process.env.NEXT_PUBLIC_AGENT_AUDIO_WS_URL || "ws://localhost:8000/ws/audio";
+  public async connect(url?: string): Promise<boolean> {
+    const wsUrl =
+      url ||
+      process.env.NEXT_PUBLIC_AGENT_AUDIO_WS_URL ||
+      "ws://127.0.0.1:8000/ws/audio";
 
-    try {
-      this.socket = new WebSocket(wsUrl);
-      this.socket.binaryType = "arraybuffer";
+    return new Promise<boolean>((resolve) => {
+      try {
+        this.socket = new WebSocket(wsUrl);
+        this.socket.binaryType = "arraybuffer";
 
-      this.socket.onopen = () => {
-        console.log("Connected to Audio Streaming WebSocket at /ws/audio");
-      };
+        const timeoutId = setTimeout(() => {
+          console.warn("WebSocket connection timeout to", wsUrl);
+          resolve(false);
+        }, 5000);
 
-      this.socket.onmessage = async (event) => {
-        if (typeof event.data === "string") {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === "state_change") {
-              this.callbacks.onStateChange?.(data.state as SiriOrbState);
-            } else if (data.type === "transcription") {
-              this.callbacks.onTranscription?.(data.text);
-            } else if (data.type === "text_response") {
-              this.callbacks.onResponseText?.(data.text);
-            } else if (data.type === "error") {
-              this.callbacks.onError?.(data.message);
+        this.socket.onopen = () => {
+          clearTimeout(timeoutId);
+          console.log("Connected to Audio Streaming WebSocket at", wsUrl);
+          resolve(true);
+        };
+
+        this.socket.onmessage = async (event) => {
+          if (typeof event.data === "string") {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.type === "state_change") {
+                this.callbacks.onStateChange?.(data.state as SiriOrbState);
+              } else if (data.type === "transcription") {
+                this.callbacks.onTranscription?.(data.text);
+              } else if (data.type === "text_response") {
+                this.callbacks.onResponseText?.(data.text);
+              } else if (data.type === "error") {
+                this.callbacks.onError?.(data.message);
+              }
+            } catch (e) {
+              console.error("Error parsing JSON WebSocket message:", e);
             }
-          } catch (e) {
-            console.error("Error parsing JSON WebSocket message:", e);
+          } else if (event.data instanceof ArrayBuffer) {
+            // Binary audio chunk received from server -> Decode and play via Web Audio API
+            await this.playAudioBuffer(event.data);
           }
-        } else if (event.data instanceof ArrayBuffer) {
-          // Binary audio chunk received from server Edge-TTS -> Decode and play via AudioContext
-          await this.playAudioBuffer(event.data);
-        }
-      };
+        };
 
-      this.socket.onerror = (err) => {
-        console.warn("WebSocket error:", err);
-      };
+        this.socket.onerror = (err) => {
+          clearTimeout(timeoutId);
+          console.warn("WebSocket error:", err);
+          resolve(false);
+        };
 
-      this.socket.onclose = () => {
-        console.log("Audio WebSocket disconnected.");
-      };
-    } catch (e) {
-      console.error("Failed to establish WebSocket connection:", e);
-    }
+        this.socket.onclose = () => {
+          console.log("Audio WebSocket disconnected.");
+        };
+      } catch (e) {
+        console.error("Failed to establish WebSocket connection:", e);
+        resolve(false);
+      }
+    });
   }
 
   /**
-   * Start microphone capture using MediaRecorder and stream sliced chunks to server.
+   * Start microphone capture using MediaRecorder and collect audio chunks.
    */
   public async startStreaming(): Promise<boolean> {
     try {
@@ -127,6 +143,8 @@ export class AudioStreamManager {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
           this.callbacks.onStateChange?.("processing");
           this.socket.send(arrayBuffer);
+        } else {
+          console.warn("Cannot send audio: WebSocket is not open.");
         }
       };
 
@@ -135,16 +153,17 @@ export class AudioStreamManager {
       return true;
     } catch (err: any) {
       console.warn("Microphone access error:", err);
-      const errMsg = err?.name === "NotAllowedError"
-        ? "Microphone access blocked. Please allow microphone permission in your browser address bar settings."
-        : "Could not access microphone.";
+      const errMsg =
+        err?.name === "NotAllowedError"
+          ? "Microphone access blocked. Please allow microphone permission in your browser settings."
+          : "Could not access microphone.";
       this.callbacks.onError?.(errMsg);
       return false;
     }
   }
 
   /**
-   * Stop microphone capture and trigger chunk payload transmission.
+   * Stop recording and transmit captured audio over the open WebSocket.
    */
   public stopStreaming(): void {
     if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {

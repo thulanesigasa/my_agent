@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Plus, Square, X, MicOff, LayoutDashboard } from "lucide-react";
+import { Plus, Square, X, MicOff, LayoutDashboard, Send } from "lucide-react";
 import SiriOrb from "@/components/ui/siri-orb";
 import { AudioStreamManager, SiriOrbState } from "@/lib/audio";
 import CalendarWidget from "@/components/CalendarWidget";
@@ -79,12 +79,26 @@ export default function Home() {
       onStateChange: (s) => setOrbState(s),
       onTranscription: (t) => setTranscription(t),
       onResponseText: (r) => setLiveResponse(r),
-      onError: () => setVoiceActive(false),
+      onError: (err) => {
+        console.error("Audio stream error:", err);
+        stopVoiceMode();
+      },
     });
     audioManagerRef.current = manager;
-    manager.connect();
+    const connected = await manager.connect();
+    if (!connected) {
+      console.warn("Could not connect to audio WebSocket.");
+      stopVoiceMode();
+      return;
+    }
     const ok = await manager.startStreaming();
-    if (!ok) setVoiceActive(false);
+    if (!ok) stopVoiceMode();
+  };
+
+  const sendVoicePayload = () => {
+    if (audioManagerRef.current) {
+      audioManagerRef.current.stopStreaming();
+    }
   };
 
   const stopVoiceMode = () => {
@@ -172,8 +186,11 @@ export default function Home() {
             <button onClick={() => setIsMuted(!isMuted)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 999, background: isMuted ? "#fee2e2" : "#f1f5f9", color: isMuted ? "#dc2626" : "#334155", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
               <MicOff size={16} /><span>{isMuted ? "Unmute Mic" : "Mute Mic"}</span>
             </button>
-            <button onClick={stopVoiceMode} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 24px", borderRadius: 999, background: "#ec4899", color: "#ffffff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 14px rgba(236,72,153,0.4)" }}>
-              <Square size={14} fill="#ffffff" /><span>Click to Interrupt</span>
+            <button onClick={sendVoicePayload} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 24px", borderRadius: 999, background: "#ec4899", color: "#ffffff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 14px rgba(236,72,153,0.4)" }}>
+              <Send size={14} fill="#ffffff" /><span>Send Voice</span>
+            </button>
+            <button onClick={stopVoiceMode} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 999, background: "#f1f5f9", color: "#334155", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+              <X size={16} /><span>Close</span>
             </button>
           </div>
         </div>

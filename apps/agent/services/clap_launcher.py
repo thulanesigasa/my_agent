@@ -193,15 +193,17 @@ class ClapLauncher:
             env = os.environ.copy()
             env["PYTHONIOENCODING"] = "utf-8"
             env["PYTHONUTF8"] = "1"
+            log_file_path = os.path.join(agent_dir, "backend.log")
+            log_file = open(log_file_path, "a", encoding="utf-8")
             subprocess.Popen(
                 cmd,
                 shell=True,
                 cwd=agent_dir,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=log_file,
+                stderr=log_file,
                 env=env,
             )
-            logger.info("Backend process spawned asynchronously.")
+            logger.info(f"Backend process spawned asynchronously (logs -> {log_file_path}).")
         except Exception as e:
             logger.error(f"Failed to spawn backend process: {e}")
 
