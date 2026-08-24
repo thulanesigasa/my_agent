@@ -11,32 +11,20 @@ logger = logging.getLogger("agent.telemetry")
 def setup_telemetry():
     """
     Configures OpenTelemetry and LangSmith tracing environment flags.
-    Routes traces to LangSmith OTLP endpoint if configured.
+    Only enables tracing if a valid LangSmith API key is configured.
     """
-    langsmith_tracing = os.getenv("LANGSMITH_TRACING", "true").lower() == "true"
-    langsmith_otel = os.getenv("LANGSMITH_OTEL_ENABLED", "true").lower() == "true"
+    api_key = os.getenv("LANGSMITH_API_KEY") or os.getenv("LANGCHAIN_API_KEY")
+    langsmith_tracing = bool(api_key) and os.getenv("LANGSMITH_TRACING", "true").lower() == "true"
 
-    if langsmith_tracing or langsmith_otel:
+    if langsmith_tracing:
         os.environ["LANGCHAIN_TRACING_V2"] = "true"
         if not os.getenv("LANGCHAIN_PROJECT"):
             os.environ["LANGCHAIN_PROJECT"] = "autonomous-agent-platform"
-
         logger.info("OpenTelemetry & LangSmith observability tracing initialized.")
-
-        try:
-            from opentelemetry import trace
-            from opentelemetry.sdk.trace import TracerProvider
-            from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-
-            provider = TracerProvider()
-            processor = BatchSpanProcessor(ConsoleSpanExporter())
-            provider.add_span_processor(processor)
-            trace.set_tracer_provider(provider)
-            logger.info("OpenTelemetry TracerProvider configured.")
-        except Exception as e:
-            logger.debug(f"OpenTelemetry SDK setup notice: {e}")
     else:
-        logger.info("Telemetry tracing disabled.")
+        # Explicitly disable tracing to prevent 401 auth errors and missing key warnings
+        os.environ["LANGCHAIN_TRACING_V2"] = "false"
+        logger.info("Telemetry tracing disabled (no LANGSMITH_API_KEY set).")
 
 
 # Run telemetry setup upon import

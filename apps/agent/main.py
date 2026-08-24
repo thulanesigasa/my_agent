@@ -368,8 +368,12 @@ async def chat_endpoint(request: Request, payload: ChatRequest, token: str = Dep
             "extracted_learnings": final_state.get("extracted_learnings", [])
         }
     except Exception as e:
-        logger.error(f"Error invoking agent workflow: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error invoking agent workflow: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "response": f"Agent workflow error: {str(e)}",
+            "needs_human_approval": False
+        }
 
 
 @app.post("/webhooks/whatsapp")
