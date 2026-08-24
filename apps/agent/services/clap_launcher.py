@@ -282,13 +282,19 @@ class ClapLauncher:
 
         self.last_browser_open_time = now
 
+        # Wait for frontend server to become responsive before opening tabs
+        for _ in range(15):
+            if self.is_frontend_running():
+                break
+            time.sleep(0.5)
+
         for idx, url in enumerate(self.frontend_urls):
             logger.info(f"Launching browser tab #{idx + 1}: {url}")
             try:
                 webbrowser.open_new_tab(url)
             except Exception as e:
                 logger.error(f"Failed to open browser tab for {url}: {e}")
-            time.sleep(0.6)
+            time.sleep(1.0)
 
 
     def trigger_action(self):
