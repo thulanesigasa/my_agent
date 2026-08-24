@@ -20,7 +20,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 import core.telemetry
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, Depends, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -357,7 +357,7 @@ async def chat_endpoint(request: Request, payload: ChatRequest, token: str = Dep
         except Exception:
             audio_bytes = b""
 
-        return {
+        return JSONResponse({
             "status": "success",
             "sender": final_state.get("sender"),
             "intent": final_state.get("intent"),
@@ -366,14 +366,14 @@ async def chat_endpoint(request: Request, payload: ChatRequest, token: str = Dep
             "approval_status": final_state.get("approval_status"),
             "retrieved_context": final_state.get("retrieved_context", []),
             "extracted_learnings": final_state.get("extracted_learnings", [])
-        }
+        })
     except Exception as e:
         logger.error(f"Error invoking agent workflow: {e}", exc_info=True)
-        return {
+        return JSONResponse({
             "status": "error",
             "response": f"Agent workflow error: {str(e)}",
             "needs_human_approval": False
-        }
+        }, status_code=500)
 
 
 @app.post("/webhooks/whatsapp")
@@ -405,7 +405,7 @@ async def whatsapp_webhook(request: Request):
     if not final_state.get("needs_human_approval"):
         await whatsapp_service.send_whatsapp_message(to_number=sender, message_body=str(output_text))
 
-    return {"status": "received", "sender": sender, "intent": final_state.get("intent")}
+    return JSONResponse({"status": "received", "sender": sender, "intent": final_state.get("intent")})
 
 
 @app.get("/api/approvals")
@@ -415,7 +415,7 @@ async def get_approvals(request: Request, token: str = Depends(verify_api_key)):
     Returns the queue of pending actions requiring human review.
     """
     pending = get_pending_approvals()
-    return {"status": "success", "count": len(pending), "approvals": pending}
+    return JSONResponse({"status": "success", "count": len(pending), "approvals": pending})
 
 
 @app.post("/api/approvals/{thread_id}/action")
@@ -436,7 +436,7 @@ async def process_approval_action(request: Request, thread_id: str, payload: Act
             "needs_human_approval": False
         }
         final_state = await agent_workflow.ainvoke(state, config=config)
-        return {"status": "success", "action": "approved", "result": final_state.get("final_output")}
+        return JSONResponse({"status": "success", "action": "approved", "result": final_state.get("final_output")})
 
     elif action == "edit":
         res = await reject_or_edit_draft(thread_id, new_content=payload.new_content)
@@ -448,11 +448,11 @@ async def process_approval_action(request: Request, thread_id: str, payload: Act
             "needs_human_approval": False
         }
         final_state = await agent_workflow.ainvoke(state, config=config)
-        return {"status": "success", "action": "edited", "result": final_state.get("final_output")}
+        return JSONResponse({"status": "success", "action": "edited", "result": final_state.get("final_output")})
 
     elif action == "reject":
         res = await reject_or_edit_draft(thread_id, new_content=None)
-        return {"status": "success", "action": "rejected"}
+        return JSONResponse({"status": "success", "action": "rejected"})
 
     raise HTTPException(status_code=400, detail="Invalid action type. Expected 'approve', 'edit', or 'reject'.")
 
@@ -465,7 +465,7 @@ async def run_sandbox_code(request: Request, payload: SandboxRequest, token: str
     """
     retries = payload.max_retries or 3
     result = await sandbox_service.execute_with_self_healing(code=payload.code, max_retries=retries)
-    return {"status": "success" if result["success"] else "error", "result": result}
+    return JSONResponse({"status": "success" if result["success"] else "error", "result": result})
 
 
 @app.get("/api/skills")
@@ -475,7 +475,7 @@ async def get_active_skills(request: Request, token: str = Depends(verify_api_ke
     Returns a list of all active learned Standard Operating Procedures (SOP skills).
     """
     skills = list_available_skills()
-    return {"status": "success", "count": len(skills), "skills": skills}
+    return JSONResponse({"status": "success", "count": len(skills), "skills": skills})
 
 
 @app.websocket("/ws/audio")
