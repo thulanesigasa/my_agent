@@ -56,3 +56,10 @@ No live campaign, hosted database migration or deployment is required to validat
 Use Reports → This week → Refresh report after a successful Gmail sync. Connection tests are excluded unless selected. Zero counts with tests excluded are expected during the connection test. Save a snapshot before exporting or emailing; saved snapshots do not absorb later replies or edited outcomes. See REPORTING.md for definitions.
 
 Set WEEKLY_REPORTS_ENABLED=true and run one scheduler (worker, or one API with ENABLE_SCHEDULER=true) for Monday 07:00 SAST snapshot/draft generation. The machine must be running. Missed cron runs while the process is stopped are not replayed; generate the previous week manually from Reports. A restart/second worker cannot create a duplicate weekly draft for the same mailbox/week. Rejected weekly drafts stay rejected. Report sends require Approve & Send and use the existing delivery-unknown hold and reconciliation flow.
+
+
+## Lead research
+
+See LEAD_RESEARCH.md. Use small OpenStreetMap searches or import sourced candidates; discovery is not qualification. The SQLite ledger also holds observations, append-only review history, the shared two-minute public-query cooldown/daily limit and 24-hour cache. Back them up with the workflow database. Changed observations invalidate qualification; old approvals recheck the linked lead and exact recipient before dispatch. Review permission separately; research never grants consent or clears suppression.
+
+If public discovery is unavailable, use manual entry/CSV and preserve source evidence. Do not repeatedly retry, raise limits to evade service rate limits, or enable paid search as a silent fallback. Evidence must be rechecked after 30 days. Interrupted manual imports can be reimported; stable identity keys deduplicate exact candidates.

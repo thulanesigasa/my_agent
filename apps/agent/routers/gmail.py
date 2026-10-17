@@ -116,11 +116,26 @@ class DraftInput(BaseModel):
     body: str = Field(min_length=1, max_length=20000)
     purpose: Literal["test", "outreach", "reply"] = "test"
     incoming_id: str | None = None
+    lead_id: str | None = None
 
 
 @router.post("/drafts")
 async def create_draft(payload: DraftInput):
     async def create():
+        if payload.purpose == "outreach":
+            from services.lead_service import draft_lead, ensure_qualified
+
+            if not payload.lead_id:
+                raise EligibilityError(
+                    "Review a candidate and create its outreach draft in Leads"
+                )
+            ensure_qualified(payload.lead_id, payload.recipient)
+            return draft_lead(
+                payload.lead_id,
+                payload.subject,
+                payload.body,
+                email_service.expected_email,
+            )
         data = {
             "recipient_email": (
                 normalize_email(payload.recipient) if payload.purpose != "reply" else ""

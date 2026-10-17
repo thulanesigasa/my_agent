@@ -251,6 +251,15 @@ class GmailServiceAdapter:
                 with self._lock:
                     if approval_id or purpose == "report":
                         ensure_eligible(to, purpose)
+                    if approval_id and purpose == "outreach":
+                        approval = store.get("approvals", approval_id) or {}
+                        lead_id = approval.get("lead_id") or (
+                            approval.get("lead_data") or {}
+                        ).get("id")
+                        if lead_id:
+                            from services.lead_service import ensure_qualified
+
+                            ensure_qualified(lead_id, to)
                     return (
                         self.client.users()
                         .messages()
