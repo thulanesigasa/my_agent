@@ -7,6 +7,7 @@ or a Docker named volume, not a network filesystem.
 
 import json
 import sqlite3
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -190,23 +191,197 @@ class StateStore:
             for r in rows
         ]
 
+    def confirm_submission(self, record_id, provider_id, thread_id):
+        """Commit provider evidence and approval completion together, idempotently."""
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT data FROM records WHERE kind='messages' AND id=?", (record_id,)
+            ).fetchone()
+            if row is None:
+                raise KeyError(record_id)
+            message = json.loads(row[0])
+            if message["status"] not in ("sending", "delivery_unknown", "sent"):
+                raise ConflictError("Submission is not held or sent")
+            if (
+                message["status"] == "sent"
+                and message.get("provider_message_id") != provider_id
+            ):
+                raise ConflictError(
+                    "Provider evidence conflicts with the confirmed send"
+                )
+            approval = None
+            if message.get("approval_id"):
+                row = db.execute(
+                    "SELECT data FROM records WHERE kind='approvals' AND id=?",
+                    (message["approval_id"],),
+                ).fetchone()
+                if row is None:
+                    raise KeyError(message["approval_id"])
+                approval = json.loads(row[0])
+                if approval.get("dispatch_id") != record_id or approval[
+                    "status"
+                ] not in ("sending", "delivery_unknown", "sent"):
+                    raise ConflictError("Approval no longer refers to this submission")
+                if (
+                    approval["status"] == "sent"
+                    and approval.get("provider_message_id") != provider_id
+                ):
+                    raise ConflictError("Approval has different provider evidence")
+                approval.update(
+                    status="sent",
+                    provider_message_id=provider_id,
+                    provider_thread_id=thread_id,
+                    updated_at=now(),
+                )
+                db.execute(
+                    "UPDATE records SET data=? WHERE kind='approvals' AND id=?",
+                    (json.dumps(approval), message["approval_id"]),
+                )
+            was_sent = message["status"] == "sent"
+            message.update(
+                status="sent",
+                provider_message_id=provider_id,
+                thread_id=thread_id,
+                updated_at=now(),
+            )
+            db.execute(
+                "UPDATE records SET data=? WHERE kind='messages' AND id=?",
+                (json.dumps(message), record_id),
+            )
+            if not was_sent:
+                db.execute(
+                    "INSERT INTO activity VALUES (?, ?, ?, ?, ?)",
+                    (uuid4().hex, "messages.sent", record_id, now(), "{}"),
+                )
+        return message
+
+    def acquire_lease(self, key, owner, seconds=300):
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT data FROM records WHERE kind='leases' AND id=?", (key,)
+            ).fetchone()
+            if row and json.loads(row[0]).get("expires", 0) > time.time():
+                raise ConflictError("Mailbox synchronisation is already running")
+            db.execute(
+                "INSERT INTO records VALUES ('leases', ?, ?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data",
+                (key, json.dumps({"owner": owner, "expires": time.time() + seconds})),
+            )
+
+    def renew_lease(self, key, owner):
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT data FROM records WHERE kind='leases' AND id=?", (key,)
+            ).fetchone()
+            if not row or json.loads(row[0]).get("owner") != owner:
+                raise ConflictError(
+                    "Mailbox sync lease was lost; cursor was not changed"
+                )
+            db.execute(
+                "UPDATE records SET data=? WHERE kind='leases' AND id=?",
+                (json.dumps({"owner": owner, "expires": time.time() + 300}), key),
+            )
+
+    def release_lease(self, key, owner):
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT data FROM records WHERE kind='leases' AND id=?", (key,)
+            ).fetchone()
+            if row and json.loads(row[0]).get("owner") == owner:
+                db.execute("DELETE FROM records WHERE kind='leases' AND id=?", (key,))
+
+    def ingest_mailbox(self, owner, mailbox, history_id, messages, thread_ids=None):
+        # Inbox and cursor commit together: a crash cannot advance past unrecorded replies.
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            lease = db.execute(
+                "SELECT data FROM records WHERE kind='leases' AND id='gmail-sync'"
+            ).fetchone()
+            if not lease or json.loads(lease[0]).get("owner") != owner:
+                raise ConflictError("Mailbox sync lease was lost")
+            inserted = 0
+            for mail in messages:
+                record_id = f"{mailbox}:{mail['id']}"
+                value = {
+                    **mail,
+                    "provider_message_id": mail["id"],
+                    "id": record_id,
+                    "mailbox": mailbox,
+                    "status": "pending",
+                    "created_at": now(),
+                }
+                result = db.execute(
+                    "INSERT OR IGNORE INTO records VALUES ('inbox', ?, ?)",
+                    (record_id, json.dumps(value)),
+                )
+                inserted += result.rowcount
+                if mail.get("unsubscribe") and not mail.get("automated"):
+                    row = db.execute(
+                        "SELECT data FROM records WHERE kind='contacts' AND id=?",
+                        (mail["sender"],),
+                    ).fetchone()
+                    contact = json.loads(row[0]) if row else {"email": mail["sender"]}
+                    contact.update(
+                        consent="unsubscribed",
+                        suppression_reason=f"Gmail reply {mail['id']}",
+                        updated_at=now(),
+                    )
+                    db.execute(
+                        "INSERT INTO records VALUES ('contacts', ?, ?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data",
+                        (mail["sender"], json.dumps(contact)),
+                    )
+            db.execute(
+                "INSERT INTO records VALUES ('gmail_cursor', ?, ?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data",
+                (
+                    mailbox,
+                    json.dumps(
+                        {
+                            "history_id": history_id,
+                            "thread_ids": thread_ids or [],
+                            "updated_at": now(),
+                        }
+                    ),
+                ),
+            )
+        return inserted
+
     def email_logs(self):
-        # Notifications and simulated/test data never count as outreach.
-        return [
-            {
-                "id": m["id"],
-                "recipient": m["to"],
-                "company": m.get("company", ""),
-                "subject": m["subject"],
-                "dateSent": m["created_at"],
-                "status": "Sent",
-                "thread": m["body"],
-            }
-            for m in self.list("messages")
-            if m.get("status") == "sent" and m.get("purpose") == "outreach"
-        ]
+        inbox = self.list("inbox")
+        logs = []
+        for message in self.list("messages"):
+            if message.get("status") != "sent" or message.get("purpose") != "outreach":
+                continue
+            replies = [
+                mail
+                for mail in inbox
+                if mail.get("matched_outbound_id") == message["id"]
+            ]
+            human = [mail for mail in replies if not mail.get("automated")]
+            status = (
+                "Responded"
+                if human
+                else (
+                    "Bounced" if any(mail.get("bounce") for mail in replies) else "Sent"
+                )
+            )
+            logs.append(
+                {
+                    "id": message["id"],
+                    "recipient": message["to"],
+                    "company": message.get("company", ""),
+                    "subject": message["subject"],
+                    "dateSent": message["created_at"],
+                    "status": status,
+                    "thread": message["body"],
+                    "reply": human[-1]["body"] if human else None,
+                }
+            )
+        return logs
 
     def metrics(self):
+        # Aggregate/cohort reports remain Phase 3; raw reply records are available now.
         return {
             "totalEmailsSent": len(self.email_logs()),
             "totalResponsesReceived": None,

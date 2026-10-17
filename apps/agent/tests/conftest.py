@@ -12,6 +12,10 @@ for name in (
     "GROQ_API_KEY",
     "GEMINI_API_KEY",
     "OPENROUTER_API_KEY",
+    "TAVILY_API_KEY",
+    "GMAIL_USER_EMAIL",
+    "PUBSUB_AUDIENCE",
+    "PUBSUB_SERVICE_ACCOUNT_EMAIL",
     "GMAIL_CLIENT_ID",
     "GMAIL_CLIENT_SECRET",
     "GMAIL_REFRESH_TOKEN",
@@ -20,6 +24,10 @@ for name in (
     "LANGCHAIN_API_KEY",
 ):
     os.environ[name] = ""
+os.environ["GMAIL_TOKEN_PATH"] = str(
+    Path(tempfile.mkdtemp(prefix="agent-test-oauth-")) / "absent.json"
+)
+os.environ["GMAIL_DRAFT_REPLIES"] = "false"
 os.environ["ENV"] = "test"
 os.environ["ENABLE_SCHEDULER"] = "false"
 os.environ["LANGSMITH_TRACING"] = "false"
@@ -44,6 +52,7 @@ def isolated_state(tmp_path, monkeypatch):
     from services.email_service import email_service
 
     monkeypatch.setattr(email_service, "client", None)
+    monkeypatch.setattr(email_service, "expected_email", "sender@example.test")
     return store
 
 

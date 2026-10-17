@@ -23,6 +23,7 @@ export const ApprovalQueueDashboard: React.FC = () => {
   const [editText, setEditText] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
   const fetchApprovals = async () => {
@@ -57,6 +58,16 @@ export const ApprovalQueueDashboard: React.FC = () => {
     } finally { setBusy(null); }
   };
 
+  async function reconcile(threadId: string) {
+    setBusy(threadId); setError(""); setNotice("");
+    try {
+      const result = await apiRequest(`/api/gmail/approvals/${encodeURIComponent(threadId)}/reconcile`, { method: "POST" });
+      await fetchApprovals();
+      setNotice(result.message || "Gmail confirmed the original submission. No new email was sent.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Reconciliation failed"); }
+    finally { setBusy(null); }
+  }
+
   return (
     <div className="w-full max-w-4xl mx-auto p-6 bg-white rounded-2xl border border-slate-200 shadow-xl">
       <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-100">
@@ -81,6 +92,7 @@ export const ApprovalQueueDashboard: React.FC = () => {
         </button>
       </div>
 
+      {notice && <p role="status" className="text-sm text-emerald-700 mb-4">{notice}</p>}
       {error && <p role="alert" className="text-sm text-red-700 mb-4">{error}</p>}
       {loading ? <p>Loading approval queue…</p> : !error && queue.length === 0 ? (
         <div className="py-12 text-center text-slate-400">
@@ -132,6 +144,7 @@ export const ApprovalQueueDashboard: React.FC = () => {
               </div>
 
               <p className="text-xs text-slate-600">Status: {item.status} {item.error}</p>
+              {["sending", "delivery_unknown"].includes(item.status) && <button disabled={busy === item.thread_id} onClick={() => reconcile(item.thread_id)} className="rounded border border-slate-300 p-2 text-sm">Reconcile with Gmail Sent</button>}
               {/* Interactive Controls */}
               <fieldset disabled={busy === item.thread_id || ["sending", "delivery_unknown"].includes(item.status)} className="flex items-center justify-end gap-2 pt-2 disabled:opacity-50">
                 {editingId === item.thread_id ? (

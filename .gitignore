@@ -38,3 +38,9 @@ apps/agent/data/
 *.sqlite3-wal
 *.sqlite3-shm
 *.tsbuildinfo
+
+# Local Gmail OAuth credentials and refresh tokens
+.secrets/
+credentials.json
+token.json
+client_secret*.json

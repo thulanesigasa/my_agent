@@ -25,7 +25,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         shell: bash
         run: |
-          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$BASE_SHA" HEAD -- 'apps/agent/*.py' 'apps/agent/**/*.py')
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$BASE_SHA" HEAD -- 'apps/agent/*.py' 'apps/agent/**/*.py' 'connect_gmail.py')
           if [ ${#files[@]} -gt 0 ]; then
             black --check "${files[@]}"
             flake8 "${files[@]}" --max-line-length=120 --ignore=E501,W503,E203,E402 --statistics

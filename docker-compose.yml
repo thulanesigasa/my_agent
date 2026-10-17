@@ -11,7 +11,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -29,14 +29,16 @@ services:
     restart: always
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - .env
     environment:
       - STATE_DB_PATH=/app/data/agent.sqlite3
       - ENABLE_SCHEDULER=false
+      - GMAIL_TOKEN_PATH=/app/secrets/gmail-token.json
     volumes:
       - agent_state:/app/data
+      - ./.secrets:/app/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,8 +58,10 @@ services:
     command: python worker.py
     environment:
       - STATE_DB_PATH=/app/data/agent.sqlite3
+      - GMAIL_TOKEN_PATH=/app/secrets/gmail-token.json
     volumes:
       - agent_state:/app/data
+      - ./.secrets:/app/secrets:ro
     env_file:
       - .env
     depends_on:
@@ -72,7 +76,7 @@ services:
     container_name: agent_web
     restart: always
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - NEXT_PUBLIC_AGENT_API_URL=http://localhost:8000
       - NEXT_PUBLIC_AGENT_WS_URL=ws://localhost:8000/ws/agent

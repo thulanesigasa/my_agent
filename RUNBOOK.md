@@ -1,4 +1,6 @@
-# Phase 1 operations
+# Operations after Phase 2
+
+For local authorisation and the live test, follow [GMAIL_SETUP.md](GMAIL_SETUP.md).
 
 ## Startup checks
 
@@ -26,9 +28,9 @@ The activity view shows **last recorded state**, not a live process heartbeat. A
 | `sent` | Gmail returned a provider message ID | Do not resend this approval |
 | `rejected` | Operator rejected the draft | No send allowed |
 
-Do not reset an uncertain send to pending merely to clear the queue. Phase 2 will add provider reconciliation controls. Until then, stop API/worker and review the corresponding approval and message records with a database tool before any manual correction. Back up first and retain the provider evidence. There is intentionally no one-click retry for uncertain submissions.
+Do not reset an uncertain send to pending merely to clear the queue. Use Reconcile with Gmail Sent first. New submissions have a unique Message-ID persisted before the provider request. A positive matching provider record completes the original send; no unique match leaves it held. Legacy submissions without a correlation ID still need manual review with the API/worker stopped before database corrections. Back up first and retain the provider evidence. There is intentionally no one-click retry for uncertain submissions.
 
-Failed inbox work is retained and is not automatically reprocessed. Repeated notifications do not rerun successfully processed messages. Phase 2 will add full history cursors and recovery of failed inbox tasks; unread polling currently examines up to five messages per cycle and is not a complete mailbox synchronisation strategy.
+History sync atomically commits tracked incoming messages and its cursor, then processes the durable queue. Read/archived replies are included. Expired history IDs trigger a rescan of tracked threads. Failed optional drafting stays in the queue; retry it from Gmail settings. AI drafting defaults off. Unrelated threads are excluded. A mailbox sync lease prevents concurrent cursor updates and expires after five minutes after a crash.
 
 ## Backup and restore
 
@@ -42,8 +44,8 @@ Never back up only the old Postgres container and assume workflow data is covere
 
 Missing Gmail and LLM providers are explicit errors. Configured Supabase failures do not switch to a new local CRM or memory store. Check server logs without sharing credentials. Supabase client construction and Gmail credential presence alone do not establish connectivity.
 
-The Gmail webhook is disabled without a secret, rejects incorrect headers, rejects malformed payloads and returns 503 when processing cannot complete. Phase 1 uses a trusted-relay shared secret, not native Google OIDC verification.
+The Gmail webhook is disabled without a secret, rejects incorrect headers, rejects malformed payloads and returns 503 when processing cannot complete. Configure both Pub/Sub audience and service-account email for native Google OIDC verification, or use a trusted-relay shared secret. Polling needs no webhook.
 
 ## Scope
 
-No live campaign, hosted database migration, deployment or real email is required to validate Phase 1. Run the offline suite and frontend build. Voice behaviour is outside this milestone. Weekly reporting, contact eligibility and autonomous campaign operation remain scheduled for later phases.
+No live campaign, hosted database migration or deployment is required to validate the code. Operator authorisation and one controlled real test conversation are still required to validate the actual Gmail account. Run the offline suite and frontend build. Voice behaviour is outside this milestone. Contact eligibility is enforced in Phase 2; weekly reporting and autonomous campaigns remain later work.

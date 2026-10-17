@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # API Security & Authentication
     API_KEY_REQUIRED: bool = False
     AGENT_API_KEY: str = "agent-secret-api-key"
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     WEBHOOK_SECRET: str = ""
     ENABLE_SCHEDULER: bool = False
     STATE_DB_PATH: str = os.path.join(
@@ -53,6 +54,17 @@ class Settings(BaseSettings):
     DEFAULT_TTS_VOICE: str = "en-US-AriaNeural"
 
     # Tools: Gmail & WhatsApp/Twilio
+    GMAIL_TOKEN_PATH: str = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        ".secrets",
+        "gmail-token.json",
+    )
+    GMAIL_DRAFT_REPLIES: bool = False
+    GMAIL_SYNC_MAX_PAGES: int = 100
+    PUBSUB_AUDIENCE: str = ""
+    PUBSUB_SERVICE_ACCOUNT_EMAIL: str = ""
     GMAIL_CLIENT_ID: Optional[str] = None
     GMAIL_CLIENT_SECRET: Optional[str] = None
     GMAIL_REFRESH_TOKEN: Optional[str] = None
