@@ -6,11 +6,11 @@ import { TabContext } from "@/components/app-shell";
 
 type Review = {
   revision: number; identity_verified: boolean; identity_source: string; identity_note: string;
-  business_status: string; website_status: string; website_url: string; website_source: string; website_note: string;
+  business_status: string; activity_method: string; activity_date: string; website_status: string; website_url: string; website_source: string; website_note: string;
   contact_verified: boolean; email: string; contact_source: string; contact_note: string; decision: string; decision_note: string;
 };
-type Observation = { name?: string; email?: string; website?: string; source_url?: string; observed_at?: string };
-type Lead = { id: string; name: string; location: string; address?: string; phone?: string; industry?: string; source_url: string; source: string; revision?: number; status?: string; review?: Review & { reviewed_at?: string }; observation?: Observation; observations?: Observation[]; review_invalidated?: boolean; ready_to_draft: boolean; dispatch_blocker: string; consent: string; possible_duplicates: string[] };
+type Observation = { name?: string; email?: string; website?: string; source_url?: string; observed_at?: string; source_updated_at?: string; source_check_date?: string };
+type Lead = { id: string; name: string; location: string; address?: string; phone?: string; industry?: string; source_url: string; source: string; revision?: number; status?: string; review?: Review & { reviewed_at?: string }; observation?: Observation; observations?: Observation[]; review_invalidated?: boolean; ready_to_draft: boolean; dispatch_blocker: string; consent: string; possible_duplicates: string[]; source_freshness?: { status: string; age_days: number | null } };
 const input = "mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
 const button = "rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50";
 const panel = "rounded-xl border border-slate-200 bg-white p-5 space-y-4";
@@ -19,7 +19,7 @@ function freshReview(lead: Lead): Review {
   const saved = lead.review;
   return { revision: lead.revision || 0, identity_verified: saved?.identity_verified || false,
     identity_source: saved?.identity_source || lead.source_url || "", identity_note: saved?.identity_note || "",
-    business_status: saved?.business_status || "unknown", website_status: saved?.website_status || "not_checked",
+    business_status: saved?.business_status || "unknown", activity_method: saved?.activity_method || "", activity_date: saved?.activity_date || "", website_status: saved?.website_status || "not_checked",
     website_url: saved?.website_url || "", website_source: saved?.website_source || "", website_note: saved?.website_note || "",
     contact_verified: saved?.contact_verified || false, email: saved?.email || lead.observation?.email || "",
     contact_source: saved?.contact_source || lead.source_url || "", contact_note: saved?.contact_note || "",
@@ -45,9 +45,10 @@ function LeadReview({ lead, busy, onReview, onDraft }: { lead: Lead; busy: boole
       <p className="text-sm">{lead.address || "Address not recorded"}<br />{lead.phone || "Phone not recorded"}</p>
       {/^https?:\/\//i.test(lead.source_url || "") && <a className="block break-all text-sm text-indigo-700 underline" href={lead.source_url} target="_blank" rel="noreferrer">Open discovery source</a>}
       <div className="rounded-lg bg-slate-50 p-3 text-sm"><p className="font-medium">Unverified source observations</p><p className="mt-1 break-all">Email: {lead.observation?.email || "Not listed"}<br />Website: {lead.observation?.website || "Not listed"}</p><p className="mt-2 text-xs text-slate-500">A missing listing is not proof that no website exists. A listed email is not verified permission to contact.</p></div>
+      {lead.source === "openstreetmap" && <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900"><p className="font-medium">Map listing · current activity unverified</p>{lead.source_freshness?.status === "old" && <p className="mt-1 font-medium">This map entry has not been edited for over a year.</p>}<p className="mt-1 break-all">Last map edit: {lead.observation?.source_updated_at || "Unknown (older results may lack metadata)"}<br />Mapper check/survey date: {lead.observation?.source_check_date || "Not recorded"}<br />Retrieved by this app: {lead.observation?.observed_at || "Unknown"}</p><p className="mt-2 text-xs">A recent retrieval or map edit does not confirm this business is open. Listings can remain after closure. Verify recent business activity separately; use manual entry or CSV for businesses missing from the map.</p></div>}
       {lead.review_invalidated && <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Source details changed. Review the current evidence before qualifying this lead again.</p>}
       {lead.possible_duplicates.length > 0 && <p className="text-sm text-amber-800">{lead.possible_duplicates.length} other entries share this name and location. Check the branch/address; reject duplicate entries rather than contacting twice.</p>}
-      <details><summary className="cursor-pointer text-sm font-medium">Source history</summary><ul className="mt-3 space-y-3 text-xs text-slate-600">{lead.observations?.slice().reverse().map((o, i) => <li key={i} className="break-all">{o.observed_at} · {o.source_url}<br />Email: {o.email || "Not listed"} · Website: {o.website || "Not listed"}</li>)}</ul></details>
+      <details><summary className="cursor-pointer text-sm font-medium">Source history</summary><ul className="mt-3 space-y-3 text-xs text-slate-600">{lead.observations?.slice().reverse().map((o, i) => <li key={i} className="break-all">Retrieved: {o.observed_at} · {o.source_url}<br />Map edit: {o.source_updated_at || "Unknown"}<br />Email: {o.email || "Not listed"} · Website: {o.website || "Not listed"}</li>)}</ul></details>
     </div>
     <form onSubmit={(e) => { e.preventDefault(); onReview(review); }} className={panel}>
       <h3 className="font-semibold">Review the business</h3>
@@ -56,6 +57,11 @@ function LeadReview({ lead, busy, onReview, onDraft }: { lead: Lead; busy: boole
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={review.identity_verified} onChange={(e) => setReview({ ...review, identity_verified: e.target.checked })} />I verified this business and branch against the sources.</label>
         {text("identity_source", "Identity/activity source URL", "url")}{note("identity_note", "How the identity and current activity were confirmed")}
         <Field title="Business status"><select className={input} value={review.business_status} onChange={(e) => setReview({ ...review, business_status: e.target.value })}><option value="unknown">Unknown</option><option value="active">Active, supported by evidence above</option><option value="inactive">Inactive / closed</option></select></Field>
+        <Field title="How current activity was verified"><select className={input} value={review.activity_method} onChange={(e) => setReview({ ...review, activity_method: e.target.value })}><option value="">Not verified</option><option value="recent_public_activity">Dated public business activity</option><option value="direct_confirmation">Direct confirmation from the business</option><option value="local_observation">Personally observed this branch operating</option></select></Field>
+        {text("activity_date", "Activity evidence date (SAST)", "date")}
+        <p className="text-xs text-slate-500">Qualification requires activity evidence from the last 30 days. Use the date of the business activity, confirmation or visit, rather than today’s lookup date. For public evidence, link the dated post/update above; an OpenStreetMap listing alone is insufficient. For direct/local checks, describe who confirmed or what you observed in the note above.</p>
+        <a href={`https://www.google.com/search?q=${encodeURIComponent(`${lead.name} ${lead.location} open closed recent activity`)}`} target="_blank" rel="noreferrer" className="inline-block text-sm text-indigo-700 underline">Open a manual activity search</a>
+        <p className="text-xs text-slate-500">Know this branch has closed? Choose Inactive / closed, select Rejected below, and record your reason. No email or website research is needed to reject it.</p>
       </fieldset>
       <fieldset className="space-y-3 border-t border-slate-100 pt-4"><legend className="text-sm font-semibold">2. Website research</legend>
         <p className="text-xs text-slate-500">Search the exact business name with its town/address, inspect the business listing and public social profiles, and note what you checked. Do not label a timed-out site as absent.</p>
@@ -131,6 +137,7 @@ export function LeadsDashboard() {
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <div className="grid items-start gap-5 xl:grid-cols-2">
       <form onSubmit={discover} className={panel}><h3 className="font-semibold">Free nearby discovery</h3><p className="text-sm text-slate-500">Enter the centre coordinates of your target area. Searches use OpenStreetMap, not Google Maps or a paid API. Coordinates and radius are sent to {providerName}, the selected public Overpass provider.</p>
+        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Map coverage may be incomplete or years out of date. Results are research candidates, not a list of currently operating businesses. Changing Overpass providers does not change the underlying map source.</p>
         <a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer" className="block text-sm text-indigo-700 underline">Find your area on OpenStreetMap (map URL contains latitude/longitude)</a>
         <Field title="Location label"><input className={input} required maxLength={200} value={area.location} onChange={(e) => setArea({ ...area, location: e.target.value })} /></Field>
         <div className="grid gap-3 sm:grid-cols-2"><Field title="Latitude"><input className={input} type="number" step="any" min={-85} max={85} required placeholder="Latitude" value={area.latitude} onChange={(e) => setArea({ ...area, latitude: e.target.value })} /></Field><Field title="Longitude"><input className={input} type="number" step="any" min={-180} max={180} required placeholder="Longitude" value={area.longitude} onChange={(e) => setArea({ ...area, longitude: e.target.value })} /></Field></div>

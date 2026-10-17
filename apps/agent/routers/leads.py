@@ -167,6 +167,10 @@ class ReviewInput(BaseModel):
     identity_source: str = Field(default="", max_length=2000)
     identity_note: str = Field(default="", max_length=2000)
     business_status: Literal["unknown", "active", "inactive"] = "unknown"
+    activity_method: Literal[
+        "", "recent_public_activity", "direct_confirmation", "local_observation"
+    ] = ""
+    activity_date: str = Field(default="", max_length=10)
     website_status: Literal[
         "not_checked",
         "found",

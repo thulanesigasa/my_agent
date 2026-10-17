@@ -5,7 +5,8 @@ import json
 import re
 from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from core.store import store, now, ConflictError
 from services.contacts import normalize_email, ensure_eligible, EligibilityError
 
@@ -19,6 +20,52 @@ WEBSITE_STATES = (
 )
 TARGET_STATES = ("not_found_after_review", "owner_confirmed_none", "social_only")
 MAX_EVIDENCE_AGE = timedelta(days=30)
+
+
+def activity_blockers(review):
+    blockers = []
+    method = review.get("activity_method")
+    if method not in (
+        "recent_public_activity",
+        "direct_confirmation",
+        "local_observation",
+    ):
+        blockers.append("Record how current business activity was verified")
+    try:
+        observed = date.fromisoformat(review.get("activity_date", ""))
+        today = datetime.now(ZoneInfo("Africa/Johannesburg")).date()
+        if not 0 <= (today - observed).days <= 30:
+            raise ValueError("stale or future")
+    except (TypeError, ValueError):
+        blockers.append(
+            "Record an activity evidence date within the last 30 days (SAST)"
+        )
+    if method == "recent_public_activity":
+        host = (
+            (urlsplit(review.get("identity_source", "")).hostname or "")
+            .lower()
+            .rstrip(".")
+        )
+        if host in ("openstreetmap.org", "osm.org") or host.endswith(
+            (".openstreetmap.org", ".osm.org")
+        ):
+            blockers.append(
+                "A map listing alone is not current activity evidence; use a dated business source or direct/local confirmation"
+            )
+    return blockers
+
+
+def source_freshness(observation):
+    """Map-edit age is a warning, never proof of business activity or closure."""
+    value = observation.get("source_updated_at", "")
+    try:
+        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        age = datetime.now(timezone.utc) - stamp
+        if age < timedelta(0):
+            raise ValueError("future")
+    except (TypeError, ValueError):
+        return {"status": "unknown", "age_days": None}
+    return {"status": "old" if age.days > 365 else "recent_edit", "age_days": age.days}
 
 
 def public_url(value):
@@ -104,6 +151,8 @@ def ingest_candidate(candidate):
             "source",
             "source_id",
             "source_url",
+            "source_updated_at",
+            "source_check_date",
         )
     }
     if not candidate["name"].strip() or not candidate["location"].strip():
@@ -175,6 +224,7 @@ def review_blockers(review):
         blockers.append("Verify that the sources describe this business and branch")
     if review.get("business_status") != "active":
         blockers.append("Confirm the business is active")
+    blockers.extend(activity_blockers(review))
     if review.get("website_status") not in TARGET_STATES:
         blockers.append(
             "Review website evidence; existing or uncertain websites are not qualified"
@@ -322,6 +372,7 @@ def lead_view(lead):
     lead = dict(lead)
     review = lead.get("review") or {}
     lead["blockers"] = review_blockers(review)
+    lead["source_freshness"] = source_freshness(lead.get("observation") or {})
     try:
         ensure_qualified(lead["id"])
         lead["ready_to_draft"] = True

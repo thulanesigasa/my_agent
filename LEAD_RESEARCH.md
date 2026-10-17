@@ -59,7 +59,7 @@ OpenStreetMap records deduplicate by stable node/way/relation ID. Manual/Tavily 
 
 ## Evidence review
 
-1. **Identity and activity:** verify that sources identify this business and branch, confirm it is active, and record a source URL and note. Merely appearing on a map is not enough.
+1. **Identity and activity:** verify that sources identify this business and branch, confirm it is active, and record a source URL and note. Choose dated public business activity, direct confirmation, or personally observing the branch operating. Enter the date of that evidence (within the last 30 days by the SAST calendar), not the date you looked up an old listing. Public activity evidence must use a source other than OpenStreetMap, such as a dated business post. For a call or visit, describe the confirmation/observation in the note; the identity URL can still point to the branch listing. Missing, future or expired activity dates block qualification and dispatch, including previously saved qualifications. Saving a review again does not renew the activity evidence date.
 2. **Website research:** search the exact name with its town/address, inspect public listings and social profiles, and record the searches/sources and any conflicting evidence. Choose one finding:
 
 | Finding | Can qualify as a potential website client? |
@@ -100,3 +100,11 @@ There is no automatic endpoint rotation or failover. Provider selection does not
 The Leads form shows the selected provider and a countdown, and disables discovery until the waiting period ends. The countdown makes no requests and does not automatically retry. A page reload restores the remaining wait from the backend. HTTP 502/503/504 is reported as provider unavailability, HTTP 429 as rate limiting, HTTP 400 as a rejected query, and connection failures as network/provider reachability problems. Failure diagnostics never expose the upstream HTML body. The API returns retry seconds plus Retry-After for cooldown/provider-backoff errors.
 
 After repeated 502s from the original main endpoint, pull this update and restart the backend and dashboard. With no OSM_PROVIDER override, the backend will select Private.coffee automatically; if your `.env` explicitly sets `main`, change that one setting to `private_coffee`. Wait for the countdown, then try one small query. Keep existing coordinates and Gmail credentials. Both providers are external public services: availability still requires a live test on your network. A provider change is not an assurance of successful discovery.
+
+## Outdated or closed listings
+
+OpenStreetMap is a source of candidates, not a current business directory. Different Overpass providers serve the same underlying source. The screen now distinguishes the last map edit, the mapper’s check/survey tag (when supplied), and the date this app retrieved the listing. Map edits over a year old receive an additional warning. Even a recent edit may have changed only an unrelated detail; neither an edit nor a mapper tag proves the business is trading. Unknown dates stay unknown. Older stored results remain usable for review without a database migration; run discovery after the cooldown to retrieve metadata. The cache version changes once for this update, without resetting request limits.
+
+If you know a branch has closed, select **Inactive / closed**, **Rejected / duplicate / unsuitable**, enter a decision note explaining your knowledge, and **Save review**. No contact or website evidence is needed for rejection. Rediscovery preserves that rejection. Check the branch/address before rejecting a same-name business elsewhere. Use **Needs review** to focus on unreviewed candidates.
+
+For missing or inaccurate map coverage, use **Add a business manually** or **Import CSV** with sourced businesses you have researched. No additional paid provider or API key is introduced. The app records operator evidence; it does not automatically authenticate posts, phone calls or visits. Current operation is verified separately from whether the business lacks a website and whether contact permission exists.

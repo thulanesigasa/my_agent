@@ -190,7 +190,7 @@ async def discover_osm(
         raise ValueError(
             "Enter a location label, valid coordinates, radius 0.1–5 km and limit 1–50"
         )
-    fingerprint = f"{settings.OSM_PROVIDER}:{location.strip().casefold()}:{latitude:.6f}:{longitude:.6f}:{radius_km:.2f}:{category}:{limit}"
+    fingerprint = f"freshness-v1:{settings.OSM_PROVIDER}:{location.strip().casefold()}:{latitude:.6f}:{longitude:.6f}:{radius_km:.2f}:{category}:{limit}"
     cache_id = hashlib.sha256(fingerprint.encode()).hexdigest()
     cached = store.get("research_cache", cache_id)
     if cached and cached.get("expires", 0) > time.time():
@@ -211,7 +211,7 @@ async def discover_osm(
             f'nwr(around:{int(radius_km * 1000)},{latitude:.6f},{longitude:.6f})["name"]{tag};'
             for tag in CATEGORIES[category]
         )
-        query = f"[out:json][timeout:25][maxsize:8388608];({selectors});out center {limit + 1};"
+        query = f"[out:json][timeout:25][maxsize:8388608];({selectors});out meta center {limit + 1};"
         data = await request_overpass(query)
         results = {}
         for element in data["elements"][:limit]:
@@ -247,6 +247,10 @@ async def discover_osm(
                     "source": "openstreetmap",
                     "source_id": source_id,
                     "source_url": f"https://www.openstreetmap.org/{source_id}",
+                    "source_updated_at": str(element.get("timestamp") or "")[:64],
+                    "source_check_date": str(
+                        tags.get("check_date") or tags.get("survey:date") or ""
+                    )[:64],
                 }
             )
             results[lead["id"]] = lead
