@@ -452,6 +452,7 @@ async def test_last_moment_review_change_is_rechecked_before_provider_send(monke
 @pytest.mark.parametrize(
     "content",
     [b'{"remark":"runtime timeout","elements":[]}', b"not json", b"x" * 3000001],
+    ids=["incomplete-response", "invalid-json", "oversized-response"],
 )
 async def test_public_search_rejects_incomplete_invalid_or_oversized_responses(
     monkeypatch, content
