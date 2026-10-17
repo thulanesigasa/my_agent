@@ -78,6 +78,15 @@ class CandidateInput(BaseModel):
     email: str = Field(default="", max_length=300)
     website: str = Field(default="", max_length=2000)
     industry: str = Field(default="", max_length=200)
+    source_kind: Literal[
+        "",
+        "business_owned_page",
+        "public_business_social",
+        "owner_provided",
+        "local_observation",
+        "other",
+    ] = ""
+    source_note: str = Field(default="", max_length=2000)
 
 
 def candidate_data(payload):
@@ -89,6 +98,10 @@ def candidate_data(payload):
         data["website"] = public_url(data["website"])
     if not data["name"].strip() or not data["location"].strip():
         raise ValueError("Business name and location cannot be blank")
+    if data["source_kind"] and not data["source_note"].strip():
+        raise ValueError(
+            "Describe where the business details came from in the source note"
+        )
     return {**data, "source": "manual"}
 
 
@@ -113,7 +126,7 @@ def import_csv(payload: CSVInput):
             columns
         ) <= set(CandidateInput.model_fields):
             raise ValueError(
-                "CSV requires name,location,source_url; optional columns: address,phone,email,website,industry"
+                "CSV requires name,location,source_url; optional columns: address,phone,email,website,industry,source_kind,source_note"
             )
         validated = []
         for line, row in enumerate(reader, 2):
