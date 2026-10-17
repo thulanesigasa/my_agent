@@ -21,7 +21,7 @@ Open http://localhost:3000/dashboard and choose **Leads**. Keep your existing `.
 
 ## Independent-source research (recommended starting point)
 
-Leads opens with independent entry and a manual research workspace. Enter the town and business type (or a known name); the links open ordinary web searches, including searches for public business social pages. Follow the original business page and confirm the exact branch. The app does not fetch search results, scrape profiles or auto-import Google Maps listings. Save business details from independently reviewed business sources, owner-provided details or your own observations. This workflow needs no Google API key, billing account or new dependencies. It is manual research, not a new automatic discovery engine.
+Leads offers automatic Tavily web discovery alongside independent entry and manual research searches. Enter the town and business type (or a known name); the links open ordinary web searches, including searches for public business social pages. Follow the original business page and confirm the exact branch. The app does not fetch search results, scrape profiles or auto-import Google Maps listings. Save business details from independently reviewed business sources, owner-provided details or your own observations. The manual workflow needs no Google API key, billing account or new dependencies. Automatic web searches use the separately configured Tavily pilot below.
 
 In **Add an independently sourced business**, enter the original source URL, select the source type and write a note explaining where the details came from. Source types are `business_owned_page`, `public_business_social`, `owner_provided`, `local_observation` and `other`. For a visit or owner confirmation, use an identifying public branch link and explain the independently obtained facts in the note. Source provenance stays with the observation and its history; it is not qualification, contact verification or marketing permission. The operator still performs the dated activity, website and contact review below.
 
@@ -47,7 +47,7 @@ OSM_PROVIDER=private_coffee
 ALLOW_TAVILY_RESEARCH=false
 ```
 
-The limit accepts 1–100, but leave the conservative default for this small pilot. Existing optional Tavily search tools are disabled unless both `ALLOW_TAVILY_RESEARCH=true` and `TAVILY_API_KEY` are configured. Enabling Tavily may use that provider's paid quota; it is not part of the R0 workflow. No automatic fallback enables it.
+The limit accepts 1–100, but leave the conservative default for this small pilot. Tavily web research is disabled unless both `ALLOW_TAVILY_RESEARCH=true` and `TAVILY_API_KEY` are configured. It uses the bounded service described below, including when called by the core research tool. The provider account may have free or paid credits; the app cannot control account billing or usage by other installations. No automatic fallback enables it.
 
 Sources: [Overpass public-service guidance](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html), [Overpass query/output documentation](https://dev.overpass-api.de/output_formats.html), and [OpenStreetMap attribution and licensing](https://www.openstreetmap.org/copyright). OpenStreetMap-derived data is © OpenStreetMap contributors and is available under the ODbL. Keep its source references and attribution when sharing derived data; the Leads screen includes the attribution link.
 
@@ -122,3 +122,27 @@ For missing or inaccurate map coverage, use **Add a business manually** or **Imp
 Google Maps may provide more useful local listings than OpenStreetMap, but it is not a drop-in source for this durable outreach ledger. The standard [Maps Platform terms, section 3.2.3](https://cloud.google.com/maps-platform/terms) restrict exporting/storing Maps business content and using the services to create or augment advertising products. The [Places policies](https://developers.google.com/maps/documentation/places/web-service/policies) also limit storage, with exceptions such as place IDs. A place-ID exception does not by itself authorize copying listings into an outreach database. Google API discovery would require a separate licensing/design assessment before implementation.
 
 The selected alternative saves independently sourced operator evidence. No Google API setting, key or billing setup is required. Search links are navigation aids and do not import search-engine snippets or Maps content. Source classification is an operator statement, not automated authentication or a license grant for third-party content.
+
+## Automatic web discovery pilot (Tavily)
+
+1. Pull this update and stop/restart both servers. No new dependencies are required.
+2. Create a free Tavily account and keep paid/pay-as-you-go usage disabled. Keep the key local; do not share it or screenshots of it. In your existing backend `.env`, set:
+
+```dotenv
+TAVILY_API_KEY=your_local_key
+ALLOW_TAVILY_RESEARCH=true
+TAVILY_DAILY_QUERY_LIMIT=5
+TAVILY_MONTHLY_QUERY_LIMIT=100
+```
+
+3. Restart the backend after editing `.env`. In Leads, open **Automatic web discovery · Tavily**. The panel shows whether the key is configured and research is enabled, but never returns the key. Enter `Standerton, Mpumalanga`, `plumbers`, and 5 source results; click **Discover web candidates** once. Only the town/type query is sent to Tavily, not Gmail credentials or conversation content.
+4. Returned candidates appear in the **Tavily** source filter. Open each original source and verify the business/branch. Search titles may be directory headings, not business names: qualification additionally requires a **Confirmed business and branch name**. A result does not establish current activity, website absence, a contact email, or consent. Emails are never guessed or extracted from snippets.
+5. Discard unrelated/directory results with a rejection reason, or manually enter separately verified individual businesses. Complete the existing dated activity, website and exact contact review, then record actual contact permission before preparing outreach. Searching never sends emails.
+
+Every new query makes at most one fixed-endpoint basic search with auto-parameters, provider answers, raw content and images disabled. There is no crawling, extraction endpoint, LLM call, retry or fallback. Results are limited to 1–10, with a 40-second total network deadline, no redirects, and a 2 MB response limit. Invalid source links/results are skipped. Only bounded titles, source links and operator evidence are saved; snippets/raw responses/keys are not stored in the lead ledger. Source URLs deduplicate Tavily results across queries and title changes, including previous records; a title/query change can invalidate qualification but cannot resurrect rejection. Confirmed operator names survive rediscovery.
+
+Local limits default to 5 new attempts per SAST day and 100 per SAST calendar month (configurable up to 20/day and 500/month), shared by API and worker through SQLite. A 2-minute persisted cooldown and shared lease prevent concurrent bursts. Attempts are reserved before network I/O: failures and interrupted attempts count conservatively. Identical town/type/limit searches use a 24-hour cache, including empty results; cached reads consume no extra attempt and remain available after local budgets are reached. Disabling research or removing the key blocks new research calls, including cache access, without deleting saved leads. These are local attempted-request counters, not the provider's remaining-credit balance. Calendar resets may differ from the provider's credit cycle. Check the Tavily dashboard and other API-key usage separately.
+
+Provider HTTP 401/403 reports a credential/access problem without leaking upstream bodies; 429 honors an integer Retry-After (at least two minutes, capped at one day); 432/433 reports provider account limits. No error enables paid usage. Failed attempts still consume a local slot; the panel restores cooldown/counters after reload. The default basic-search credit expectation is based on [Tavily's current credit documentation](https://docs.tavily.com/documentation/api-credits), not a guarantee of perpetual free service. Review the [provider terms](https://www.tavily.com/terms) and original sources; API access does not grant unrestricted rights to third-party pages.
+
+The tests use fake responses and no external credentials. Successful local offline tests do not establish live coverage or availability in Standerton. Test a small query on your own account before scaling. For account-wide cost control, keep paid usage disabled at the provider; local limits cannot prevent charges caused by other clients or account settings.

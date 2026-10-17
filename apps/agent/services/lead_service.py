@@ -118,7 +118,22 @@ def normalized(value):
 
 
 def candidate_id(candidate):
-    if candidate.get("source") == "openstreetmap" and re.fullmatch(
+    if candidate.get("source") == "tavily":
+        # A result is a source page, not an established business identity. Preserve
+        # legacy result IDs and operator reviews if a page title/query changes.
+        existing = next(
+            (
+                lead
+                for lead in store.list("leads")
+                if lead.get("source") == "tavily"
+                and lead.get("source_url") == candidate["source_url"]
+            ),
+            None,
+        )
+        if existing:
+            return existing["id"]
+        identity = "tavily:" + candidate["source_url"]
+    elif candidate.get("source") == "openstreetmap" and re.fullmatch(
         r"(node|way|relation)/\d+", candidate.get("source_id", "")
     ):
         identity = "osm:" + candidate["source_id"]
@@ -176,7 +191,8 @@ def ingest_candidate(candidate):
         value = {
             **previous,
             "id": record_id,
-            "name": candidate["name"],
+            "name": (previous.get("review") or {}).get("confirmed_name")
+            or candidate["name"],
             "location": candidate["location"],
             "address": candidate["address"],
             "phone": candidate["phone"],
@@ -277,6 +293,14 @@ def review_lead(record_id, payload):
         if not row:
             raise KeyError(record_id)
         lead = json.loads(row[0])
+        if (
+            lead.get("source") == "tavily"
+            and payload.get("decision") == "qualified"
+            and not payload.get("confirmed_name", "").strip()
+        ):
+            raise ValueError(
+                "Confirm the exact business and branch name; a web search title is not a verified business name"
+            )
         if lead.get("revision", 0) != payload.pop("revision"):
             raise ConflictError("Lead changed; reload it before saving your review")
         payload["reviewed_at"] = now()
@@ -288,6 +312,8 @@ def review_lead(record_id, payload):
             revision=lead.get("revision", 0) + 1,
             updated_at=now(),
         )
+        if payload.get("confirmed_name", "").strip():
+            lead["name"] = payload["confirmed_name"].strip()
         db.execute(
             "UPDATE records SET data=? WHERE kind='leads' AND id=?",
             (json.dumps(lead), record_id),
@@ -350,6 +376,10 @@ def ensure_qualified(record_id, recipient=None, *, require_consent=True):
         lead.get("status") != "qualified"
         or lead.get("review_invalidated")
         or review_blockers(review)
+        or (
+            lead.get("source") == "tavily"
+            and not review.get("confirmed_name", "").strip()
+        )
     ):
         raise EligibilityError(
             "Lead needs a complete identity, activity, website and contact review"

@@ -7,7 +7,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from config import Settings, settings
@@ -413,34 +413,23 @@ async def test_search_candidates_are_persisted_without_claiming_verification(
 ):
     from tools import lead_finder
 
-    class SearchClient:
-        async def __aenter__(self):
-            return self
+    from services import web_research
 
-        async def __aexit__(self, *args):
-            return None
-
-        async def post(self, *args, **kwargs):
-            return SimpleNamespace(
-                raise_for_status=lambda: None,
-                json=lambda: {
-                    "results": [
-                        {
-                            "title": "Test Bakery",
-                            "url": "https://directory.example.test/bakery",
-                        }
-                    ]
-                },
-            )
-
+    search = AsyncMock(
+        return_value={
+            "results": [
+                {"title": "Test Bakery", "url": "https://directory.example.test/bakery"}
+            ]
+        }
+    )
     monkeypatch.setattr(settings, "TAVILY_API_KEY", "test-key")
     monkeypatch.setattr(settings, "ALLOW_TAVILY_RESEARCH", True)
-    monkeypatch.setattr(
-        lead_finder.httpx, "AsyncClient", lambda **kwargs: SearchClient()
-    )
+    monkeypatch.setattr(web_research, "request_search", search)
     leads = await lead_finder.search_businesses_without_websites("Test Town")
     assert len(leads) == 1
     assert leads[0]["missing_website"] is None
     assert leads[0]["requires_review"]
     assert leads[0]["source_url"] == "https://directory.example.test/bakery"
     assert len(StateStore(store.path).list("leads")) == 1
+    assert search.await_count == 1
+    assert web_research.research_status()["daily_used"] == 1
