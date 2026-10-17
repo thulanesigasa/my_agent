@@ -24,17 +24,18 @@ Open http://localhost:3000/dashboard and choose **Leads**. Keep your existing `.
 1. Open https://www.openstreetmap.org and search for your target town. Zoom to the part of town you want to research.
 2. The map URL contains `#map=zoom/latitude/longitude`. Copy its latitude and longitude numbers into Leads. Latitude is first; South African latitude is negative. The location label is for your own records; it does not geocode or constrain the coordinates.
 3. Start with a 1 km radius and 25 results. Choose shops, food, trades/offices, or all supported categories. The maximum radius is 5 km and the maximum result count is 50.
-4. Click **Discover candidates**. Results are business observations from the public Overpass API, persisted in your local ledger. The UI reports if results were capped; narrow your search if so.
+4. Click **Discover candidates**. Results are business observations from the public Overpass API, persisted in your local ledger. The default provider is Private.coffee, whose public service permits commercial projects without registration. The UI reports if results were capped; narrow your search if so.
 5. Select a candidate and open its source page. A business may have an independent website even if OpenStreetMap has no website tag. Likewise, a missing email tag means the source did not provide an email, not that the business has none.
 
 The public service has incomplete coverage and can be unavailable or rate limited. An empty result is not proof that there are no businesses. Source retrieval time is not proof of current business activity. No Google Maps scraping, private profiles, page crawling, address guessing, email sending, or LLM call occurs in the free discovery request.
 
-New queries have a persistent 2-minute cooldown and a default daily allowance of 20 per installation, reset by the Africa/Johannesburg calendar day. Identical queries use a 24-hour cache, including empty results. A new-query failure consumes a request slot to avoid hammering the public service. Requests use a fixed HTTPS endpoint, bounded timeout, memory/output limits, no redirects, no retries and no paid fallback. API and worker share the same SQLite limits and query lease. Coordinates/radius are sent to the public Overpass service; Gmail tokens and API keys are not sent with them.
+New queries have a persistent 2-minute cooldown and a default daily allowance of 20 per installation, reset by the Africa/Johannesburg calendar day. Identical queries use a provider-specific 24-hour cache, including empty results. A new-query failure consumes a request slot to avoid hammering the public service. Requests use one of two fixed HTTPS endpoints, bounded timeout, memory/output limits, no redirects, no retries and no paid fallback. API and worker share the same SQLite limits and query lease. Coordinates/radius are sent to the selected public Overpass provider; Gmail tokens and API keys are not sent with them.
 
 Optional configuration in your existing `.env`:
 
 ```dotenv
 OSM_DAILY_QUERY_LIMIT=20
+OSM_PROVIDER=private_coffee
 ALLOW_TAVILY_RESEARCH=false
 ```
 
@@ -88,3 +89,14 @@ Draft identity is stable per connected mailbox/contact, so repeated requests ret
 Old unlinked approvals remain subject to their existing contact/consent gate; imports do not create such approvals. New lead-driven/core outreach and the Gmail outreach API use the reviewed lead path. Replies and report/test emails retain their existing separate purposes.
 
 No business emails are sent automatically by Phase 4. The implementation is a bounded single-host pilot using SQLite, not a distributed crawler. For very large datasets, paginated storage/UI and dedicated data infrastructure belong in the later scaling work.
+
+
+## Search provider errors and cooldown
+
+The default `OSM_PROVIDER=private_coffee` uses `https://overpass.private.coffee/api/interpreter`. Its operator explicitly permits commercial use and requires no registration or API key; see [the provider's service information, terms and privacy policy](https://overpass.private.coffee/). `main` selects the original `https://overpass-api.de/api/interpreter`; review its operator's current usage policy before choosing it. Arbitrary endpoint URLs are not accepted.
+
+There is no automatic endpoint rotation or failover. Provider selection does not reset the shared daily budget, cooldown or a provider-requested backoff. Cache entries are scoped to the selected provider. Only an operator-initiated search makes a request.
+
+The Leads form shows the selected provider and a countdown, and disables discovery until the waiting period ends. The countdown makes no requests and does not automatically retry. A page reload restores the remaining wait from the backend. HTTP 502/503/504 is reported as provider unavailability, HTTP 429 as rate limiting, HTTP 400 as a rejected query, and connection failures as network/provider reachability problems. Failure diagnostics never expose the upstream HTML body. The API returns retry seconds plus Retry-After for cooldown/provider-backoff errors.
+
+After repeated 502s from the original main endpoint, pull this update and restart the backend and dashboard. With no OSM_PROVIDER override, the backend will select Private.coffee automatically; if your `.env` explicitly sets `main`, change that one setting to `private_coffee`. Wait for the countdown, then try one small query. Keep existing coordinates and Gmail credentials. Both providers are external public services: availability still requires a live test on your network. A provider change is not an assurance of successful discovery.

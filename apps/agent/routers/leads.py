@@ -17,7 +17,14 @@ from services.lead_service import (
     draft_lead,
     public_url,
 )
-from services.lead_discovery import discover_osm, DiscoveryUnavailable, ATTRIBUTION
+from services.lead_discovery import (
+    discover_osm,
+    DiscoveryUnavailable,
+    ResearchCooldown,
+    ATTRIBUTION,
+    provider_info,
+    cooldown_remaining,
+)
 
 router = APIRouter(
     prefix="/api/leads", tags=["Leads"], dependencies=[Depends(verify_api_key)]
@@ -27,12 +34,23 @@ router = APIRouter(
 def failure(exc):
     if isinstance(exc, KeyError):
         raise HTTPException(404, "Lead not found")
+    if isinstance(exc, ResearchCooldown):
+        raise HTTPException(
+            409,
+            {"message": str(exc), "retry_after_seconds": exc.retry_after},
+            headers={"Retry-After": str(exc.retry_after)},
+        )
     if isinstance(exc, ConflictError):
         raise HTTPException(409, str(exc))
     if isinstance(exc, EligibilityError):
         raise HTTPException(403, str(exc))
     if isinstance(exc, DiscoveryUnavailable):
-        raise HTTPException(503, str(exc))
+        delay = exc.retry_after or cooldown_remaining()
+        raise HTTPException(
+            503,
+            {"message": str(exc), "retry_after_seconds": delay},
+            headers={"Retry-After": str(delay)} if delay else None,
+        )
     if isinstance(exc, ValueError):
         raise HTTPException(400, str(exc))
     raise exc
@@ -45,6 +63,8 @@ def leads():
         "attribution": ATTRIBUTION,
         "daily_limit": settings.OSM_DAILY_QUERY_LIMIT,
         "max_radius_km": 5,
+        "provider": provider_info(),
+        "retry_after_seconds": cooldown_remaining(),
     }
 
 

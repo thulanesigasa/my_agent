@@ -4,7 +4,7 @@ Pydantic Settings & Environment Variable Secrets Management Module.
 
 import os
 import logging
-from typing import Optional
+from typing import Optional, Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import model_validator, Field
 
@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     TAVILY_API_KEY: Optional[str] = None
     ALLOW_TAVILY_RESEARCH: bool = False
     OSM_DAILY_QUERY_LIMIT: int = Field(default=20, ge=1, le=100)
+    OSM_PROVIDER: Literal["private_coffee", "main"] = "private_coffee"
 
     # Audio Voice Output
     DEFAULT_TTS_VOICE: str = "en-US-AriaNeural"
