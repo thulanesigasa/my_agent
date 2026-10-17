@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useContext, useEffect, useState } from "react";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, ApiError } from "@/lib/api";
 import { TabContext } from "@/components/app-shell";
 
 type Review = {
@@ -98,13 +98,18 @@ export function LeadsDashboard() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [dailyLimit, setDailyLimit] = useState(20);
+  const [providerName, setProviderName] = useState("Private.coffee");
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [clock, setClock] = useState(Date.now());
+  const remaining = Math.max(0, Math.ceil((cooldownUntil - clock) / 1000));
+  useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const [manual, setManual] = useState(empty);
   const [csv, setCsv] = useState("name,location,source_url,address,phone,email,website,industry\n");
   const [area, setArea] = useState({ location: "Standerton, Mpumalanga", latitude: "", longitude: "", radius_km: "1", category: "all", limit: "25" });
-  async function refresh() { const result = await apiRequest("/api/leads"); setLeads(result.leads); setDailyLimit(result.daily_limit); }
+  async function refresh() { const result = await apiRequest("/api/leads"); setLeads(result.leads); setDailyLimit(result.daily_limit); setProviderName(result.provider?.name || "OpenStreetMap provider"); setCooldownUntil(Date.now() + (result.retry_after_seconds || 0) * 1000); setClock(Date.now()); }
   async function act(call: () => Promise<void>) {
     setBusy(true); setError(""); setNotice("");
-    try { await call(); } catch (e) { setError(e instanceof Error ? e.message : "Lead operation failed"); }
+    try { await call(); } catch (e) { setError(e instanceof Error ? e.message : "Lead operation failed"); if (e instanceof ApiError && e.retryAfterSeconds > 0) { setCooldownUntil(Date.now() + e.retryAfterSeconds * 1000); setClock(Date.now()); } }
     finally { setBusy(false); }
   }
   useEffect(() => { void act(refresh); }, []);
@@ -125,12 +130,13 @@ export function LeadsDashboard() {
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <div className="grid items-start gap-5 xl:grid-cols-2">
-      <form onSubmit={discover} className={panel}><h3 className="font-semibold">Free nearby discovery</h3><p className="text-sm text-slate-500">Enter the centre coordinates of your target area. Searches use OpenStreetMap, not Google Maps or a paid API. Coordinates and radius are sent to the public Overpass service.</p>
+      <form onSubmit={discover} className={panel}><h3 className="font-semibold">Free nearby discovery</h3><p className="text-sm text-slate-500">Enter the centre coordinates of your target area. Searches use OpenStreetMap, not Google Maps or a paid API. Coordinates and radius are sent to {providerName}, the selected public Overpass provider.</p>
         <a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer" className="block text-sm text-indigo-700 underline">Find your area on OpenStreetMap (map URL contains latitude/longitude)</a>
         <Field title="Location label"><input className={input} required maxLength={200} value={area.location} onChange={(e) => setArea({ ...area, location: e.target.value })} /></Field>
         <div className="grid gap-3 sm:grid-cols-2"><Field title="Latitude"><input className={input} type="number" step="any" min={-85} max={85} required placeholder="Latitude" value={area.latitude} onChange={(e) => setArea({ ...area, latitude: e.target.value })} /></Field><Field title="Longitude"><input className={input} type="number" step="any" min={-180} max={180} required placeholder="Longitude" value={area.longitude} onChange={(e) => setArea({ ...area, longitude: e.target.value })} /></Field></div>
         <div className="grid gap-3 sm:grid-cols-3"><Field title="Radius (km)"><input className={input} type="number" min={0.1} max={5} step={0.1} required value={area.radius_km} onChange={(e) => setArea({ ...area, radius_km: e.target.value })} /></Field><Field title="Category"><select className={input} value={area.category} onChange={(e) => setArea({ ...area, category: e.target.value })}><option value="all">All supported</option><option value="shops">Shops</option><option value="food">Food</option><option value="services">Trades / offices</option></select></Field><Field title="Result limit"><input className={input} type="number" min={1} max={50} required value={area.limit} onChange={(e) => setArea({ ...area, limit: e.target.value })} /></Field></div>
-        <button className={button} disabled={busy}>Discover candidates</button>
+        <button className={button} disabled={busy || remaining > 0}>{busy ? "Working…" : remaining > 0 ? `Try again in ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}` : "Discover candidates"}</button>
+        {remaining > 0 && <p role="status" className="text-sm text-amber-800">The search cooldown is active. The button will become available automatically; this will not send another request.</p>}
         <p className="text-xs text-slate-500">Up to {dailyLimit} new queries per SAST day; 2-minute cooldown; identical results cached for 24 hours. Public coverage can be sparse. No automatic retries or paid fallback.</p>
         <a className="inline-block text-xs text-slate-500 underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors · ODbL</a>
       </form>

@@ -33,6 +33,7 @@ os.environ["ENABLE_SCHEDULER"] = "false"
 os.environ["WEEKLY_REPORTS_ENABLED"] = "false"
 os.environ["ALLOW_TAVILY_RESEARCH"] = "false"
 os.environ["OSM_DAILY_QUERY_LIMIT"] = "20"
+os.environ["OSM_PROVIDER"] = "private_coffee"
 os.environ["LANGSMITH_TRACING"] = "false"
 os.environ["LANGCHAIN_TRACING_V2"] = "false"
 os.environ["STATE_DB_PATH"] = str(

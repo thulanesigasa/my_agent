@@ -13,7 +13,21 @@ from config import settings
 from core.store import store, ConflictError
 from services.lead_service import ingest_candidate
 
-ENDPOINT = "https://overpass-api.de/api/interpreter"
+PROVIDERS = {
+    "private_coffee": (
+        "Private.coffee",
+        "https://overpass.private.coffee/api/interpreter",
+    ),
+    "main": ("Main Overpass", "https://overpass-api.de/api/interpreter"),
+}
+ENDPOINT = PROVIDERS["private_coffee"][1]
+
+
+def provider_info():
+    name, endpoint = PROVIDERS[settings.OSM_PROVIDER]
+    return {"id": settings.OSM_PROVIDER, "name": name, "endpoint": endpoint}
+
+
 ATTRIBUTION = (
     "© OpenStreetMap contributors · ODbL · https://www.openstreetmap.org/copyright"
 )
@@ -31,7 +45,36 @@ CATEGORIES = {
 
 
 class DiscoveryUnavailable(RuntimeError):
-    pass
+    def __init__(self, message, retry_after=0):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+class ResearchCooldown(ConflictError):
+    def __init__(self, seconds):
+        super().__init__(f"Public research cooldown: try again in {seconds} seconds")
+        self.retry_after = seconds
+
+
+def cooldown_remaining(usage=None):
+    if usage is None:
+        usage = store.get("research_limits", "overpass") or {}
+    until = max(usage.get("last_request", 0) + 120, usage.get("blocked_until", 0))
+    return max(0, math.ceil(until - time.time()))
+
+
+def defer_retry(seconds=120):
+    usage = store.get("research_limits", "overpass") or {}
+    seconds = max(120, min(86400, seconds))
+    store.put(
+        "research_limits",
+        "overpass",
+        {
+            **usage,
+            "blocked_until": max(usage.get("blocked_until", 0), time.time() + seconds),
+        },
+    )
+    return seconds
 
 
 def reserve_request():
@@ -43,10 +86,9 @@ def reserve_request():
             "SELECT data FROM records WHERE kind='research_limits' AND id='overpass' "
         ).fetchone()
         usage = json.loads(row[0]) if row else {}
-        if time.time() - usage.get("last_request", 0) < 120:
-            raise ConflictError(
-                "Public research cooldown: wait two minutes between new searches"
-            )
+        remaining = cooldown_remaining(usage)
+        if remaining:
+            raise ResearchCooldown(remaining)
         count = usage.get("count", 0) if usage.get("day") == today else 0
         if count >= settings.OSM_DAILY_QUERY_LIMIT:
             raise DiscoveryUnavailable(
@@ -69,11 +111,11 @@ async def request_overpass(query):
             trust_env=False,
             follow_redirects=False,
             headers={
-                "User-Agent": "my_agent/phase4-small-pilot (OpenStreetMap research)"
+                "User-Agent": "my_agent/phase4-small-pilot (+https://github.com/thulanesigasa/my_agent)"
             },
         ) as client:
             async with client.stream(
-                "POST", ENDPOINT, data={"data": query}
+                "POST", provider_info()["endpoint"], data={"data": query}
             ) as response:
                 response.raise_for_status()
                 chunks = []
@@ -97,9 +139,30 @@ async def request_overpass(query):
         return data
     except DiscoveryUnavailable:
         raise
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        delay = 120
+        if status == 429:
+            try:
+                delay = max(delay, int(exc.response.headers.get("Retry-After", "120")))
+            except ValueError:
+                pass
+            message = f"{provider_info()['name']} is rate limiting searches (HTTP 429). Wait before trying again."
+        elif status in (502, 503, 504):
+            message = f"{provider_info()['name']} is temporarily unavailable (HTTP {status}). Your search was not completed."
+        elif status == 400:
+            raise DiscoveryUnavailable(
+                "Search provider rejected the query (HTTP 400). Report this error; changing credentials will not fix it."
+            ) from None
+        else:
+            message = f"{provider_info()['name']} refused the search (HTTP {status}). Try later or use manual entry."
+        delay = defer_retry(delay)
+        raise DiscoveryUnavailable(message, retry_after=delay) from None
     except Exception:
+        delay = defer_retry()
         raise DiscoveryUnavailable(
-            "Public search unavailable or rate limited; try later or import leads manually"
+            f"Could not reach {provider_info()['name']}. Check network access to the search provider, or try later.",
+            retry_after=delay,
         ) from None
 
 
@@ -127,7 +190,7 @@ async def discover_osm(
         raise ValueError(
             "Enter a location label, valid coordinates, radius 0.1–5 km and limit 1–50"
         )
-    fingerprint = f"{location.strip().casefold()}:{latitude:.6f}:{longitude:.6f}:{radius_km:.2f}:{category}:{limit}"
+    fingerprint = f"{settings.OSM_PROVIDER}:{location.strip().casefold()}:{latitude:.6f}:{longitude:.6f}:{radius_km:.2f}:{category}:{limit}"
     cache_id = hashlib.sha256(fingerprint.encode()).hexdigest()
     cached = store.get("research_cache", cache_id)
     if cached and cached.get("expires", 0) > time.time():
@@ -188,6 +251,7 @@ async def discover_osm(
             )
             results[lead["id"]] = lead
         result = {
+            "provider": provider_info(),
             "leads": list(results.values()),
             "cached": False,
             "attribution": ATTRIBUTION,

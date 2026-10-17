@@ -2,6 +2,10 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
 const AGENT_API_KEY = process.env.NEXT_PUBLIC_AGENT_API_KEY || "";
 
+export class ApiError extends Error {
+  constructor(message: string, public retryAfterSeconds = 0) { super(message); this.name = "ApiError"; }
+}
+
 export async function apiResponse(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
@@ -9,7 +13,9 @@ export async function apiResponse(path: string, init: RequestInit = {}) {
   const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, cache: "no-store" });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
-    throw new Error(typeof error.detail === "string" ? error.detail : `Request failed (${res.status})`);
+    const detail = error.detail;
+    throw new ApiError(typeof detail === "string" ? detail : typeof detail?.message === "string" ? detail.message : `Request failed (${res.status})`,
+      typeof detail?.retry_after_seconds === "number" ? detail.retry_after_seconds : 0);
   }
   return res;
 }
