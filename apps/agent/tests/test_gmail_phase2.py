@@ -499,12 +499,12 @@ async def test_drafting_failure_retains_reply_and_does_not_stall_history(
     tracked()
     gmail.thread_data["thread-1"] = [raw_message()]
     monkeypatch.setattr(settings, "GMAIL_DRAFT_REPLIES", True)
-    from core.graph import agent_workflow
+    from services import inbox_service
 
-    async def fail(*args, **kwargs):
-        raise RuntimeError("LLM unavailable")
+    def fail(*args, **kwargs):
+        raise RuntimeError("Local drafting unavailable")
 
-    monkeypatch.setattr(agent_workflow, "ainvoke", fail)
+    monkeypatch.setattr(inbox_service, "reply_preview", fail)
     result = await process_inbox_batch()
     assert result["failed"] == 1
     assert store.list("inbox")[0]["status"] == "failed"

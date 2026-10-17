@@ -73,6 +73,9 @@ async def approve_draft(thread_id):
     ):
         raise EligibilityError("This draft belongs to another sending mailbox")
     ensure_eligible(item["recipient_email"], item.get("purpose", "outreach"))
+    from services.reply_service import validate_queued_reply
+
+    validate_queued_reply(item, email_service.expected_email)
     lead_id = item.get("lead_id") or (item.get("lead_data") or {}).get("id")
     if item.get("purpose") == "outreach" and lead_id:
         from services.lead_service import ensure_qualified

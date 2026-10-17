@@ -251,6 +251,13 @@ class GmailServiceAdapter:
                 with self._lock:
                     if approval_id or purpose == "report":
                         ensure_eligible(to, purpose)
+                    if approval_id:
+                        from services.reply_service import validate_queued_reply
+
+                        validate_queued_reply(
+                            store.get("approvals", approval_id) or {},
+                            self.expected_email,
+                        )
                     if approval_id and purpose == "outreach":
                         approval = store.get("approvals", approval_id) or {}
                         lead_id = approval.get("lead_id") or (

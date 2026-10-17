@@ -237,7 +237,7 @@ async def test_graph_checkpoints_and_approval_survive_new_graph(fake_llm):
 @pytest.mark.asyncio
 async def test_inbox_repeated_notifications_only_run_once(monkeypatch):
     from services.inbox_service import process_inbox_batch
-    from core.graph import agent_workflow
+    from services import inbox_service
 
     mail = {"id": "in-1", "thread_id": "gmail-1", "body": "Hi"}
 
@@ -264,13 +264,14 @@ async def test_inbox_repeated_notifications_only_run_once(monkeypatch):
         }
 
     calls = []
+    assess = inbox_service.assess_reply
 
-    async def run(*args, **kwargs):
-        calls.append(args)
-        return {}
+    def run(mail):
+        calls.append(mail["id"])
+        return assess(mail)
 
     monkeypatch.setattr(email_service, "sync_mailbox", sync)
-    monkeypatch.setattr(agent_workflow, "ainvoke", run)
+    monkeypatch.setattr(inbox_service, "assess_reply", run)
     assert (await process_inbox_batch())["processed"] == 1
     assert (await process_inbox_batch())["processed"] == 0
     assert len(calls) == 1
