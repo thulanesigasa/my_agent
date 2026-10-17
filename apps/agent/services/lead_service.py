@@ -153,6 +153,8 @@ def ingest_candidate(candidate):
             "source_url",
             "source_updated_at",
             "source_check_date",
+            "source_kind",
+            "source_note",
         )
     }
     if not candidate["name"].strip() or not candidate["location"].strip():

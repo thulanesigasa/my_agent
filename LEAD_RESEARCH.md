@@ -19,7 +19,15 @@ npm --prefix apps/web run dev
 
 Open http://localhost:3000/dashboard and choose **Leads**. Keep your existing `.env`, Gmail credentials and SQLite data. No new API key or hosted database is required for the default workflow.
 
-## Free discovery
+## Independent-source research (recommended starting point)
+
+Leads opens with independent entry and a manual research workspace. Enter the town and business type (or a known name); the links open ordinary web searches, including searches for public business social pages. Follow the original business page and confirm the exact branch. The app does not fetch search results, scrape profiles or auto-import Google Maps listings. Save business details from independently reviewed business sources, owner-provided details or your own observations. This workflow needs no Google API key, billing account or new dependencies. It is manual research, not a new automatic discovery engine.
+
+In **Add an independently sourced business**, enter the original source URL, select the source type and write a note explaining where the details came from. Source types are `business_owned_page`, `public_business_social`, `owner_provided`, `local_observation` and `other`. For a visit or owner confirmation, use an identifying public branch link and explain the independently obtained facts in the note. Source provenance stays with the observation and its history; it is not qualification, contact verification or marketing permission. The operator still performs the dated activity, website and contact review below.
+
+Candidate source filters separate **Manual / CSV research** from OpenStreetMap and optional Tavily entries. A successful add/import selects the saved record and clears search/status filters so it remains visible. Old candidates remain in the ledger.
+
+## Optional OpenStreetMap discovery
 
 1. Open https://www.openstreetmap.org and search for your target town. Zoom to the part of town you want to research.
 2. The map URL contains `#map=zoom/latitude/longitude`. Copy its latitude and longitude numbers into Leads. Latitude is first; South African latitude is negative. The location label is for your own records; it does not geocode or constrain the coordinates.
@@ -45,12 +53,12 @@ Sources: [Overpass public-service guidance](https://dev.overpass-api.de/overpass
 
 ## Manual entry and CSV import
 
-Use public business sources that you have reviewed yourself. Manual entry requires a business name, location label and public source URL. Optional fields are address/branch, phone, listed email, listed website and industry. Enter standard `https://` URLs. Imports cannot set verification, qualification or consent.
+Use public business sources that you have reviewed yourself. Manual entry requires a business name, location label and public source URL. Optional fields are address/branch, phone, listed email, listed website, industry, source_kind and source_note. The manual UI requires a source type and note; API/CSV requests without these fields remain backward compatible, with provenance shown as not recorded. A selected source kind requires a nonblank note. Existing evidence and permission checks still apply to every candidate. Enter standard `https://` URLs. Imports cannot set verification, qualification or consent.
 
 CSV header:
 
 ```csv
-name,location,source_url,address,phone,email,website,industry
+name,location,source_url,address,phone,email,website,industry,source_kind,source_note
 ```
 
 Only `name`, `location` and `source_url` are required columns. Paste CSV or select a file, up to 100 rows per request and 200 KB in the file picker. The complete CSV is validated before any row is written. A batch can still be interrupted by an unexpected system/storage failure; reimport safely to recover. No email is inferred from a business name/domain, and multiple possible email addresses must be reviewed rather than guessed.
@@ -108,3 +116,9 @@ OpenStreetMap is a source of candidates, not a current business directory. Diffe
 If you know a branch has closed, select **Inactive / closed**, **Rejected / duplicate / unsuitable**, enter a decision note explaining your knowledge, and **Save review**. No contact or website evidence is needed for rejection. Rediscovery preserves that rejection. Check the branch/address before rejecting a same-name business elsewhere. Use **Needs review** to focus on unreviewed candidates.
 
 For missing or inaccurate map coverage, use **Add a business manually** or **Import CSV** with sourced businesses you have researched. No additional paid provider or API key is introduced. The app records operator evidence; it does not automatically authenticate posts, phone calls or visits. Current operation is verified separately from whether the business lacks a website and whether contact permission exists.
+
+## Why this update does not integrate Google Places
+
+Google Maps may provide more useful local listings than OpenStreetMap, but it is not a drop-in source for this durable outreach ledger. The standard [Maps Platform terms, section 3.2.3](https://cloud.google.com/maps-platform/terms) restrict exporting/storing Maps business content and using the services to create or augment advertising products. The [Places policies](https://developers.google.com/maps/documentation/places/web-service/policies) also limit storage, with exceptions such as place IDs. A place-ID exception does not by itself authorize copying listings into an outreach database. Google API discovery would require a separate licensing/design assessment before implementation.
+
+The selected alternative saves independently sourced operator evidence. No Google API setting, key or billing setup is required. Search links are navigation aids and do not import search-engine snippets or Maps content. Source classification is an operator statement, not automated authentication or a license grant for third-party content.
