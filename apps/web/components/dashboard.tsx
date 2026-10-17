@@ -1,6 +1,7 @@
 "use client";
 import React, { useContext } from "react";
 import { TabContext } from "@/components/app-shell";
+import { GmailSettings } from "./dashboard/gmail-settings";
 import { ActivityPanel } from "./dashboard/activity";
 import { AnalyticsDashboard } from "./dashboard/analytics";
 import { EmailLogsTable } from "./dashboard/email-logs";
@@ -16,7 +17,7 @@ export function Dashboard() {
       {tab === "logs" && <EmailLogsTable />}
       {tab === "approvals" && <ApprovalQueueDashboard />}
       {tab === "memory" && <MemoryViewer />}
-      {tab === "settings" && <p className="text-sm">Configure credentials in your local .env file and restart the application. Settings are not saved through this dashboard.</p>}
+      {tab === "settings" && <GmailSettings />}
     </div>
   );
 }

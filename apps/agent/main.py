@@ -38,7 +38,7 @@ from slowapi.errors import RateLimitExceeded
 from config import settings
 from core.state import AgentState
 from core.store import store, ConflictError
-from services.email_service import EmailUnavailable, DeliveryUnknown
+from services.email_service import email_service, EmailUnavailable, DeliveryUnknown
 from core.graph import agent_workflow
 from core.memory import memory_manager
 from core.security import limiter, verify_api_key, verify_websocket_api_key
@@ -52,7 +52,8 @@ from agents.human_approval import (
     reject_or_edit_draft,
 )
 from agents.learner import learner_node
-from routers import health, webhooks
+from routers import health, webhooks, gmail
+from services.contacts import EligibilityError
 from scheduler import agent_scheduler
 
 # Logging Setup
@@ -85,6 +86,7 @@ app = FastAPI(
 # Mount Health check and Webhooks routers
 app.include_router(health.router)
 app.include_router(webhooks.router)
+app.include_router(gmail.router)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -295,7 +297,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Enable CORS for Next.js web application
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -401,11 +403,7 @@ async def health_check():
         "service": "agent_backend",
         "environment": settings.ENV,
         "memory_backend": "supabase" if memory_manager.client else "local_sqlite",
-        "gmail_configured": bool(
-            settings.GMAIL_REFRESH_TOKEN
-            and settings.GMAIL_CLIENT_ID
-            and settings.GMAIL_CLIENT_SECRET
-        ),
+        "gmail_configured": email_service.is_configured,
         "scheduler_enabled_in_api": settings.ENABLE_SCHEDULER,
         "providers": {
             "groq": bool(settings.GROQ_API_KEY),
@@ -553,9 +551,13 @@ async def process_approval_action(
             result = await reject_or_edit_draft(thread_id)
         else:
             raise ValueError("Expected approve, edit, or reject")
-        return {"status": "success", "action": result["status"], "result": result}
+        return JSONResponse(
+            {"status": "success", "action": result["status"], "result": result}
+        )
     except KeyError:
         raise HTTPException(status_code=404, detail="Approval not found")
+    except EligibilityError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     except ConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except ValueError as exc:

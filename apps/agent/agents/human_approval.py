@@ -4,6 +4,7 @@ from email.utils import parseaddr
 from uuid import uuid4
 
 from core.store import store
+from services.contacts import ensure_eligible, EligibilityError
 from services.email_service import email_service, EmailUnavailable, DeliveryUnknown
 
 
@@ -21,7 +22,14 @@ def queue_approval(approval_id, item):
     ):
         raise ValueError("Approval requires a recipient, subject and non-empty draft")
     return store.queue_approval(
-        approval_id, {**item, "recipient_email": recipient, "subject": subject}
+        approval_id,
+        {
+            **item,
+            "recipient_email": recipient,
+            "subject": subject,
+            "sender_mailbox": item.get("sender_mailbox")
+            or email_service.expected_email,
+        },
     )
 
 
@@ -39,7 +47,9 @@ async def human_approval_node(state):
                 subject if subject.lower().startswith("re:") else f"Re: {subject}"
             ),
             "draft_response": state.get("draft_response", ""),
-            "purpose": "reply",
+            "purpose": email.get("conversation_purpose", "reply"),
+            "in_reply_to": email.get("rfc_message_id"),
+            "references": email.get("references"),
         },
     )
     return {
@@ -57,6 +67,12 @@ async def approve_draft(thread_id):
         raise KeyError(thread_id)
     if item["status"] == "sent":
         return {"status": "sent", "item": item, "already_sent": True}
+    if (
+        item.get("sender_mailbox")
+        and item["sender_mailbox"] != email_service.expected_email
+    ):
+        raise EligibilityError("This draft belongs to another sending mailbox")
+    ensure_eligible(item["recipient_email"], item.get("purpose", "outreach"))
     # Claim atomically before network I/O. Concurrent requests and interrupted sends cannot resend.
     item = store.transition(
         "approvals", thread_id, ["pending", "edited", "failed"], "sending", error=None
@@ -68,12 +84,15 @@ async def approve_draft(thread_id):
             body=item["draft_response"],
             thread_id=item.get("provider_thread_id"),
             purpose=item.get("purpose", "outreach"),
+            approval_id=thread_id,
+            in_reply_to=item.get("in_reply_to"),
+            references=item.get("references"),
             company=item.get("client_name")
             or item.get("lead_data", {}).get("name", ""),
         )
         if result.get("status") != "sent" or not result.get("id"):
             raise DeliveryUnknown("Provider did not confirm the send")
-    except EmailUnavailable:
+    except (EmailUnavailable, EligibilityError):
         store.transition(
             "approvals",
             thread_id,
@@ -91,14 +110,16 @@ async def approve_draft(thread_id):
             error="Delivery is uncertain. Check Gmail Sent; automatic resend is blocked.",
         )
         raise
-    item = store.transition(
-        "approvals",
-        thread_id,
-        ["sending"],
-        "sent",
-        provider_message_id=result["id"],
-        provider_thread_id=result.get("thread_id"),
-    )
+    item = store.get("approvals", thread_id)
+    if item["status"] != "sent":
+        item = store.transition(
+            "approvals",
+            thread_id,
+            ["sending"],
+            "sent",
+            provider_message_id=result["id"],
+            provider_thread_id=result.get("thread_id"),
+        )
     return {"status": "sent", "item": item}
 
 

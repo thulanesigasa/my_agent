@@ -2,24 +2,18 @@
 
 A Python/FastAPI + LangGraph backend and Next.js dashboard for a local business website outreach workflow.
 
-## Current milestone: Phase 1 foundation
+## Current milestone: Phase 2 Gmail integration
 
-Implemented:
+Phase 1 persists workflow records and approvals. Phase 2 adds a local OAuth connection helper, account verification, MIME message parsing, paginated history sync, reply threading, contact eligibility/suppression, uncertain-send reconciliation and connected Gmail dashboard controls.
 
-- Durable workflow tasks, leads, approvals, email submission records, activity history, local CRM and local memory.
-- Persistent LangGraph checkpoints and conversation claims shared between API and worker processes.
-- Reviewed recipient, subject and draft dispatch from the database, with atomic send claims.
-- Missing-provider and uncertain-delivery errors; no fictional businesses, guessed contacts, sample inbox messages or simulated success in the email workflow.
-- Dashboard views backed by recorded activity, with visible unavailable/error states.
-- Exact shared-secret webhook verification that rejects invalid requests and disables the endpoint when unconfigured.
-- An offline regression suite that does not send real emails or export traces.
+**Start with [GMAIL_SETUP.md](GMAIL_SETUP.md)** for the exact Windows steps using your existing Google JSON. No credentials need to be uploaded. API and worker stay on one host; neither a paid host nor a public webhook is needed for polling.
 
-This is a **single-operator, single-host foundation**. Keep the application local while the remaining phases are built. The Gmail integration, reply classification, consent and suppression workflow, reliable business qualification, weekly report delivery and autonomous campaigns still need their respective implementation phases. Voice features are retained and were not redesigned in this milestone.
+Voice features are retained and were not redesigned. Weekly reports, aggregate reply/cohort analytics, research qualification, sales interpretation, follow-ups and autonomous campaigns remain later phases. Raw matched reply records are available now; aggregate reply totals/rates remain explicitly unavailable until Phase 3.
 
 ## Roadmap
 
 1. **Foundation:** persistence, truthful statuses, approval dispatch, webhook protection.
-2. **Email integration:** full message parsing, Gmail history synchronisation, threading, delivery reconciliation, contact eligibility and suppression.
+2. **Email integration (implemented; operator must authorise and run the live test):** full message parsing, Gmail history synchronisation, threading, delivery reconciliation, contact eligibility and suppression.
 3. **Reporting:** actual reply outcomes, reporting periods, dashboard trends, Excel exports and attachments.
 4. **Research and qualification:** supported sources, identity checks, website evidence and reviewed contact details.
 5. **Outreach and conversation management:** portfolio matching, templates, reply interpretation and permitted follow-ups.
@@ -47,7 +41,7 @@ npm --prefix apps/web run dev
 
 Open `http://localhost:3000/dashboard`. On Linux/macOS use `cp .env.example .env` and `.venv/bin/python` in place of the Windows commands.
 
-The dashboard can show an empty database without any paid account. Chat/drafting needs a configured supported model provider. Sending needs all three Gmail OAuth values (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`). Missing providers return explicit errors. Configure supported model names for the provider you choose; availability depends on that account.
+The dashboard can show an empty database without any paid account. Chat/drafting needs a configured supported model provider. Sending needs the locally authorised token file; legacy OAuth environment values are also supported when bound to `GMAIL_USER_EMAIL`. The Gmail test cycle does not need an LLM key. Missing providers return explicit errors. Configure supported model names for the provider you choose; availability depends on that account.
 
 The scheduler is off by default. To run polling, either start `python apps/agent/worker.py` in a separate terminal **or** set `ENABLE_SCHEDULER=true` for a single API process. Do not enable both. The worker uses the existing South African active-hours calendar. Starting a worker does not launch an autonomous outreach campaign.
 
@@ -56,10 +50,10 @@ The scheduler is off by default. To run polling, either start `python apps/agent
 - Native runs: `apps/agent/data/agent.sqlite3` plus `agent.sqlite3.checkpoints.sqlite3`.
 - Override with an absolute `STATE_DB_PATH` when needed. Both processes must resolve the same file on the same host.
 - With no Supabase URL/key, CRM and memory use durable local SQLite. If both Supabase values are configured, those services use Supabase and surface errors instead of silently falling back. Existing Supabase records are not copied into local storage, or vice versa.
-- Workflow records and checkpoints remain local even when Supabase memory/CRM are enabled. Phase 1 does not deploy or modify a hosted Supabase project.
+- Workflow records and checkpoints remain local even when Supabase memory/CRM are enabled. These phases do not deploy or modify a hosted Supabase project.
 - Production configuration requires `API_KEY_REQUIRED=true` and a non-default `AGENT_API_KEY`. This check does not replace a full public-hosting authentication design.
 - Frontend settings are read from Next.js environment configuration. The default local dashboard needs no API key; protected environments need an appropriate private operator access setup. Do not publish an operator API key in a public web bundle.
-- `WEBHOOK_SECRET` enables the shared-secret Gmail webhook. Only an exact `X-Goog-PubSub-Token` header is accepted; query-string credentials and substring matches are rejected. This endpoint expects a trusted relay that injects the secret. Native Google Pub/Sub OIDC verification and history cursors remain Phase 2 work.
+- `WEBHOOK_SECRET` enables the shared-secret Gmail webhook. Only an exact `X-Goog-PubSub-Token` header is accepted; query-string credentials and substring matches are rejected. This endpoint expects a trusted relay that injects the secret. Native OIDC verification is available when both Pub/Sub settings are configured; polling and push share the same durable history cursor.
 - Never commit `.env`, databases, client records or runtime backups.
 
 ## Docker
@@ -81,7 +75,7 @@ The legacy Postgres container is not the workflow ledger and is not a complete l
 - **Approve & Send** dispatches the reviewed database record; duplicate clicks cannot dispatch it twice.
 - **Reject** prevents sending that approval.
 - Missing Gmail configuration leaves a visible `failed` record that can be retried once configured.
-- A provider exception, interrupted dispatch or missing provider message ID leaves `delivery_unknown` or `sending`. These states block resending until manually reconciled with Gmail Sent.
+- An uncertain provider exception, interrupted dispatch or missing provider message ID leaves `delivery_unknown` or `sending`. These states block resending; use the provider-evidence reconciliation control. Unresolved submissions stay held.
 - An approved initial email does not automatically move a business to “In Progress” or claim a project has been won.
 
 See [RUNBOOK.md](RUNBOOK.md) for restart, backup and held-work guidance.

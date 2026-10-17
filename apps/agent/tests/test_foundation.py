@@ -17,6 +17,14 @@ from services.email_service import email_service, EmailUnavailable, DeliveryUnkn
 
 
 def queue(record_id="review-1"):
+    from services.contacts import save_contact
+
+    save_contact(
+        "owner@example.test",
+        verified=True,
+        consent="granted",
+        evidence="Explicit fixture consent",
+    )
     return queue_approval(
         record_id,
         {
@@ -39,7 +47,17 @@ def gmail_client(message=None, error=None):
     messages = Mock()
     messages.send.return_value = request
     return (
-        SimpleNamespace(users=lambda: SimpleNamespace(messages=lambda: messages)),
+        SimpleNamespace(
+            users=lambda: SimpleNamespace(
+                messages=lambda: messages,
+                getProfile=lambda **kwargs: SimpleNamespace(
+                    execute=lambda **kwargs: {
+                        "emailAddress": "sender@example.test",
+                        "historyId": "100",
+                    }
+                ),
+            )
+        ),
         messages,
     )
 
@@ -223,8 +241,27 @@ async def test_inbox_repeated_notifications_only_run_once(monkeypatch):
 
     mail = {"id": "in-1", "thread_id": "gmail-1", "body": "Hi"}
 
-    async def fetch(**kwargs):
-        return [mail]
+    store.put(
+        "messages",
+        "sent-1",
+        {
+            "status": "sent",
+            "thread_id": "gmail-1",
+            "purpose": "test",
+            "to": "owner@example.test",
+            "from": "sender@example.test",
+        },
+    )
+    mail.update(sender="owner@example.test", rfc_message_id="<reply@test>")
+    monkeypatch.setattr(settings, "GMAIL_DRAFT_REPLIES", True)
+
+    async def sync(*args):
+        return {
+            "messages": [mail],
+            "mailbox": "sender@example.test",
+            "history_id": "101",
+            "full_sync": False,
+        }
 
     calls = []
 
@@ -232,10 +269,10 @@ async def test_inbox_repeated_notifications_only_run_once(monkeypatch):
         calls.append(args)
         return {}
 
-    monkeypatch.setattr(email_service, "fetch_unread_emails", fetch)
+    monkeypatch.setattr(email_service, "sync_mailbox", sync)
     monkeypatch.setattr(agent_workflow, "ainvoke", run)
     assert (await process_inbox_batch())["processed"] == 1
-    assert (await process_inbox_batch())["skipped"] == 1
+    assert (await process_inbox_batch())["processed"] == 0
     assert len(calls) == 1
 
 
@@ -298,7 +335,7 @@ def test_webhook_rejects_unconfigured_wrong_and_malformed_requests(api, monkeypa
 def test_valid_webhook_without_gmail_does_not_acknowledge_processing(api, monkeypatch):
     monkeypatch.setattr(settings, "WEBHOOK_SECRET", "exact-secret")
     data = base64.b64encode(
-        json.dumps({"historyId": "123", "emailAddress": "owner@example.test"}).encode()
+        json.dumps({"historyId": "123", "emailAddress": "sender@example.test"}).encode()
     ).decode()
     response = api.post(
         "/webhooks/gmail",
