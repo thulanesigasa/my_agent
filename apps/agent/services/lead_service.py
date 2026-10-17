@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+import time
 from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 from datetime import date, datetime, timedelta, timezone
@@ -20,6 +21,18 @@ WEBSITE_STATES = (
 )
 TARGET_STATES = ("not_found_after_review", "owner_confirmed_none", "social_only")
 MAX_EVIDENCE_AGE = timedelta(days=30)
+
+
+def observation_fingerprint(lead):
+    observation = {
+        k: v for k, v in (lead.get("observation") or {}).items() if k != "observed_at"
+    }
+    return hashlib.sha256(
+        json.dumps(
+            {"source_url": lead.get("source_url"), "observation": observation},
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
 
 
 def activity_blockers(review):
@@ -393,6 +406,15 @@ def ensure_qualified(record_id, recipient=None, *, require_consent=True):
         raise EligibilityError(
             "Lead evidence is over 30 days old or invalid; review it again"
         )
+    inspection = store.get("lead_inspections", record_id)
+    if (
+        inspection
+        and inspection.get("fingerprint") == observation_fingerprint(lead)
+        and inspection["checked_at"] > review["reviewed_at"]
+    ):
+        raise EligibilityError(
+            "New source inspection findings need review before outreach; review the findings and save the evidence again"
+        )
     if recipient and normalize_email(recipient) != review["email"]:
         raise EligibilityError("Draft recipient no longer matches the reviewed lead")
     if require_consent:
@@ -405,6 +427,16 @@ def lead_view(lead):
     review = lead.get("review") or {}
     lead["blockers"] = review_blockers(review)
     lead["source_freshness"] = source_freshness(lead.get("observation") or {})
+    inspection = store.get("lead_inspections", lead["id"])
+    lead["source_inspection"] = (
+        {
+            **inspection,
+            "stale": inspection.get("fingerprint") != observation_fingerprint(lead)
+            or inspection.get("expires", 0) <= time.time(),
+        }
+        if inspection
+        else None
+    )
     try:
         ensure_qualified(lead["id"])
         lead["ready_to_draft"] = True
