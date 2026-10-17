@@ -358,7 +358,9 @@ async def test_core_uses_saved_candidates_and_paid_search_is_explicitly_disabled
     from tools import lead_finder
 
     network = Mock(side_effect=AssertionError("No paid request"))
-    monkeypatch.setattr(lead_finder.httpx, "AsyncClient", network)
+    from services import web_research
+
+    monkeypatch.setattr(web_research.httpx, "AsyncClient", network)
     monkeypatch.setattr(settings, "TAVILY_API_KEY", "fixture-key")
     with pytest.raises(RuntimeError, match="unavailable"):
         await lead_finder.search_businesses_without_websites("Example Town")

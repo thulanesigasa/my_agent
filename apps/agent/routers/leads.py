@@ -26,6 +26,8 @@ from services.lead_discovery import (
     cooldown_remaining,
 )
 
+from services.web_research import discover_web, research_status
+
 router = APIRouter(
     prefix="/api/leads", tags=["Leads"], dependencies=[Depends(verify_api_key)]
 )
@@ -45,7 +47,7 @@ def failure(exc):
     if isinstance(exc, EligibilityError):
         raise HTTPException(403, str(exc))
     if isinstance(exc, DiscoveryUnavailable):
-        delay = exc.retry_after or cooldown_remaining()
+        delay = exc.retry_after
         raise HTTPException(
             503,
             {"message": str(exc), "retry_after_seconds": delay},
@@ -65,6 +67,7 @@ def leads():
         "max_radius_km": 5,
         "provider": provider_info(),
         "retry_after_seconds": cooldown_remaining(),
+        "web_research": research_status(),
     }
 
 
@@ -170,12 +173,30 @@ async def discover(payload: DiscoveryInput):
     try:
         return await discover_osm(**payload.model_dump())
     except (ValueError, ConflictError, DiscoveryUnavailable) as exc:
+        if isinstance(exc, DiscoveryUnavailable) and not exc.retry_after:
+            exc.retry_after = cooldown_remaining()
+        failure(exc)
+
+
+class WebResearchInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    location: str = Field(min_length=1, max_length=200)
+    industry: str = Field(min_length=1, max_length=200)
+    limit: int = Field(default=5, ge=1, le=10)
+
+
+@router.post("/research")
+async def research(payload: WebResearchInput):
+    try:
+        return await discover_web(**payload.model_dump())
+    except (ValueError, ConflictError, DiscoveryUnavailable) as exc:
         failure(exc)
 
 
 class ReviewInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
+    confirmed_name: str = Field(default="", max_length=200)
     identity_verified: bool = False
     identity_source: str = Field(default="", max_length=2000)
     identity_note: str = Field(default="", max_length=2000)

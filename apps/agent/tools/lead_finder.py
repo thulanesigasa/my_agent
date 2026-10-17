@@ -1,9 +1,8 @@
 """Core research tools use saved evidence; optional paid search requires explicit opt-in."""
 
-import httpx
 from config import settings
 from core.store import store
-from services.lead_service import ingest_candidate, ensure_qualified, normalized
+from services.lead_service import ensure_qualified, normalized
 from services.contacts import EligibilityError
 
 
@@ -41,38 +40,12 @@ async def search_businesses_without_websites(
         raise RuntimeError(
             "Lead discovery unavailable for this area: use Leads for free OpenStreetMap discovery or manual/CSV import. Optional Tavily requires explicit ALLOW_TAVILY_RESEARCH=true."
         )
-    try:
-        async with httpx.AsyncClient(
-            timeout=15, follow_redirects=False, trust_env=False
-        ) as client:
-            response = await client.post(
-                "https://api.tavily.com/search",
-                json={
-                    "api_key": settings.TAVILY_API_KEY,
-                    "query": f"{industry} businesses in {location} contact website",
-                    "max_results": min(limit, 10),
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-        result = []
-        for hit in data.get("results", [])[:limit]:
-            if not hit.get("title") or not hit.get("url"):
-                continue
-            result.append(
-                ingest_candidate(
-                    {
-                        "name": hit["title"],
-                        "location": location,
-                        "industry": industry,
-                        "source": "tavily",
-                        "source_url": hit["url"],
-                    }
-                )
-            )
-        return result
-    except Exception:
-        raise RuntimeError("Lead discovery failed; no leads were invented") from None
+    from services.web_research import discover_web
+
+    result = await discover_web(
+        location=location, industry=industry, limit=min(limit, 10)
+    )
+    return result["leads"]
 
 
 async def find_contact_email(business_name, location="Standerton, Mpumalanga"):
