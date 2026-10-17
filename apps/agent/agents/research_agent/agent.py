@@ -12,7 +12,18 @@ async def run_research_agent(
     longitude=None,
     radius_km=1,
     category="all",
+    inspect_lead_id=None,
 ):
+    if inspect_lead_id:
+        from services.source_inspection import inspect_source
+
+        result = await inspect_source(inspect_lead_id)
+        return {
+            "agent": "research_agent",
+            "status": "completed",
+            **result,
+            "next_step": "Review source findings in Leads. No qualification, consent or email was created.",
+        }
     if latitude is not None and longitude is not None:
         result = await discover_osm(
             location=location,

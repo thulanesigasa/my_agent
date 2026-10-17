@@ -57,7 +57,7 @@ def reserve_request():
             or status["monthly_used"] >= status["monthly_limit"]
         ):
             raise DiscoveryUnavailable(
-                "Tavily local daily/monthly search budget reached. No new request was sent."
+                "Tavily local daily/monthly research budget reached. No new request was sent."
             )
         stamp = datetime.now(ZoneInfo("Africa/Johannesburg"))
         usage = {
@@ -88,6 +88,24 @@ def backoff(seconds=120):
 
 
 async def request_search(query, limit):
+    return await request_provider(
+        "search",
+        {
+            "query": query,
+            "search_depth": "basic",
+            "topic": "general",
+            "max_results": limit,
+            "auto_parameters": False,
+            "include_answer": False,
+            "include_raw_content": False,
+            "include_images": False,
+        },
+    )
+
+
+async def request_provider(operation, payload):
+    if operation not in ("search", "extract"):
+        raise ValueError("Unsupported research operation")
     try:
         async with asyncio.timeout(40), httpx.AsyncClient(
             timeout=httpx.Timeout(35, connect=10),
@@ -96,18 +114,9 @@ async def request_search(query, limit):
         ) as client:
             async with client.stream(
                 "POST",
-                ENDPOINT,
+                f"https://api.tavily.com/{operation}",
                 headers={"Authorization": f"Bearer {settings.TAVILY_API_KEY}"},
-                json={
-                    "query": query,
-                    "search_depth": "basic",
-                    "topic": "general",
-                    "max_results": limit,
-                    "auto_parameters": False,
-                    "include_answer": False,
-                    "include_raw_content": False,
-                    "include_images": False,
-                },
+                json=payload,
             ) as response:
                 response.raise_for_status()
                 chunks, length = [], 0
@@ -138,21 +147,19 @@ async def request_search(query, limit):
                 delay = int(exc.response.headers.get("Retry-After", "120"))
             except ValueError:
                 pass
-            message = (
-                "Tavily rate limit reached (HTTP 429). Wait before searching again."
-            )
+            message = "Tavily rate limit reached (HTTP 429). Wait before another research request."
         elif status in (401, 403):
             message = "Tavily authorization failed. Check the local API key and account access."
         elif status in (432, 433):
             message = "Tavily account usage limit reached. Check the free allowance; no paid fallback was enabled."
         else:
             message = (
-                f"Tavily search failed (HTTP {status}). No automatic retry was made."
+                f"Tavily research failed (HTTP {status}). No automatic retry was made."
             )
         raise DiscoveryUnavailable(message, backoff(delay)) from None
     except Exception:
         raise DiscoveryUnavailable(
-            "Tavily could not complete the search. Check connectivity or try later.",
+            "Tavily could not complete the research request. Check connectivity or try later.",
             backoff(),
         ) from None
 

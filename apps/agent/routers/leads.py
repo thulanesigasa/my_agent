@@ -27,6 +27,7 @@ from services.lead_discovery import (
 )
 
 from services.web_research import discover_web, research_status
+from services.source_inspection import inspect_source
 
 router = APIRouter(
     prefix="/api/leads", tags=["Leads"], dependencies=[Depends(verify_api_key)]
@@ -190,6 +191,14 @@ async def research(payload: WebResearchInput):
     try:
         return await discover_web(**payload.model_dump())
     except (ValueError, ConflictError, DiscoveryUnavailable) as exc:
+        failure(exc)
+
+
+@router.post("/{lead_id}/inspect")
+async def inspect(lead_id: str):
+    try:
+        return await inspect_source(lead_id)
+    except (ValueError, KeyError, ConflictError, DiscoveryUnavailable) as exc:
         failure(exc)
 
 
