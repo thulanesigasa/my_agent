@@ -1,9 +1,10 @@
 """
 Security & Rate Limiting Module: SlowAPI rate limiting and API key authentication.
 """
+
 import logging
 from typing import Optional
-from fastapi import Request, HTTPException, Security, Depends, status, WebSocket
+from fastapi import HTTPException, Security, status, WebSocket
 from fastapi.security import APIKeyHeader, APIKeyQuery
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -13,9 +14,7 @@ logger = logging.getLogger("agent.security")
 
 # Initialize SlowAPI Limiter
 limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["120/minute"],
-    headers_enabled=True
+    key_func=get_remote_address, default_limits=["120/minute"], headers_enabled=True
 )
 
 # API Key headers and query definitions
@@ -35,11 +34,11 @@ async def verify_api_key(
 
     token = header_key or query_key
     if not token or token != settings.AGENT_API_KEY:
-        logger.warning(f"Unauthorized API access attempt with key: '{token}'")
+        logger.warning("Unauthorized API access attempt")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API Key authorization token.",
-            headers={"WWW-Authenticate": "ApiKey"}
+            headers={"WWW-Authenticate": "ApiKey"},
         )
 
     return token
@@ -52,7 +51,9 @@ async def verify_websocket_api_key(websocket: WebSocket) -> bool:
     if not settings.API_KEY_REQUIRED:
         return True
 
-    api_key = websocket.query_params.get("api_key") or websocket.headers.get("x-api-key")
+    api_key = websocket.query_params.get("api_key") or websocket.headers.get(
+        "x-api-key"
+    )
     if not api_key or api_key != settings.AGENT_API_KEY:
         logger.warning("Rejecting unauthorized WebSocket connection request.")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)

@@ -1,6 +1,5 @@
 import os
 import sys
-import pytest
 import numpy as np
 import asyncio
 
@@ -16,7 +15,9 @@ from tools.procedural_tools import list_available_skills
 def test_voice_biometrics_enroll_and_verify():
     np.random.seed(123)
     sample_rate = 16000
-    audio_sample = np.sin(2 * np.pi * 440 * np.linspace(0, 0.5, sample_rate), dtype=np.float32)
+    audio_sample = np.sin(
+        2 * np.pi * 440 * np.linspace(0, 0.5, sample_rate), dtype=np.float32
+    )
 
     # Enroll speaker
     enroll_res = voice_biometrics_service.enroll_speaker(
@@ -39,22 +40,30 @@ def test_wake_word_detector():
 
     # Simulate vocal energy burst sequence
     wake_word_detector.process_audio_chunk(audio_block, timestamp=t0)
-    detected, authed, speaker = wake_word_detector.process_audio_chunk(audio_block, timestamp=t0 + 0.10)
+    detected, authed, speaker = wake_word_detector.process_audio_chunk(
+        audio_block, timestamp=t0 + 0.10
+    )
     assert detected is True
 
 
 def test_sandbox_clean_code_execution():
-    code = (
-        "import math\n"
-        "res = math.factorial(5)\n"
-        "print(f'RESULT={res}')\n"
-    )
+    code = "import math\n" "res = math.factorial(5)\n" "print(f'RESULT={res}')\n"
     res = asyncio.run(sandbox_service.execute_with_self_healing(code, max_retries=1))
     assert res["success"] is True
     assert "RESULT=120" in res["stdout"]
 
 
-def test_sandbox_self_healing_repair():
+def test_sandbox_self_healing_repair(monkeypatch):
+    from types import SimpleNamespace
+    from services import sandbox_service as sandbox_module
+
+    class OfflineRepair:
+        async def ainvoke(self, messages):
+            return SimpleNamespace(
+                content="```python\nimport math\nprint(math.factorial(5))\n```"
+            )
+
+    monkeypatch.setattr(sandbox_module, "get_drafting_llm", lambda: OfflineRepair())
     # Intentionally broken code missing import and having typo
     code = (
         "# Missing math import initially\n"

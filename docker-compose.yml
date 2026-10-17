@@ -31,9 +31,12 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env.example
+      - .env
     environment:
-      - SUPABASE_DB_URL=postgresql://postgres:password@postgres:5432/postgres
+      - STATE_DB_PATH=/app/data/agent.sqlite3
+      - ENABLE_SCHEDULER=false
+    volumes:
+      - agent_state:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,8 +54,12 @@ services:
     container_name: agent_worker
     restart: always
     command: python worker.py
+    environment:
+      - STATE_DB_PATH=/app/data/agent.sqlite3
+    volumes:
+      - agent_state:/app/data
     env_file:
-      - .env.example
+      - .env
     depends_on:
       agent:
         condition: service_healthy
@@ -74,3 +81,4 @@ services:
 
 volumes:
   pgdata:
+  agent_state:

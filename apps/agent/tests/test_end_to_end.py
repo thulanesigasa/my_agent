@@ -2,6 +2,7 @@
 End-to-End System Smoke Test: Simulates a complete multi-agent workflow cycle
 (triage_node -> drafter_node -> learner_node) and verifies memory persistence.
 """
+
 import pytest
 import uuid
 from core.state import AgentState
@@ -10,7 +11,7 @@ from core.memory import memory_manager
 
 
 @pytest.mark.asyncio
-async def test_end_to_end_agent_workflow():
+async def test_end_to_end_agent_workflow(fake_llm):
     """
     Executes full end-to-end workflow invocation and validates state transitions & memory storage.
     """
@@ -19,15 +20,18 @@ async def test_end_to_end_agent_workflow():
 
     initial_state: AgentState = {
         "messages": [
-            {"role": "user", "content": "Hello, we are launching an enterprise trial and need custom contract pricing for 50 seats."}
+            {
+                "role": "user",
+                "content": "Hello, we are launching an enterprise trial and need custom contract pricing for 50 seats.",
+            }
         ],
         "email_input": {
             "sender": "cto@enterprise-client.com",
             "subject": "Enterprise Trial Inquiry",
             "body": "We need custom contract pricing for 50 seats.",
-            "thread_id": test_session_id
+            "thread_id": test_session_id,
         },
-        "approval_status": "none"
+        "approval_status": "none",
     }
 
     # 1. Execute State Machine Workflow
@@ -36,13 +40,18 @@ async def test_end_to_end_agent_workflow():
     # 2. Validate State Output & Sender Node
     assert final_state is not None
     assert final_state.get("intent") in ["sales", "client_inquiry", "general"]
-    assert final_state.get("sender") in ["learner", "human_approval", "output_dispatcher_node"]
+    assert final_state.get("sender") == "human_approval"
+    assert final_state["needs_human_approval"] is True
+    from agents.human_approval import get_pending_approvals
+
+    assert len(get_pending_approvals()) == 1
+    assert get_pending_approvals()[0]["recipient_email"] == "cto@enterprise-client.com"
 
     # 3. Verify Memory Search & Recall
     recalled = await memory_manager.search_past_interactions(
         query="enterprise trial pricing 50 seats",
         user_id="cto@enterprise-client.com",
-        limit=3
+        limit=3,
     )
 
     assert isinstance(recalled, list)

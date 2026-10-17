@@ -3,7 +3,7 @@ LLM Factory & Resilient Provider Integration for T.s Industries Agent.
 Provides model instantiations for Groq (Llama 3.3 70B), Gemini 1.5 Pro, and OpenRouter with automatic fallbacks.
 Loads T.s Industries company knowledge context dynamically from root knowledge/ directory.
 """
-import os
+
 import logging
 from pathlib import Path
 from typing import Any, Optional
@@ -16,13 +16,15 @@ except ImportError:
 
 class _DummyChatOpenAI:
     """Fallback dummy class for static typing and environment safety when langchain is uninstalled."""
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         pass
 
     async def ainvoke(self, *args: Any, **kwargs: Any) -> Any:
         class _DummyResponse:
-            content = "AI Provider unavailable."
-        return _DummyResponse()
+            content = ""
+
+        raise RuntimeError("LLM client dependency unavailable")
 
 
 try:
@@ -45,7 +47,7 @@ def _create_openai_compatible_chat(
     api_key: str,
     base_url: str,
     temperature: float = 0.7,
-    max_tokens: int = 2048
+    max_tokens: int = 2048,
 ) -> Any:
     """
     Helper function to instantiate ChatOpenAI seamlessly across both langchain_openai
@@ -93,12 +95,14 @@ def load_system_context(knowledge_dir: Optional[str] = None) -> str:
 
     # Search for root knowledge directory relative to repository structure
     module_root = Path(__file__).resolve().parent.parent.parent.parent
-    possible_dirs.extend([
-        module_root / "knowledge",
-        Path.cwd() / "knowledge",
-        Path.cwd().parent / "knowledge",
-        Path.cwd().parent.parent / "knowledge",
-    ])
+    possible_dirs.extend(
+        [
+            module_root / "knowledge",
+            Path.cwd() / "knowledge",
+            Path.cwd().parent / "knowledge",
+            Path.cwd().parent.parent / "knowledge",
+        ]
+    )
 
     target_dir = None
     for d in possible_dirs:
@@ -107,7 +111,9 @@ def load_system_context(knowledge_dir: Optional[str] = None) -> str:
             break
 
     if not target_dir:
-        logger.warning("Knowledge directory not found. System prompt context will be empty.")
+        logger.warning(
+            "Knowledge directory not found. System prompt context will be empty."
+        )
         _SYSTEM_CONTEXT_CACHE = ""
         return _SYSTEM_CONTEXT_CACHE
 
@@ -118,7 +124,9 @@ def load_system_context(knowledge_dir: Optional[str] = None) -> str:
             with open(md_path, "r", encoding="utf-8") as f:
                 content = f.read().strip()
                 if content:
-                    context_parts.append(f"=== KNOWLEDGE SOURCE: {md_path.name} ===\n{content}")
+                    context_parts.append(
+                        f"=== KNOWLEDGE SOURCE: {md_path.name} ===\n{content}"
+                    )
         except Exception as e:
             logger.error(f"Error reading knowledge file {md_path}: {e}")
 
@@ -142,7 +150,9 @@ def get_triage_llm() -> BaseChatModel:
                 max_tokens=1024,
             )
         except Exception as e:
-            logger.error(f"Failed to initialize Groq Triage LLM: {e}. Falling back to OpenRouter.")
+            logger.error(
+                f"Failed to initialize Groq Triage LLM: {e}. Falling back to OpenRouter."
+            )
 
     return get_fallback_llm()
 
@@ -161,6 +171,7 @@ def get_drafting_llm() -> BaseChatModel:
     if settings.GEMINI_API_KEY:
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI  # type: ignore
+
             return ChatGoogleGenerativeAI(
                 model=settings.GEMINI_MODEL,
                 google_api_key=settings.GEMINI_API_KEY,
@@ -171,7 +182,6 @@ def get_drafting_llm() -> BaseChatModel:
             logger.warning(f"langchain_google_genai import/init warning: {e}")
 
     return get_fallback_llm()
-
 
 
 def get_fallback_llm() -> BaseChatModel:
@@ -190,14 +200,7 @@ def get_fallback_llm() -> BaseChatModel:
         except Exception as e:
             logger.error(f"OpenRouter Fallback LLM error: {e}")
 
-    # Default baseline instance
-    return _create_openai_compatible_chat(
-        model="gpt-3.5-turbo",
-        api_key=settings.OPENAI_API_KEY or "dummy_key",
-        base_url="https://api.openai.com/v1",
-        temperature=0.7,
-        max_tokens=2048
-    )
+    raise RuntimeError("No configured LLM provider is available")
 
 
 class LLMFactory:
@@ -206,55 +209,67 @@ class LLMFactory:
     handling model initialization, system context building, and fallbacks.
     """
 
-    async def invoke_triage(self, prompt: str, system_override: Optional[str] = None) -> str:
+    async def invoke_triage(
+        self, prompt: str, system_override: Optional[str] = None
+    ) -> str:
         """
         Execute triage invocation using Groq Llama 3.3 70B with T.s Industries knowledge context injection.
         """
         system = system_override if system_override else load_system_context()
         try:
             llm = get_triage_llm()
-            res = await llm.ainvoke([
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt}
-            ])
+            res = await llm.ainvoke(
+                [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ]
+            )
             return res.content if hasattr(res, "content") else str(res)
         except Exception as e:
             logger.error(f"Primary triage LLM failed: {e}. Executing fallback LLM...")
             try:
                 fallback_llm = get_fallback_llm()
-                res = await fallback_llm.ainvoke([
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": prompt}
-                ])
+                res = await fallback_llm.ainvoke(
+                    [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": prompt},
+                    ]
+                )
                 return res.content if hasattr(res, "content") else str(res)
             except Exception as fb_err:
                 logger.error(f"Fallback LLM failed: {fb_err}")
-                return '{"intent": "general", "needs_human_approval": false, "reason": "Fallback mode"}'
+                raise RuntimeError("Triage provider unavailable") from fb_err
 
-    async def invoke_drafter(self, prompt: str, system_override: Optional[str] = None) -> str:
+    async def invoke_drafter(
+        self, prompt: str, system_override: Optional[str] = None
+    ) -> str:
         """
         Execute drafting invocation using Gemini 1.5 Pro with T.s Industries knowledge context injection.
         """
         system = system_override if system_override else load_system_context()
         try:
             llm = get_drafting_llm()
-            res = await llm.ainvoke([
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt}
-            ])
+            res = await llm.ainvoke(
+                [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ]
+            )
             return res.content if hasattr(res, "content") else str(res)
         except Exception as e:
             logger.error(f"Primary drafting LLM failed: {e}. Executing fallback LLM...")
             try:
                 fallback_llm = get_fallback_llm()
-                res = await fallback_llm.ainvoke([
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": prompt}
-                ])
+                res = await fallback_llm.ainvoke(
+                    [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": prompt},
+                    ]
+                )
                 return res.content if hasattr(res, "content") else str(res)
             except Exception as fb_err:
                 logger.error(f"Fallback LLM failed: {fb_err}")
-                return "Thank you for contacting T.s Industries. We build high-performance web and mobile applications. Please visit ts-industries.co.za to request a quotation."
+                raise RuntimeError("Drafting provider unavailable") from fb_err
 
 
 llm_factory = LLMFactory()

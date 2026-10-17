@@ -31,3 +31,10 @@ dist/
 .DS_Store
 *.swp
 *.log
+
+# Durable runtime data (back up separately; never commit client records)
+apps/agent/data/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.tsbuildinfo

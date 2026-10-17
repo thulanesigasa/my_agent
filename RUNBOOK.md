@@ -1,69 +1,49 @@
-# 📖 Production Operational Runbook - Autonomous Agent Platform
+# Phase 1 operations
 
-This operational runbook provides step-by-step procedures for handling production incidents, API rate limits, checkpointer session resets, emergency overrides, and credential rotation for the autonomous AI agent platform.
+## Startup checks
 
----
+1. Start the API and dashboard using README instructions.
+2. Check `/health` for process liveness and `/health/detailed` for local database and provider configuration status. “Configured” does not assert that remote credentials are valid.
+3. Open the dashboard. A new installation has no leads, sends or approvals. API errors must appear as errors, not sample activity.
+4. Enable a single scheduler owner only when ready to poll the configured mailbox. Weekly delivery is disabled until Phase 3.
 
-## 🚨 Incident Response Matrix
+## Restart verification
 
-| Incident Type | Severity | Primary Cause | Mitigation Procedure |
-| :--- | :--- | :--- | :--- |
-| **API Provider Outage** | P1 | Groq or Gemini API offline | OpenRouter fallback auto-triggers; switch model in `.env` |
-| **Stuck LangGraph Execution** | P2 | Deadlocked node or unhandled tool error | Execute session reset API call or restart worker container |
-| **Database Connection Loss** | P1 | Supabase pgvector connection drop | Verify `SUPABASE_URL` credentials & restart agent cluster |
-| **Memory Extraction Leak** | P3 | High noise indexed in `langgraph_memory` | Run cleanup SQL query in Supabase |
+Approvals, leads, workflow tasks, submission records, activity events and local CRM/memory live in SQLite. Graph state lives in the adjacent checkpoints SQLite file. Restarting either process must not clear these files.
 
----
+Use the dashboard Approval Queue and `GET /api/activity` to inspect outstanding records. Protected endpoints require the `X-API-Key` header when API protection is enabled.
 
-## 🛠️ Step-by-Step Operating Procedures
+The activity view shows **last recorded state**, not a live process heartbeat. A task or inbox record left `running`/`processing` after a crash remains held for review. No automatic recovery guesses whether external work happened. Conversation claims prevent two processes from running the same thread concurrently. Failed invocations release their thread claim; abrupt process termination can leave it held.
 
-### 1. Handling API Provider Outages & Fallback Manual Override
-The backend features an automated fallback mechanism (`LLMFactory` in `apps/agent/services/llm_factory.py`).
-If Groq Llama 3.3 70B fails:
-1. The engine automatically catches the error and routes the request to OpenRouter (`anthropic/claude-3-haiku`).
-2. To force a global fallback to OpenRouter without restarting:
-   ```bash
-   # Update environment setting in .env
-   GROQ_API_KEY=""
-   # Reload Uvicorn worker process
-   ```
+## Held dispatches
 
----
+| State | Meaning | Action |
+| --- | --- | --- |
+| `pending` / `edited` | Draft awaits an explicit decision | Review and approve, edit or reject |
+| `failed` | Gmail unavailable before submission | Fix configuration, then retry explicitly |
+| `sending` | Send claimed; process may have been interrupted | Inspect Gmail Sent; do not resend automatically |
+| `delivery_unknown` | Provider submission may have succeeded | Inspect Gmail Sent and reconcile before changing state |
+| `sent` | Gmail returned a provider message ID | Do not resend this approval |
+| `rejected` | Operator rejected the draft | No send allowed |
 
-### 2. Clearing Stuck LangGraph State Sessions
-If a user thread gets stuck in a pending loop or unhandled state:
-```bash
-# Query active pending approvals via API
-curl http://localhost:8000/api/approvals
+Do not reset an uncertain send to pending merely to clear the queue. Phase 2 will add provider reconciliation controls. Until then, stop API/worker and review the corresponding approval and message records with a database tool before any manual correction. Back up first and retain the provider evidence. There is intentionally no one-click retry for uncertain submissions.
 
-# Reject or reset stuck thread_id
-curl -X POST http://localhost:8000/api/approvals/stuck_thread_id/action \
-  -H "Content-Type: application/json" \
-  -d '{"action": "reject"}'
-```
+Failed inbox work is retained and is not automatically reprocessed. Repeated notifications do not rerun successfully processed messages. Phase 2 will add full history cursors and recovery of failed inbox tasks; unread polling currently examines up to five messages per cycle and is not a complete mailbox synchronisation strategy.
 
----
+## Backup and restore
 
-### 3. Emergency Human Override & System Shutdown
-To halt automated external tool executions (emails, WhatsApp dispatches):
-1. Set `API_KEY_REQUIRED=true` and change `AGENT_API_KEY` in `.env`.
-2. Stop background worker process:
-   ```bash
-   docker-compose stop worker
-   ```
+Stop the API and worker before making a consistent backup of the entire data directory. Copy both SQLite files and any associated WAL/SHM files together, and store the copy somewhere private. On Docker, stop the services and back up the `agent_state` volume; do not remove that volume.
 
----
+For restore, stop both processes, replace the complete data directory from the same backup, preserve file permissions, then restart. Reconcile held and recently sent work against Gmail before dispatching anything; restoring an old database does not unsend email and can lose local knowledge of a send.
 
-### 4. Zero-Downtime API Key Rotation
-To rotate `GROQ_API_KEY`, `GEMINI_API_KEY`, or `SUPABASE_SERVICE_ROLE_KEY`:
-1. Update secrets in your cloud provider environment dashboard (Railway/Render) or `.env`.
-2. Perform rolling container restart:
-   ```bash
-   docker-compose up -d --no-deps --build agent worker
-   ```
+Never back up only the old Postgres container and assume workflow data is covered. Hosted Supabase CRM/memory require their own backup procedure if configured.
 
----
+## Provider failures
 
-## 📊 Observability & Monitoring Metrics
-- **Health Check Endpoint**: `GET /health/detailed`
-- **LangSmith Dashboard**: Check execution traces under `autonomous-agent-platform` project.
+Missing Gmail and LLM providers are explicit errors. Configured Supabase failures do not switch to a new local CRM or memory store. Check server logs without sharing credentials. Supabase client construction and Gmail credential presence alone do not establish connectivity.
+
+The Gmail webhook is disabled without a secret, rejects incorrect headers, rejects malformed payloads and returns 503 when processing cannot complete. Phase 1 uses a trusted-relay shared secret, not native Google OIDC verification.
+
+## Scope
+
+No live campaign, hosted database migration, deployment or real email is required to validate Phase 1. Run the offline suite and frontend build. Voice behaviour is outside this milestone. Weekly reporting, contact eligibility and autonomous campaign operation remain scheduled for later phases.

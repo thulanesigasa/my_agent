@@ -2,10 +2,10 @@
 APScheduler Background Worker: Manages active/sleep cycles, weekly Excel reports, and 2-minute polling.
 Configured for Africa/Johannesburg timezone with South African public holiday awareness.
 """
+
 import logging
-import asyncio
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 try:
     import zoneinfo
@@ -17,20 +17,23 @@ try:
     from apscheduler.triggers.cron import CronTrigger
     from apscheduler.triggers.interval import IntervalTrigger
 except ImportError as e:
-    logging.warning(f"APScheduler import warning: {e}. Install dependencies using: pip install -r requirements.txt.")
+    logging.warning(
+        f"APScheduler import warning: {e}. Install dependencies using: pip install -r requirements.txt."
+    )
     AsyncIOScheduler = None
     CronTrigger = None
     IntervalTrigger = None
 
 try:
     import holidays
+
     SA_HOLIDAYS = holidays.ZA()
 except ImportError:
     logging.warning("holidays package unavailable. Falling back to default calendar.")
     SA_HOLIDAYS = {}
 
 from services.report_service import send_weekly_report
-from services.email_service import email_service
+from services.inbox_service import process_inbox_batch
 
 logger = logging.getLogger("agent.scheduler")
 
@@ -87,15 +90,18 @@ async def poll_inbox_and_leads() -> Dict[str, Any]:
     Checks if agent is active before polling unread emails and executing tasks.
     """
     if not is_agent_active():
-        logger.info("[Scheduler] Agent is currently in SLEEP mode. Skipping 2-minute polling cycle.")
+        logger.info(
+            "[Scheduler] Agent is currently in SLEEP mode. Skipping 2-minute polling cycle."
+        )
         return {"status": "sleeping", "active": False}
 
-    logger.info("[Scheduler] Agent is ACTIVE. Executing 2-minute inbox polling cycle...")
+    logger.info(
+        "[Scheduler] Agent is ACTIVE. Executing 2-minute inbox polling cycle..."
+    )
 
     try:
-        unread_emails = await email_service.fetch_unread_emails(max_results=5)
-        logger.info(f"[Scheduler] Polled {len(unread_emails)} unread email(s).")
-        return {"status": "polled", "active": True, "emails_count": len(unread_emails)}
+        result = await process_inbox_batch()
+        return {"status": "polled", "active": True, **result}
     except Exception as e:
         logger.error(f"[Scheduler] Polling error: {e}")
         return {"status": "error", "active": True, "error": str(e)}
@@ -138,20 +144,15 @@ class AgentScheduler:
             trigger=IntervalTrigger(minutes=2),
             id="polling_job",
             name="2-minute Inbox & Lead Polling",
-            replace_existing=True
+            replace_existing=True,
         )
 
-        # 2. Monday 07:00 AM Weekly Excel report cron job
-        self.scheduler.add_job(
-            generate_and_send_weekly_report_job,
-            trigger=CronTrigger(day_of_week="mon", hour=7, minute=0, timezone=TIMEZONE_STR),
-            id="weekly_report_job",
-            name="Monday 07:00 AM Weekly Report",
-            replace_existing=True
-        )
+        # Weekly report delivery is disabled until Phase 3.
 
         self.scheduler.start()
-        logger.info("APScheduler worker started successfully (Timezone: Africa/Johannesburg).")
+        logger.info(
+            "APScheduler worker started successfully (Timezone: Africa/Johannesburg)."
+        )
 
     def shutdown(self) -> None:
         """

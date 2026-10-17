@@ -1,6 +1,7 @@
 """
 AgentState TypedDict definition for LangGraph multi-agent orchestration.
 """
+
 from typing import TypedDict, List, Dict, Any, Optional, Union
 from typing_extensions import Annotated
 from langgraph.graph.message import add_messages
@@ -11,6 +12,7 @@ class AgentState(TypedDict, total=False):
     """
     Shared state container passed between LangGraph nodes.
     """
+
     # Conversation message history (HumanMessage, AIMessage, SystemMessage)
     messages: Annotated[List[Union[BaseMessage, Dict[str, Any]]], add_messages]
 
@@ -34,6 +36,9 @@ class AgentState(TypedDict, total=False):
 
     # Approval status ('pending', 'approved', 'rejected')
     approval_status: Optional[str]
+
+    risk_level: str
+    is_forbidden: bool
 
     # Final output response payload (text or voice audio base64)
     final_output: Optional[Union[str, Dict[str, Any]]]

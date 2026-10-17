@@ -2,6 +2,7 @@
 Drafter Agent Node: Synthesizes responses using Gemini 1.5 Pro, T.s Industries knowledge base,
 unbreakable business rules, live CRM/Dashboard metrics, and procedural skills.
 """
+
 import logging
 from core.state import AgentState
 from services.llm_factory import llm_factory
@@ -9,7 +10,7 @@ from core.memory import memory_manager
 from tools.knowledge_tools import read_company_knowledge
 from tools.procedural_tools import load_unbreakable_rules, fetch_skill
 from agents.human_approval import get_pending_approvals
-from services.crm_service import get_all_clients, get_all_projects
+from services.crm_service import get_all_clients
 from tools.admin_tools import get_sent_emails
 
 logger = logging.getLogger("agent.node.drafter")
@@ -26,6 +27,7 @@ Follow these core directives strictly:
 6. When asked about clients, emails sent, pending approvals, or dashboard status, ALWAYS answer directly using the provided LIVE REAL-TIME DASHBOARD DATA. Never ask the user for clarification or timeframes when live data is provided below.
 7. When mentioning or summarizing pending approvals or the approval queue, ALWAYS include the link [Approval Queue](/dashboard?tab=approvals) at the end of the response so the user can click directly to the approval queue.
 """
+
 
 async def drafter_node(state: AgentState) -> AgentState:
     """
@@ -49,40 +51,72 @@ async def drafter_node(state: AgentState) -> AgentState:
         user_input = f"Subject: {email_input.get('subject', '')}\nBody: {email_input.get('body', '')}"
     elif messages:
         last_msg = messages[-1]
-        user_input = last_msg.get("content", "") if isinstance(last_msg, dict) else str(getattr(last_msg, "content", last_msg))
+        user_input = (
+            last_msg.get("content", "")
+            if isinstance(last_msg, dict)
+            else str(getattr(last_msg, "content", last_msg))
+        )
 
     text_lower = user_input.lower()
 
     # Live Dashboard & CRM Data Query
     live_dashboard_lines = []
-    if any(k in text_lower for k in ("client", "email", "approval", "dashboard", "report", "outreach", "status", "respond", "response")):
+    if any(
+        k in text_lower
+        for k in (
+            "client",
+            "email",
+            "approval",
+            "dashboard",
+            "report",
+            "outreach",
+            "status",
+            "respond",
+            "response",
+        )
+    ):
         # 1. Pending Approvals
         pending = get_pending_approvals()
-        live_dashboard_lines.append(f"• Pending Email Approvals Queue: {len(pending)} item(s) awaiting approval.")
+        live_dashboard_lines.append(
+            f"• Pending Email Approvals Queue: {len(pending)} item(s) awaiting approval."
+        )
         for p in pending:
-            live_dashboard_lines.append(f"   - Thread: {p.get('thread_id')} | Client: {p.get('client_name', 'Lead')} | Intent: {p.get('intent')}")
+            live_dashboard_lines.append(
+                f"   - Thread: {p.get('thread_id')} | Client: {p.get('client_name', 'Lead')} | Intent: {p.get('intent')}"
+            )
 
         # 2. CRM Clients
         try:
             clients = await get_all_clients()
             if clients:
-                live_dashboard_lines.append(f"• CRM Registered Clients: {len(clients)} client(s) total.")
+                live_dashboard_lines.append(
+                    f"• CRM Registered Clients: {len(clients)} client(s) total."
+                )
                 for c in clients[:15]:
                     name = c.get("name") or c.get("client_name") or "Lead"
                     email = c.get("email") or c.get("client_email") or "N/A"
                     status = c.get("status") or "Active"
-                    live_dashboard_lines.append(f"   - {name} ({email}) | Status: {status}")
+                    live_dashboard_lines.append(
+                        f"   - {name} ({email}) | Status: {status}"
+                    )
             else:
-                live_dashboard_lines.append("• CRM Registered Clients: 0 clients currently recorded in CRM database.")
+                live_dashboard_lines.append(
+                    "• CRM Registered Clients: 0 clients currently recorded in CRM database."
+                )
         except Exception as e:
             logger.warning(f"CRM query warning: {e}")
 
         # 3. Dashboard Recent Outreach Logs (Matching Admin Dashboard UI)
         try:
-            from main import OUTREACH_LOGS_DATABASE
-            live_dashboard_lines.append("• Dashboard Recent Outreach Logs (as shown on Admin Dashboard):")
-            for log in OUTREACH_LOGS_DATABASE:
-                reply_info = f" (Client Reply: '{log['reply']}')" if log.get('reply') else ""
+            from core.store import store
+
+            live_dashboard_lines.append(
+                "• Dashboard Recent Outreach Logs (as shown on Admin Dashboard):"
+            )
+            for log in store.email_logs():
+                reply_info = (
+                    f" (Client Reply: '{log['reply']}')" if log.get("reply") else ""
+                )
                 live_dashboard_lines.append(
                     f"   - {log['company']} ({log['recipient']}) | Subject: '{log['subject']}' | Status: {log['status']}{reply_info}"
                 )
@@ -96,17 +130,32 @@ async def drafter_node(state: AgentState) -> AgentState:
         except Exception as e:
             logger.warning(f"Email log query warning: {e}")
 
-    live_dashboard_context = "\n".join(live_dashboard_lines) if live_dashboard_lines else "No specific dashboard query requested."
+    live_dashboard_context = (
+        "\n".join(live_dashboard_lines)
+        if live_dashboard_lines
+        else "No specific dashboard query requested."
+    )
 
     # Fetch matching procedural skill if applicable (e.g. quote, onboarding)
-    task_keyword = "quote" if "quote" in text_lower or "pricing" in text_lower else intent
+    task_keyword = (
+        "quote" if "quote" in text_lower or "pricing" in text_lower else intent
+    )
     skill_procedure = fetch_skill(task_keyword)
 
     # Additional query if context empty
     if not context:
         context = await memory_manager.search_memory(user_input, limit=3)
 
-    context_str = "\n".join([f"- {c['content']}" for c in context]) if context else "No prior memory context."
+    context_str = (
+        "\n".join(
+            [
+                f"- {c.get('content') or c.get('value', {}).get('content', '')}"
+                for c in context
+            ]
+        )
+        if context
+        else "No prior memory context."
+    )
 
     combined_system = f"""
 {company_knowledge}
@@ -139,5 +188,5 @@ Please generate a detailed, polished response or draft message representing T.s 
         **state,
         "sender": "drafter",
         "draft_response": draft_output,
-        "final_output": draft_output
+        "final_output": draft_output,
     }
