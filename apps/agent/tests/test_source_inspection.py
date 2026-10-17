@@ -270,3 +270,22 @@ def test_parser_bounds_findings_and_ignores_dangerous_links():
     found = inspection.parse_evidence(text, "https://example.test/", "Town")
     assert len(found["emails"]) == 10 and found["links"] == []
     assert all(len(item["evidence"]) <= 220 for item in found["emails"])
+
+
+@pytest.mark.asyncio
+async def test_review_before_findings_publication_does_not_acknowledge_unseen_evidence(
+    monkeypatch,
+):
+    lead = qualified()
+    fake_extract(monkeypatch, lead)
+    original = inspection.save_inspection
+
+    def review_before_publication(lead_id, fingerprint, findings, **kwargs):
+        current = store.get("leads", lead_id)
+        review_lead(lead_id, review_payload(current))
+        return original(lead_id, fingerprint, findings, **kwargs)
+
+    monkeypatch.setattr(inspection, "save_inspection", review_before_publication)
+    await inspection.inspect_source(lead["id"])
+    with pytest.raises(EligibilityError, match="inspection"):
+        ensure_qualified(lead["id"])

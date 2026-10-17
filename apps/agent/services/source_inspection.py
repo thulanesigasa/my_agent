@@ -101,7 +101,7 @@ def parse_evidence(text, url, location):
     }
 
 
-def save_inspection(lead_id, fingerprint, inspection):
+def save_inspection(lead_id, fingerprint, inspection, *, fresh=False):
     with store.connect() as db:
         db.execute("BEGIN IMMEDIATE")
         row = db.execute(
@@ -111,6 +111,10 @@ def save_inspection(lead_id, fingerprint, inspection):
             raise ConflictError(
                 "The candidate source changed during inspection; reload and inspect the current source"
             )
+        if fresh:
+            # Set under the same write lock as publication, so a concurrent review
+            # cannot appear to acknowledge findings it could not yet have seen.
+            inspection["checked_at"] = now()
         db.execute(
             "INSERT INTO records VALUES ('lead_inspections', ?, ?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data",
             (lead_id, json.dumps(inspection)),
@@ -190,7 +194,7 @@ async def inspect_source(lead_id):
             "findings": parse_evidence(text, url, lead["location"]),
             "warning": "Unverified literal page findings. Directory contacts and linked websites may belong to other businesses. Dates and closure phrases need context. No finding proves current activity, website absence or contact permission.",
         }
-        save_inspection(lead_id, fingerprint, inspection)
+        save_inspection(lead_id, fingerprint, inspection, fresh=True)
         store.put(
             "research_cache",
             cache_id,
