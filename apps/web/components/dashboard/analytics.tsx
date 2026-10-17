@@ -12,8 +12,8 @@ export const AnalyticsDashboard: React.FC = () => {
   if (!metrics) return <p className="text-sm">Loading recorded activity…</p>;
   const cards = [
     ["Confirmed outreach sends", metrics.totalEmailsSent],
-    ["Responses", metrics.replyTrackingAvailable ? metrics.totalResponsesReceived : "Not tracked yet"],
-    ["Response rate", metrics.replyTrackingAvailable ? `${metrics.responseRatePercent}%` : "Not tracked yet"],
+    ["Conversations replied", metrics.replyTrackingAvailable ? metrics.totalResponsesReceived : "Not tracked yet"],
+    ["Response rate", metrics.replyTrackingAvailable ? (metrics.responseRatePercent === null ? "—" : `${metrics.responseRatePercent}%`) : "Not tracked yet"],
     ["Recorded leads", metrics.activeLeadsInPipeline],
   ];
   return <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

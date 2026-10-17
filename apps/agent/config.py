@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     WEBHOOK_SECRET: str = ""
     ENABLE_SCHEDULER: bool = False
+    WEEKLY_REPORTS_ENABLED: bool = False
     STATE_DB_PATH: str = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "data", "agent.sqlite3"
     )

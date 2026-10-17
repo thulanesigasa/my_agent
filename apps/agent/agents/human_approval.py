@@ -73,6 +73,13 @@ async def approve_draft(thread_id):
     ):
         raise EligibilityError("This draft belongs to another sending mailbox")
     ensure_eligible(item["recipient_email"], item.get("purpose", "outreach"))
+    attachment = None
+    if item.get("purpose") == "report":
+        from services.report_service import report_attachment
+
+        attachment = report_attachment(
+            item.get("report_id"), email_service.expected_email
+        )
     # Claim atomically before network I/O. Concurrent requests and interrupted sends cannot resend.
     item = store.transition(
         "approvals", thread_id, ["pending", "edited", "failed"], "sending", error=None
@@ -87,6 +94,7 @@ async def approve_draft(thread_id):
             approval_id=thread_id,
             in_reply_to=item.get("in_reply_to"),
             references=item.get("references"),
+            attachment=attachment,
             company=item.get("client_name")
             or item.get("lead_data", {}).get("name", ""),
         )

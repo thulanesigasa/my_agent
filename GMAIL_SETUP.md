@@ -135,3 +135,14 @@ Optional native push supports `PUBSUB_AUDIENCE` and `PUBSUB_SERVICE_ACCOUNT_EMAI
 On Docker, run the authorisation helper on the host first. Compose mounts `./.secrets` read-only at `/app/secrets` in both API and worker and sets `GMAIL_TOKEN_PATH=/app/secrets/gmail-token.json`. The token is not copied into an image. Default published ports are bound to localhost. Custom frontend origins must be explicitly added to `CORS_ORIGINS` rather than using wildcard access.
 
 Back up the workflow data directory and protect the separate credentials folder. Restore with the API/worker stopped and reconcile sends against Gmail before resuming. This phase does not activate a business outreach campaign or complete Google's public-app verification on your behalf.
+
+
+## Test email landed in spam
+
+A successful API submission proves Gmail accepted the message, not inbox placement. Phase 3 uses standard SMTP CRLF serialization, retains a unique Message-ID, Date and actual verified From address, and preserves real reply headers. It does not forge SPF/DKIM results or claim to fix spam filtering.
+
+For a useful comparison, send one ordinary message manually from Gmail to the same test mailbox. In the received app message, inspect the provider's **Show original / View message source** screen and its Authentication-Results (SPF, DKIM and DMARC) plus any spam reason. Record whether the manual message also landed in spam. Share only redacted authentication results and the stated spam reason if you want help interpreting them; the full source may expose addresses and message content. For an @gmail.com sender, Google manages the domain's authentication; there is no gmail.com DNS record for you to edit.
+
+Use a clear sender identity and subject, real portfolio links, relevant permission-based content, and honour opt-outs. Do not add fake authentication headers, misleading Re: prefixes, tracking pixels or repeated test blasts as a purported fix. Gmail filters are recipient/provider dependent; passing authentication is not an inbox guarantee. See [Google's sender guidelines](https://support.google.com/mail/answer/81126?hl=en).
+
+Once a test reply syncs, open Reports, select This week and Include connection tests, then refresh. Your test can now appear in a report without inflating outreach-only statistics. See [REPORTING.md](REPORTING.md).

@@ -11,7 +11,7 @@ For local authorisation and the live test, follow [GMAIL_SETUP.md](GMAIL_SETUP.m
 
 ## Restart verification
 
-Approvals, leads, workflow tasks, submission records, activity events and local CRM/memory live in SQLite. Graph state lives in the adjacent checkpoints SQLite file. Restarting either process must not clear these files.
+Report snapshots, outcome history, approvals, leads, workflow tasks, submission records, activity events and local CRM/memory live in SQLite. Graph state lives in the adjacent checkpoints SQLite file. Restarting either process must not clear these files.
 
 Use the dashboard Approval Queue and `GET /api/activity` to inspect outstanding records. Protected endpoints require the `X-API-Key` header when API protection is enabled.
 
@@ -49,3 +49,10 @@ The Gmail webhook is disabled without a secret, rejects incorrect headers, rejec
 ## Scope
 
 No live campaign, hosted database migration or deployment is required to validate the code. Operator authorisation and one controlled real test conversation are still required to validate the actual Gmail account. Run the offline suite and frontend build. Voice behaviour is outside this milestone. Contact eligibility is enforced in Phase 2; weekly reporting and autonomous campaigns remain later work.
+
+
+## Reports
+
+Use Reports → This week → Refresh report after a successful Gmail sync. Connection tests are excluded unless selected. Zero counts with tests excluded are expected during the connection test. Save a snapshot before exporting or emailing; saved snapshots do not absorb later replies or edited outcomes. See REPORTING.md for definitions.
+
+Set WEEKLY_REPORTS_ENABLED=true and run one scheduler (worker, or one API with ENABLE_SCHEDULER=true) for Monday 07:00 SAST snapshot/draft generation. The machine must be running. Missed cron runs while the process is stopped are not replayed; generate the previous week manually from Reports. A restart/second worker cannot create a duplicate weekly draft for the same mailbox/week. Rejected weekly drafts stay rejected. Report sends require Approve & Send and use the existing delivery-unknown hold and reconciliation flow.

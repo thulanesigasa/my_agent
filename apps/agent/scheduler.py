@@ -32,6 +32,7 @@ except ImportError:
     logging.warning("holidays package unavailable. Falling back to default calendar.")
     SA_HOLIDAYS = {}
 
+from config import settings
 from services.report_service import send_weekly_report
 from services.inbox_service import process_inbox_batch
 
@@ -110,7 +111,7 @@ async def poll_inbox_and_leads() -> Dict[str, Any]:
 async def generate_and_send_weekly_report_job() -> None:
     """
     Cron job: Every Monday at 07:00 AM Africa/Johannesburg.
-    Generates weekly Excel performance report and emails it to admin.
+    Saves the previous complete week and queues a report email for approval.
     """
     logger.info("[Scheduler] Triggering Monday 07:00 AM weekly Excel report job...")
     try:
@@ -147,7 +148,18 @@ class AgentScheduler:
             replace_existing=True,
         )
 
-        # Weekly report delivery is disabled until Phase 3.
+        if settings.WEEKLY_REPORTS_ENABLED:
+            self.scheduler.add_job(
+                generate_and_send_weekly_report_job,
+                trigger=CronTrigger(
+                    day_of_week="mon", hour=7, minute=0, timezone=TIMEZONE_STR
+                ),
+                id="weekly_report",
+                name="Weekly report draft",
+                replace_existing=True,
+                coalesce=True,
+                misfire_grace_time=3600,
+            )
 
         self.scheduler.start()
         logger.info(

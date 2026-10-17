@@ -93,6 +93,71 @@ class StateStore:
             )
         return value
 
+    def snapshot(self, kinds):
+        """Read report inputs in one consistent SQLite transaction."""
+        with self.connect() as db:
+            db.execute("BEGIN")
+            result = {}
+            for kind in kinds:
+                rows = db.execute(
+                    "SELECT id, data FROM records WHERE kind=? ORDER BY rowid", (kind,)
+                ).fetchall()
+                result[kind] = [
+                    {**json.loads(data), "id": record_id} for record_id, data in rows
+                ]
+            return result
+
+    def insert_once(self, kind, record_id, data):
+        value = {**data, "id": record_id, "created_at": now()}
+        with self.connect() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO records VALUES (?, ?, ?)",
+                (kind, record_id, json.dumps(value)),
+            )
+        return self.get(kind, record_id)
+
+    def record_outcome(self, mailbox, thread_id, recipient, outcome, note):
+        event_id = uuid4().hex
+        value = {
+            "id": event_id,
+            "mailbox": mailbox,
+            "thread_id": thread_id,
+            "recipient": recipient,
+            "outcome": outcome,
+            "note": note,
+            "created_at": now(),
+        }
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute(
+                "INSERT INTO records VALUES ('outcomes', ?, ?)",
+                (event_id, json.dumps(value)),
+            )
+            if outcome == "unsubscribed":
+                row = db.execute(
+                    "SELECT data FROM records WHERE kind='contacts' AND id=?",
+                    (recipient,),
+                ).fetchone()
+                contact = json.loads(row[0]) if row else {"email": recipient}
+                contact.update(
+                    consent="unsubscribed", suppression_reason=note, updated_at=now()
+                )
+                db.execute(
+                    "INSERT INTO records VALUES ('contacts', ?, ?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data",
+                    (recipient, json.dumps(contact)),
+                )
+            db.execute(
+                "INSERT INTO activity VALUES (?, ?, ?, ?, ?)",
+                (
+                    uuid4().hex,
+                    "outcomes.recorded",
+                    event_id,
+                    now(),
+                    json.dumps({"outcome": outcome}),
+                ),
+            )
+        return value
+
     def delete(self, kind, record_id):
         with self.connect() as db:
             result = db.execute(
@@ -381,14 +446,9 @@ class StateStore:
         return logs
 
     def metrics(self):
-        # Aggregate/cohort reports remain Phase 3; raw reply records are available now.
-        return {
-            "totalEmailsSent": len(self.email_logs()),
-            "totalResponsesReceived": None,
-            "responseRatePercent": None,
-            "activeLeadsInPipeline": len(self.list("leads")),
-            "replyTrackingAvailable": False,
-        }
+        from services.report_service import all_time_metrics
+
+        return all_time_metrics()
 
 
 store = StateStore()
