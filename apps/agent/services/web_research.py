@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import time
+from contextvars import ContextVar
 from datetime import datetime
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -16,6 +17,7 @@ from services.lead_discovery import DiscoveryUnavailable, ResearchCooldown
 from services.lead_service import ingest_candidate, normalized, public_url
 
 ENDPOINT = "https://api.tavily.com/search"
+active_research_job = ContextVar("active_research_job", default=None)
 
 
 def research_status():
@@ -58,6 +60,27 @@ def reserve_request():
         ):
             raise DiscoveryUnavailable(
                 "Tavily local daily/monthly research budget reached. No new request was sent."
+            )
+        job_id = active_research_job.get()
+        if job_id:
+            row = db.execute(
+                "SELECT data FROM records WHERE kind='research_jobs' AND id=?",
+                (job_id,),
+            ).fetchone()
+            job = json.loads(row[0]) if row else None
+            if not job or job.get("status") != "running" or job.get("pause_requested"):
+                raise DiscoveryUnavailable(
+                    "Research job was paused before a new provider request"
+                )
+            if job["requests_used"] >= job["max_requests"]:
+                raise DiscoveryUnavailable(
+                    "This research job reached its request budget; increase its budget before resuming"
+                )
+            job["requests_used"] += 1
+            job["updated_at"] = datetime.now(ZoneInfo("UTC")).isoformat()
+            db.execute(
+                "UPDATE records SET data=? WHERE kind='research_jobs' AND id=?",
+                (json.dumps(job), job_id),
             )
         stamp = datetime.now(ZoneInfo("Africa/Johannesburg"))
         usage = {

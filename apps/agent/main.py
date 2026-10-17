@@ -55,6 +55,7 @@ from agents.learner import learner_node
 from routers import health, webhooks, gmail, reports, leads
 from services.contacts import EligibilityError
 from scheduler import agent_scheduler
+from services.research_jobs import research_job_runner
 
 # Logging Setup
 logging.basicConfig(
@@ -273,6 +274,8 @@ async def on_startup():
     Startup lifecycle: Starts APScheduler background worker for 2-min polling & weekly Excel report cron.
     """
     logger.info("Initializing application startup services...")
+    if settings.RESEARCH_JOBS_ENABLED:
+        research_job_runner.start()
     try:
         if settings.ENABLE_SCHEDULER:
             agent_scheduler.start()
@@ -286,6 +289,7 @@ async def on_shutdown():
     Shutdown lifecycle: Gracefully stops background scheduler worker.
     """
     logger.info("Shutting down background services...")
+    await research_job_runner.stop()
     try:
         agent_scheduler.shutdown()
     except Exception as e:

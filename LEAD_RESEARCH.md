@@ -170,3 +170,33 @@ South African phone variants such as `072 760 5595`, `+27 72 760 5595` and a `te
 If the inspected page itself is the business’s existing website, use **Mark this inspected page as the business website after checking ownership**, then save the review with **Independent website found** and reject it for no-website outreach. That action only edits the unsaved review; it does not assume the business serves the target town.
 
 Formatting cleanup also applies to older saved/cached findings on read. Pull and restart to see cleaned results without spending another extraction attempt or renewing the inspection/review timestamp. Unsupported or dynamic asset URLs may still need operator review.
+
+## Automatic research jobs
+
+Use **Leads → Automatic research jobs** to run discovery, source inspection and assessment from one start action. Pull the update and restart both servers; no new dependencies or credentials are required. Keep the existing local Tavily key, `ALLOW_TAVILY_RESEARCH=true`, and paid usage disabled at the provider. `RESEARCH_JOBS_ENABLED=true` is the default. The API starts a lightweight job runner independently of the Gmail/report scheduler; it makes no provider request without a queued job. Set the flag to false and restart the backend to disable this runner.
+
+1. Enter the town and business type, up to 10 source results (default 2), and a **total job request budget** of 1–10 (default 3).
+2. Click **Start research** once. Only one job can be active at a time; pause an existing job before starting another.
+3. The job discovers sources, then inspects and assesses each saved candidate. It handles the shared cooldown automatically. A budget of 3 normally allows one new search and two new source inspections. Cached steps use no request allowance. Both per-job and installation daily/monthly budgets apply; creating/resuming a job does not reset either counter.
+4. Follow the status and saved progress, or close the dashboard while the backend stays running. Active progress polls the local API every five seconds; polling consumes no Tavily requests. **Pause job** stops subsequent steps; an already in-flight request can finish and save its result.
+5. At a local/provider budget or provider authorization/network/service error, the job pauses. Fix the issue or wait for the relevant allowance, then use **Resume saved job**. You may raise its total job budget, up to 10; this does not raise shared quotas. The budget includes requests already spent, not just future requests. No provider error automatically upgrades a plan, enables payment or triggers a retry.
+6. An unreadable source (HTTP-200 per-URL extraction failure, mismatched returned URL, empty/oversized content) or unsupported map source goes to the review queue, then the job continues to other candidates. A rate limit or service-wide error pauses the job rather than repeatedly retrying. Previously rejected, closed or operator-recorded website candidates skip inspection to avoid wasted requests.
+7. Open candidates from the assessment table. Review identity, current activity, website ownership/absence and exact contact evidence, then record genuine contact permission separately. This job neither qualifies leads nor creates drafts, approvals, contacts or sends. Portfolio-based drafting and controlled outreach remain separate work.
+
+| Assessment | Meaning |
+| --- | --- |
+| Excluded by operator evidence | An existing human review rejected the candidate or recorded closure |
+| Website recorded | An existing review records an independent website |
+| Possible existing website · review | A published email domain matches the inspected source host; ownership still needs checking |
+| Potential match · review | Existing operator website research supports further consideration, or email and town text appeared without a website/closure signal; this is not proof of website absence, activity or eligibility |
+| Uncertain · review | Insufficient, conflicting or unreadable source evidence |
+
+Assessments are rule-based snapshots with explicit exception flags, not LLM-generated confidence scores. They do not alter lead decisions, contact verification or consent. A recent inspection continues to require a subsequent review before an existing qualified lead can send. Matched town text can describe a service area or an unrelated branch; same-domain email can belong to a directory. Both require review.
+
+Jobs, cursors, request reservations and in-flight markers are saved in the local SQLite ledger. An atomic reservation charges each new provider request against both the job and shared budget before network I/O; failures count conservatively. API/manual searches, inspections and the worker share the same quota, lease and caches. A runner lease prevents two API workers from advancing the same job simultaneously.
+
+Queued/waiting jobs survive a backend restart and continue once due. If the backend stops during an in-flight step, recovery pauses it for operator review after any abandoned lease expires (up to about two minutes). The provider may have completed the request before the app stopped. Resume uses saved caches where available, but an interrupted uncached step may need another reserved request; it is not replayed automatically. **Pause the job before stopping the backend** if you do not want a queued/waiting job to resume on the next launch. Closing the dashboard does not pause a job.
+
+The dashboard lists up to 20 recently updated jobs, prioritizing any active job. Completed-job assessments remain historical snapshots; opening a candidate shows its current review/evidence. A completed research job does not mean outreach eligibility is complete or that an email was sent. Keep the backend and local database available for this single-host pilot; there is no cloud-hosted research worker.
+
+Offline tests cover shared/per-job quota reservations, cached free steps, cooldown waits, pause during requests, restart/cancellation recovery, multiple-worker exclusion, API authorization, unreadable-source continuation and absence of contacts/drafts/sends. Live research coverage and source availability still require a small test on the configured account.

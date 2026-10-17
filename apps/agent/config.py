@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     # Lead Discovery / Web Search
     TAVILY_API_KEY: Optional[str] = None
     ALLOW_TAVILY_RESEARCH: bool = False
+    RESEARCH_JOBS_ENABLED: bool = True
     TAVILY_DAILY_QUERY_LIMIT: int = Field(default=5, ge=1, le=20)
     TAVILY_MONTHLY_QUERY_LIMIT: int = Field(default=100, ge=1, le=500)
     OSM_DAILY_QUERY_LIMIT: int = Field(default=20, ge=1, le=100)

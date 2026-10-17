@@ -28,6 +28,7 @@ from services.lead_discovery import (
 
 from services.web_research import discover_web, research_status
 from services.source_inspection import inspect_source
+from services.research_jobs import create_job, control_job, list_jobs
 
 router = APIRouter(
     prefix="/api/leads", tags=["Leads"], dependencies=[Depends(verify_api_key)]
@@ -69,7 +70,39 @@ def leads():
         "provider": provider_info(),
         "retry_after_seconds": cooldown_remaining(),
         "web_research": research_status(),
+        "research_jobs": list_jobs(),
+        "research_worker_enabled": settings.RESEARCH_JOBS_ENABLED,
     }
+
+
+class ResearchJobInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    location: str = Field(min_length=1, max_length=200)
+    industry: str = Field(min_length=1, max_length=200)
+    limit: int = Field(default=2, ge=1, le=10)
+    max_requests: int = Field(default=3, ge=1, le=10)
+
+
+@router.post("/jobs", status_code=202)
+def start_research_job(payload: ResearchJobInput):
+    try:
+        return create_job(**payload.model_dump())
+    except (ValueError, ConflictError, DiscoveryUnavailable) as exc:
+        failure(exc)
+
+
+class JobControlInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: Literal["pause", "resume"]
+    max_requests: int | None = Field(default=None, ge=1, le=10)
+
+
+@router.patch("/jobs/{job_id}")
+def update_research_job(job_id: str, payload: JobControlInput):
+    try:
+        return control_job(job_id, payload.action, payload.max_requests)
+    except (ValueError, KeyError, ConflictError) as exc:
+        failure(exc)
 
 
 class CandidateInput(BaseModel):
