@@ -46,6 +46,12 @@ def review_payload(lead, **changes):
             "identity_source": lead["source_url"],
             "identity_note": "Branch address and current activity confirmed",
             "business_status": "active",
+            "activity_method": "recent_public_activity",
+            "activity_date": datetime.now(
+                lead_discovery.ZoneInfo("Africa/Johannesburg")
+            )
+            .date()
+            .isoformat(),
             "website_status": "not_found_after_review",
             "website_source": "https://search.example.test/?q=example-bakery",
             "website_note": "Checked exact name/town, directory and current social profile; no independent site found",
@@ -305,7 +311,7 @@ async def test_osm_is_bounded_cached_and_does_not_infer_website_absence(monkeypa
     assert first["leads"][0]["missing_website"] is None
     assert first["leads"][0]["status"] == "needs_review"
     assert "around:1000,-26.500000,29.500000" in fetch.await_args.args[0]
-    assert "out center 6" in fetch.await_args.args[0]
+    assert "out meta center 6" in fetch.await_args.args[0]
     assert "© OpenStreetMap" in first["attribution"]
     with pytest.raises(ConflictError, match="cooldown"):
         await lead_discovery.discover_osm(**{**args, "longitude": 30})
