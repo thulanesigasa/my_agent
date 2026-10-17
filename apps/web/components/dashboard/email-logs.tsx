@@ -38,12 +38,14 @@ export const EmailLogsTable: React.FC = () => {
   const [filter, setFilter] = useState<string>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const fetchLogs = async (f: string) => {
     setLoading(true);
-    const data = await getEmailLogs(f);
-    setLogs(data);
-    setLoading(false);
+    setError("");
+    try { setLogs(await getEmailLogs(f)); }
+    catch (e) { setLogs([]); setError(e instanceof Error ? e.message : "Request failed"); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => {
@@ -59,6 +61,7 @@ export const EmailLogsTable: React.FC = () => {
 
   return (
     <div className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      {error && <p role="alert" className="p-4 text-sm text-red-700">Logs unavailable: {error}</p>}
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
         <div className="flex items-center gap-3">

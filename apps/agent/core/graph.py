@@ -3,20 +3,25 @@ LangGraph Multi-Agent Workflow State Machine.
 Orchestrates Triage (Groq), Risk Evaluator (Guardrails & Risk Classification), Knowledge Manager, Skill Learner,
 Admin Tools, Human Approval Gate (with native LangGraph interrupt_before breakpoints), Drafter (Gemini), Learner, and Outreach.
 """
+
 import logging
 import re
 from typing import Literal, Any
 
 try:
     from langgraph.graph import StateGraph, END
-    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 except ImportError as e:
-    logging.warning(f"LangGraph import warning: {e}. Please run `pip install -r requirements.txt`.")
+    logging.warning(
+        f"LangGraph import warning: {e}. Please run `pip install -r requirements.txt`."
+    )
     StateGraph = object
     END = "__end__"
-    MemorySaver = object
+    AsyncSqliteSaver = None
 
 from core.state import AgentState
+from core.store import store
+from uuid import uuid4
 from agents.triage import triage_node
 from agents.risk_evaluator import risk_evaluator_node
 from agents.drafter import drafter_node
@@ -32,11 +37,13 @@ logger = logging.getLogger("agent.graph")
 # ── Deferred sub-graph import to avoid circular deps ──────────────────
 _outreach_workflow = None
 
+
 def _get_outreach_workflow():
     global _outreach_workflow
     if _outreach_workflow is None:
         try:
             from agents.outreach_agent import outreach_workflow
+
             _outreach_workflow = outreach_workflow
         except Exception as e:
             logger.warning(f"Outreach sub-graph unavailable: {e}")
@@ -54,18 +61,30 @@ async def admin_tools_node(state: AgentState) -> AgentState:
     last_msg = ""
     if messages:
         m = messages[-1]
-        last_msg = m.get("content", "") if isinstance(m, dict) else str(getattr(m, "content", m))
+        last_msg = (
+            m.get("content", "")
+            if isinstance(m, dict)
+            else str(getattr(m, "content", m))
+        )
 
     text_lower = last_msg.lower()
     result = ""
 
-    if "unlearn" in text_lower or "forget" in text_lower or "delete memory" in text_lower:
+    if (
+        "unlearn" in text_lower
+        or "forget" in text_lower
+        or "delete memory" in text_lower
+    ):
         match = re.search(r"(?:unlearn|forget|delete memory about?)\s+(.+)", text_lower)
         query = match.group(1).strip() if match else last_msg
         delete_all = "all" in text_lower and "memory" in text_lower
         result = await unlearn_memory(query=query, delete_all=delete_all)
 
-    elif "sent email" in text_lower or "show emails" in text_lower or "email history" in text_lower:
+    elif (
+        "sent email" in text_lower
+        or "show emails" in text_lower
+        or "email history" in text_lower
+    ):
         limit_match = re.search(r"(\d+)\s+email", text_lower)
         limit = int(limit_match.group(1)) if limit_match else 5
         result = await get_sent_emails(limit=limit)
@@ -77,7 +96,7 @@ async def admin_tools_node(state: AgentState) -> AgentState:
         **state,
         "sender": "admin_tools",
         "final_output": result,
-        "needs_human_approval": False
+        "needs_human_approval": False,
     }
 
 
@@ -91,30 +110,62 @@ async def outreach_bridge_node(state: AgentState) -> AgentState:
     last_msg = ""
     if messages:
         m = messages[-1]
-        last_msg = m.get("content", "") if isinstance(m, dict) else str(getattr(m, "content", m))
+        last_msg = (
+            m.get("content", "")
+            if isinstance(m, dict)
+            else str(getattr(m, "content", m))
+        )
 
-    location_match = re.search(r"in ([A-Za-z\s,]+?)(?:\s+without|\s+with|\s+that|\s+for|$)", last_msg, re.IGNORECASE)
-    industry_match = re.search(r"(?:find|search|look for)\s+([a-zA-Z\s]+?)(?:\s+in\s|\s+near\s|$)", last_msg, re.IGNORECASE)
+    location_match = re.search(
+        r"in ([A-Za-z\s,]+?)(?:\s+without|\s+with|\s+that|\s+for|$)",
+        last_msg,
+        re.IGNORECASE,
+    )
+    industry_match = re.search(
+        r"(?:find|search|look for)\s+([a-zA-Z\s]+?)(?:\s+in\s|\s+near\s|$)",
+        last_msg,
+        re.IGNORECASE,
+    )
 
     location = location_match.group(1).strip() if location_match else "local area"
     industry = industry_match.group(1).strip() if industry_match else "local businesses"
 
     outreach_wf = _get_outreach_workflow()
     if outreach_wf is None:
-        return {**state, "sender": "outreach_bridge", "final_output": "⚠️ Outreach sub-graph is unavailable. Check LangGraph installation."}
+        return {
+            **state,
+            "sender": "outreach_bridge",
+            "final_output": "⚠️ Outreach sub-graph is unavailable. Check LangGraph installation.",
+        }
 
     try:
-        outreach_state = await outreach_wf.ainvoke({"location": location, "industry": industry})
+        outreach_state = await outreach_wf.ainvoke(
+            {"location": location, "industry": industry}
+        )
         summary = outreach_state.get("outreach_status", "Outreach pipeline executed.")
     except Exception as e:
         logger.error(f"Outreach sub-graph invocation error: {e}")
         summary = f"❌ Outreach pipeline error: {e}"
 
-    return {**state, "sender": "outreach_bridge", "final_output": summary, "needs_human_approval": False}
+    return {
+        **state,
+        "sender": "outreach_bridge",
+        "final_output": summary,
+        "needs_human_approval": False,
+    }
 
 
 # ── Routing Logic ─────────────────────────────────────────────────────
-def route_after_triage(state: AgentState) -> Literal["__end__", "risk_evaluator", "skill_learner", "knowledge_updater", "admin_tools", "outreach_bridge"]:
+def route_after_triage(
+    state: AgentState,
+) -> Literal[
+    "__end__",
+    "risk_evaluator",
+    "skill_learner",
+    "knowledge_updater",
+    "admin_tools",
+    "outreach_bridge",
+]:
     """
     Conditional routing after Triage Node:
     - spam → END
@@ -125,6 +176,8 @@ def route_after_triage(state: AgentState) -> Literal["__end__", "risk_evaluator"
     - default → risk_evaluator
     """
     intent = state.get("intent", "general")
+    if state.get("email_input"):
+        return END if intent == "spam" else "risk_evaluator"
 
     if intent == "spam":
         logger.info("Routing spam intent to END.")
@@ -149,7 +202,9 @@ def route_after_triage(state: AgentState) -> Literal["__end__", "risk_evaluator"
     return "risk_evaluator"
 
 
-def route_after_risk_evaluator(state: AgentState) -> Literal["__end__", "human_approval", "drafter"]:
+def route_after_risk_evaluator(
+    state: AgentState,
+) -> Literal["__end__", "human_approval", "drafter"]:
     """
     Conditional routing after Risk Evaluator Node:
     - FORBIDDEN action → END
@@ -157,17 +212,12 @@ def route_after_risk_evaluator(state: AgentState) -> Literal["__end__", "human_a
     - LOW risk action → drafter
     """
     is_forbidden = state.get("is_forbidden", False)
-    needs_approval = state.get("needs_human_approval", False)
-    approval_status = state.get("approval_status")
 
     if is_forbidden:
         logger.warning("Routing FORBIDDEN action to END.")
         return END
 
-    if needs_approval and approval_status != "approved":
-        logger.info("Routing HIGH-risk action to human_approval gate node.")
-        return "human_approval"
-
+    # Draft first, then persist the complete draft for review. No send occurs in this graph.
     return "drafter"
 
 
@@ -178,7 +228,9 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
     skill learner, knowledge updater, admin tools, and outreach sub-graph routing.
     """
     if StateGraph is object:
-        logger.error("LangGraph is not installed. Install dependencies using: pip install -r requirements.txt")
+        logger.error(
+            "LangGraph is not installed. Install dependencies using: pip install -r requirements.txt"
+        )
         return None
 
     builder = StateGraph(AgentState)
@@ -208,18 +260,14 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
             "knowledge_updater": "knowledge_updater",
             "admin_tools": "admin_tools",
             "outreach_bridge": "outreach_bridge",
-        }
+        },
     )
 
     # Conditional Routing from Risk Evaluator
     builder.add_conditional_edges(
         "risk_evaluator",
         route_after_risk_evaluator,
-        {
-            END: END,
-            "human_approval": "human_approval",
-            "drafter": "drafter"
-        }
+        {END: END, "human_approval": "human_approval", "drafter": "drafter"},
     )
 
     # Edge connections
@@ -227,20 +275,51 @@ def build_agent_graph(checkpointer: Any = None) -> Any:
     builder.add_edge("knowledge_updater", END)
     builder.add_edge("admin_tools", END)
     builder.add_edge("outreach_bridge", END)
-    builder.add_edge("human_approval", "drafter")
-    builder.add_edge("drafter", END)
+    builder.add_edge("human_approval", END)
+    builder.add_conditional_edges(
+        "drafter",
+        lambda state: (
+            "human_approval"
+            if state.get("needs_human_approval") and state.get("email_input")
+            else END
+        ),
+        {"human_approval": "human_approval", END: END},
+    )
     builder.add_edge("learner", END)
 
-    if checkpointer is None:
-        checkpointer = MemorySaver()
-
-    # Native LangGraph breakpoint interrupt before high-stakes human approval node
-    return builder.compile(
-        checkpointer=checkpointer,
-        interrupt_before=["human_approval"]
-    )
+    return builder.compile(checkpointer=checkpointer)
 
 
-# Compiled Agent Workflow Graph instance with native interrupt_before breakpoint
-checkpointer_instance = MemorySaver() if MemorySaver is not object else None
-agent_workflow = build_agent_graph(checkpointer=checkpointer_instance)
+class PersistentWorkflow:
+    """Reopen the shared checkpoint DB per call, including across process restarts."""
+
+    async def ainvoke(self, state, config=None):
+        config = config or {"configurable": {"thread_id": uuid4().hex}}
+        thread_id = config.get("configurable", {}).get("thread_id")
+        if not thread_id:
+            raise ValueError("A workflow thread_id is required")
+        task_id = uuid4().hex
+        store.claim_workflow(thread_id)
+        try:
+            store.put("tasks", task_id, {"thread_id": thread_id, "status": "running"})
+            async with AsyncSqliteSaver.from_conn_string(
+                store.path + ".checkpoints.sqlite3"
+            ) as saver:
+                graph = build_agent_graph(saver)
+                result = await graph.ainvoke(state, config=config)
+            store.transition("tasks", task_id, ["running"], "completed")
+            return result
+        except Exception:
+            store.transition(
+                "tasks",
+                task_id,
+                ["running"],
+                "failed",
+                error="Workflow failed; see server logs",
+            )
+            raise
+        finally:
+            store.transition("threads", thread_id, ["running"], "idle")
+
+
+agent_workflow = PersistentWorkflow()

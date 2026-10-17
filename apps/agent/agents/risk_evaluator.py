@@ -2,6 +2,7 @@
 Risk Evaluator Agent Node: Evaluates action risk levels against memory/guardrails.md definitions.
 Classifies actions as LOW (Auto-Approve), HIGH (Requires Human Approval), or FORBIDDEN (Halt Execution).
 """
+
 import json
 import logging
 from pathlib import Path
@@ -59,6 +60,15 @@ async def risk_evaluator_node(state: AgentState) -> AgentState:
     Risk Evaluator Node: Classifies state actions into LOW, HIGH, or FORBIDDEN risk categories.
     """
     logger.info("Executing Risk Evaluator Node...")
+    if state.get("email_input"):
+        return {
+            **state,
+            "sender": "risk_evaluator",
+            "risk_level": "HIGH",
+            "needs_human_approval": True,
+            "is_forbidden": False,
+        }
+
     guardrails_text = load_guardrails()
     intent = state.get("intent", "general")
     draft = state.get("draft_response", "")
@@ -122,15 +132,24 @@ async def risk_evaluator_node(state: AgentState) -> AgentState:
         start_idx = output_str.find("{")
         end_idx = output_str.rfind("}")
         if start_idx != -1 and end_idx != -1:
-            data = json.loads(output_str[start_idx:end_idx + 1])
+            data = json.loads(output_str[start_idx : end_idx + 1])
             risk_level = data.get("risk_level", "LOW").upper()
             reason = data.get("reason", reason)
     except Exception as e:
         logger.warning(f"Risk evaluator parsing warning: {e}")
         text_lower = action_context.lower()
-        if "payment" in text_lower or "password" in text_lower or "api_key" in text_lower or "secret" in text_lower:
+        if (
+            "payment" in text_lower
+            or "password" in text_lower
+            or "api_key" in text_lower
+            or "secret" in text_lower
+        ):
             risk_level = "FORBIDDEN"
-        elif intent in ("sales", "client_inquiry", "quote_request") or "send email" in text_lower or "quote" in text_lower:
+        elif (
+            intent in ("sales", "client_inquiry", "quote_request")
+            or "send email" in text_lower
+            or "quote" in text_lower
+        ):
             risk_level = "HIGH"
 
     logger.info(f"[RiskEvaluator] Action evaluated as '{risk_level}'. Reason: {reason}")
@@ -147,7 +166,7 @@ async def risk_evaluator_node(state: AgentState) -> AgentState:
             "draft_response": error_msg,
         }
 
-    needs_approval = (risk_level == "HIGH")
+    needs_approval = risk_level == "HIGH"
 
     return {
         **state,

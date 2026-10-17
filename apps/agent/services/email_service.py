@@ -1,105 +1,149 @@
-"""
-Gmail API Service Adapter: Asynchronous integration using google-api-python-client and google-auth.
-Handles email fetching, thread context extraction, and sending approved message responses.
-"""
-import logging
+"""Gmail adapter. Never substitutes sample mail or simulated success."""
+
+import asyncio
 import base64
+import logging
 from email.mime.text import MIMEText
-from typing import List, Dict, Any, Optional
+from uuid import uuid4
+
 from config import settings
+from core.store import store
 
 logger = logging.getLogger("agent.email_service")
 
 
-class GmailServiceAdapter:
-    """
-    Gmail API adapter for querying inbox threads and dispatching approved email drafts.
-    """
+class EmailUnavailable(RuntimeError):
+    """No provider request was attempted; safe to retry after configuration."""
 
+
+class DeliveryUnknown(RuntimeError):
+    """Provider request may have succeeded. Reconcile before retrying."""
+
+
+class GmailServiceAdapter:
     def __init__(self):
         self.client = None
-        self.is_configured = bool(settings.GMAIL_CLIENT_ID and settings.GMAIL_CLIENT_SECRET)
+        self.is_configured = all(
+            (
+                settings.GMAIL_CLIENT_ID,
+                settings.GMAIL_CLIENT_SECRET,
+                settings.GMAIL_REFRESH_TOKEN,
+            )
+        )
         if self.is_configured:
             try:
                 from google.oauth2.credentials import Credentials
                 from googleapiclient.discovery import build
+
                 creds = Credentials(
                     token=None,
                     refresh_token=settings.GMAIL_REFRESH_TOKEN,
                     client_id=settings.GMAIL_CLIENT_ID,
                     client_secret=settings.GMAIL_CLIENT_SECRET,
-                    token_uri="https://oauth2.googleapis.com/token"
+                    token_uri="https://oauth2.googleapis.com/token",
                 )
-                self.client = build("gmail", "v1", credentials=creds)
-                logger.info("Gmail API Client successfully initialized.")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Gmail API Client: {e}. Utilizing mock mode.")
+                self.client = build(
+                    "gmail", "v1", credentials=creds, cache_discovery=False
+                )
+            except Exception:
+                logger.exception("Gmail initialization failed; email is unavailable")
 
-    async def fetch_unread_emails(self, max_results: int = 5) -> List[Dict[str, Any]]:
-        """
-        Fetch unread inbox messages and thread context.
-        """
-        if self.client:
-            try:
-                results = self.client.users().messages().list(
-                    userId="me", q="is:unread", maxResults=max_results
-                ).execute()
-                messages = results.get("messages", [])
-                email_list = []
-                for msg_meta in messages:
-                    msg = self.client.users().messages().get(
-                        userId="me", id=msg_meta["id"]
-                    ).execute()
-                    headers = msg.get("payload", {}).get("headers", [])
-                    subject = next((h["value"] for h in headers if h["name"] == "Subject"), "No Subject")
-                    sender = next((h["value"] for h in headers if h["name"] == "From"), "Unknown")
-                    snippet = msg.get("snippet", "")
-                    email_list.append({
+    async def fetch_unread_emails(self, max_results=5):
+        if self.client is None:
+            raise EmailUnavailable("Gmail is not configured or could not initialise")
+
+        def fetch():
+            result = (
+                self.client.users()
+                .messages()
+                .list(userId="me", q="is:unread", maxResults=max_results)
+                .execute()
+            )
+            emails = []
+            for item in result.get("messages", []):
+                msg = (
+                    self.client.users()
+                    .messages()
+                    .get(userId="me", id=item["id"])
+                    .execute()
+                )
+                headers = {
+                    h["name"].lower(): h["value"]
+                    for h in msg.get("payload", {}).get("headers", [])
+                }
+                emails.append(
+                    {
                         "id": msg["id"],
                         "thread_id": msg.get("threadId"),
-                        "sender": sender,
-                        "subject": subject,
-                        "body": snippet
-                    })
-                return email_list
-            except Exception as e:
-                logger.error(f"Error fetching unread Gmail messages: {e}")
+                        "sender": headers.get("from", ""),
+                        "subject": headers.get("subject", ""),
+                        "body": msg.get("snippet", ""),
+                    }
+                )
+            return emails
 
-        # Return structured context sample when unconfigured or testing
-        return [
-            {
-                "id": "msg_101",
-                "thread_id": "thread_88101",
-                "sender": "client@enterprise.com",
-                "subject": "Enterprise Contract Upgrade Request",
-                "body": "Hi, we are interested in upgrading our team to the enterprise tier. Can you share custom pricing?"
-            }
-        ]
+        return await asyncio.to_thread(fetch)
 
-    async def send_email(self, to: str, subject: str, body: str, thread_id: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Send an approved email draft via Gmail API.
-        """
-        logger.info(f"Sending approved email to {to} [Subject: '{subject}']...")
-        if self.client:
-            try:
-                message = MIMEText(body)
-                message["to"] = to
-                message["subject"] = subject
-                raw_str = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
-                body_payload = {"raw": raw_str}
-                if thread_id:
-                    body_payload["threadId"] = thread_id
-
-                sent_msg = self.client.users().messages().send(
-                    userId="me", body=body_payload
-                ).execute()
-                return {"status": "sent", "id": sent_msg.get("id"), "to": to, "subject": subject}
-            except Exception as e:
-                logger.error(f"Error sending email via Gmail API: {e}")
-
-        # Simulated response
-        return {"status": "sent_simulated", "to": to, "subject": subject, "thread_id": thread_id}
+    async def send_email(
+        self, to, subject, body, thread_id=None, *, purpose="notification", company=""
+    ):
+        if self.client is None:
+            raise EmailUnavailable("Gmail is not configured or could not initialise")
+        if not to or "@" not in to or not body or not subject:
+            raise ValueError("Recipient, subject and non-empty body are required")
+        message = MIMEText(body)
+        message["to"] = to
+        message["subject"] = subject
+        payload = {"raw": base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")}
+        if thread_id:
+            payload["threadId"] = thread_id
+        record_id = uuid4().hex
+        record = {
+            "to": to,
+            "subject": subject,
+            "body": body,
+            "purpose": purpose,
+            "company": company,
+            "thread_id": thread_id,
+            "status": "sending",
+        }
+        store.put("messages", record_id, record)
+        try:
+            sent = await asyncio.to_thread(
+                lambda: self.client.users()
+                .messages()
+                .send(userId="me", body=payload)
+                .execute()
+            )
+            if not sent.get("id"):
+                raise DeliveryUnknown("Gmail returned no message ID")
+            store.transition(
+                "messages",
+                record_id,
+                ["sending"],
+                "sent",
+                provider_message_id=sent["id"],
+                thread_id=sent.get("threadId"),
+            )
+        except Exception as exc:
+            # Even a response-parsing or persistence failure after submission is uncertain.
+            store.transition(
+                "messages",
+                record_id,
+                ["sending"],
+                "delivery_unknown",
+                error="Gmail submission requires manual reconciliation",
+            )
+            raise DeliveryUnknown(
+                "Send outcome is uncertain; inspect Gmail Sent before any retry"
+            ) from exc
+        return {
+            "status": "sent",
+            "id": sent["id"],
+            "thread_id": sent.get("threadId"),
+            "to": to,
+            "subject": subject,
+        }
 
 
 email_service = GmailServiceAdapter()

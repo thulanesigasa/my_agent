@@ -6,22 +6,8 @@ import { queryAgentMemory, deleteMemory, MemoryRecord } from "@/lib/api";
 
 export const MemoryViewer: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [memories, setMemories] = useState<MemoryRecord[]>([
-    {
-      id: "mem_01",
-      namespace: "users:cto@enterprise-client.com",
-      key: "pref_seats",
-      value: { content: "Client requested 50 seat enterprise license pricing." },
-      created_at: "2 hours ago",
-    },
-    {
-      id: "mem_02",
-      namespace: "users:support@tier1.io",
-      key: "pref_lang",
-      value: { content: "Preferred communication language: English (Formal)." },
-      created_at: "1 day ago",
-    },
-  ]);
+  const [memories, setMemories] = useState<MemoryRecord[]>([]);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -29,18 +15,16 @@ export const MemoryViewer: React.FC = () => {
     if (!searchQuery.trim()) return;
 
     setLoading(true);
-    const results = await queryAgentMemory(searchQuery);
-    if (results.length > 0) {
-      setMemories(results);
-    }
-    setLoading(false);
+    setError("");
+    try { setMemories(await queryAgentMemory(searchQuery)); }
+    catch (e) { setError(e instanceof Error ? e.message : "Memory unavailable"); }
+    finally { setLoading(false); }
   };
 
   const handleDelete = async (id: string) => {
-    const success = await deleteMemory(id);
-    if (success) {
-      setMemories((prev) => prev.filter((m) => m.id !== id));
-    }
+    setError("");
+    try { await deleteMemory(id); setMemories((prev) => prev.filter((m) => m.id !== id)); }
+    catch (e) { setError(e instanceof Error ? e.message : "Delete failed"); }
   };
 
   return (
@@ -52,10 +36,10 @@ export const MemoryViewer: React.FC = () => {
           </div>
           <div>
             <h3 className="text-base font-semibold text-slate-800">
-              Vector Memory Store Inspector
+              Stored Memory Inspector
             </h3>
             <p className="text-xs text-slate-500">
-              Inspect, search, and manage continuous facts stored in Supabase pgvector
+              Search and manage recorded facts
             </p>
           </div>
         </div>
@@ -83,11 +67,12 @@ export const MemoryViewer: React.FC = () => {
         </button>
       </form>
 
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {/* Memory List */}
       <div className="space-y-3">
         {memories.length === 0 ? (
           <div className="py-8 text-center text-slate-400 text-xs">
-            No memories match your semantic search query.
+            Search to view matching recorded memories.
           </div>
         ) : (
           memories.map((mem) => (

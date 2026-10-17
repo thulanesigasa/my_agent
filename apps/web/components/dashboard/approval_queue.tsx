@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { apiRequest, getPendingApprovals } from "@/lib/api";
 import { ShieldAlert, CheckCircle2, XCircle, Edit3, Mail, RefreshCw } from "lucide-react";
 
 export interface PendingAction {
@@ -13,6 +14,7 @@ export interface PendingAction {
   };
   draft_response: string;
   status: string;
+  error?: string;
 }
 
 export const ApprovalQueueDashboard: React.FC = () => {
@@ -20,16 +22,16 @@ export const ApprovalQueueDashboard: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
 
   const fetchApprovals = async () => {
     setLoading(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
-      const res = await fetch(`${apiUrl}/api/approvals`);
-      const data = await res.json();
-      if (data.approvals) setQueue(data.approvals);
+      setError("");
+      setQueue(await getPendingApprovals());
     } catch (e) {
-      console.warn("Failed to fetch approvals:", e);
+      setError(e instanceof Error ? e.message : "Approval queue unavailable");
     } finally {
       setLoading(false);
     }
@@ -40,21 +42,19 @@ export const ApprovalQueueDashboard: React.FC = () => {
   }, []);
 
   const handleAction = async (threadId: string, action: "approve" | "edit" | "reject") => {
+    setBusy(threadId);
+    setError("");
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
-      await fetch(`${apiUrl}/api/approvals/${threadId}/action`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          new_content: action === "edit" ? editText : undefined,
-        }),
+      await apiRequest(`/api/approvals/${encodeURIComponent(threadId)}/action`, {
+        method: "POST", body: JSON.stringify({ action, new_content: action === "edit" ? editText : undefined }),
       });
       setEditingId(null);
-      fetchApprovals();
+      await fetchApprovals();
     } catch (e) {
-      console.error("Action submission error:", e);
-    }
+      setError(e instanceof Error ? e.message : "Action failed");
+      // Keep the draft visible after failure. Refresh exposes any held delivery state.
+      try { setQueue(await getPendingApprovals()); } catch { /* Keep the existing view. */ }
+    } finally { setBusy(null); }
   };
 
   return (
@@ -81,7 +81,8 @@ export const ApprovalQueueDashboard: React.FC = () => {
         </button>
       </div>
 
-      {queue.length === 0 ? (
+      {error && <p role="alert" className="text-sm text-red-700 mb-4">{error}</p>}
+      {loading ? <p>Loading approval queue…</p> : !error && queue.length === 0 ? (
         <div className="py-12 text-center text-slate-400">
           <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-emerald-500/60" />
           <p className="text-sm font-medium text-slate-700">Approval Queue is Empty</p>
@@ -114,7 +115,7 @@ export const ApprovalQueueDashboard: React.FC = () => {
               {/* Proposed Response Draft */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-slate-700">
-                  Proposed Draft (Gemini 1.5 Pro):
+                  Proposed Draft:
                 </label>
                 {editingId === item.thread_id ? (
                   <textarea
@@ -130,15 +131,16 @@ export const ApprovalQueueDashboard: React.FC = () => {
                 )}
               </div>
 
+              <p className="text-xs text-slate-600">Status: {item.status} {item.error}</p>
               {/* Interactive Controls */}
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <fieldset disabled={busy === item.thread_id || ["sending", "delivery_unknown"].includes(item.status)} className="flex items-center justify-end gap-2 pt-2 disabled:opacity-50">
                 {editingId === item.thread_id ? (
                   <>
                     <button
                       onClick={() => handleAction(item.thread_id, "edit")}
                       className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow"
                     >
-                      Save & Approve
+                      Save Draft
                     </button>
                     <button
                       onClick={() => setEditingId(null)}
@@ -172,7 +174,7 @@ export const ApprovalQueueDashboard: React.FC = () => {
                     </button>
                   </>
                 )}
-              </div>
+              </fieldset>
             </div>
           ))}
         </div>

@@ -1,6 +1,7 @@
 """
 Pytest Test Suite & LangSmith Dataset Evaluation for LangGraph Workflow.
 """
+
 import pytest
 from core.state import AgentState
 from agents.triage import triage_node
@@ -9,21 +10,31 @@ from core.memory import memory_manager
 
 
 @pytest.mark.asyncio
-@pytest.mark.langsmith
-async def test_triage_node_spam_classification():
+async def test_triage_node_spam_classification(monkeypatch):
     """
     Evaluates triage_node to verify it correctly classifies promotional spam messages.
     """
     state: AgentState = {
-        "messages": [{"role": "user", "content": "CLAIM YOUR FREE CASINO PRIZE NOW! Click here to win $10000!"}],
+        "messages": [
+            {
+                "role": "user",
+                "content": "CLAIM YOUR FREE CASINO PRIZE NOW! Click here to win $10000!",
+            }
+        ],
         "email_input": {
             "sender": "spammer@lottery-win.biz",
             "subject": "URGENT WINNER ANNOUNCEMENT",
-            "body": "CLAIM YOUR FREE CASINO PRIZE NOW!"
+            "body": "CLAIM YOUR FREE CASINO PRIZE NOW!",
         },
-        "approval_status": "none"
+        "approval_status": "none",
     }
 
+    from services.llm_factory import llm_factory
+
+    async def classify(*args):
+        return '{"intent": "spam", "needs_human_approval": false}'
+
+    monkeypatch.setattr(llm_factory, "invoke_triage", classify)
     res_state = await triage_node(state)
 
     assert res_state.get("sender") == "triage"
@@ -31,24 +42,30 @@ async def test_triage_node_spam_classification():
 
 
 @pytest.mark.asyncio
-@pytest.mark.langsmith
-async def test_drafter_node_memory_recall():
+async def test_drafter_node_memory_recall(fake_llm):
     """
     Evaluates drafter_node to verify semantic memory recall from Supabase vector storage and response quality.
     """
     # Seed a memory item
     await memory_manager.save_memory(
         "Client preference: Preferred communication language is English with formal tone.",
-        metadata={"user_id": "test_user_001"}
+        metadata={"user_id": "test_user_001"},
     )
 
     state: AgentState = {
-        "messages": [{"role": "user", "content": "Please draft a response to our enterprise client inquiry."}],
+        "messages": [
+            {
+                "role": "user",
+                "content": "Please draft a response to our enterprise client inquiry.",
+            }
+        ],
         "intent": "client_inquiry",
         "retrieved_context": [
-            {"content": "Client preference: Preferred communication language is English with formal tone."}
+            {
+                "content": "Client preference: Preferred communication language is English with formal tone."
+            }
         ],
-        "approval_status": "none"
+        "approval_status": "none",
     }
 
     res_state = await drafter_node(state)

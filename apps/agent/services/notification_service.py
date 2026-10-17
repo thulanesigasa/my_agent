@@ -1,8 +1,9 @@
 """
 Notification Service: Priority alerts for human-in-the-loop actions and web push notifications.
 """
+
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from services.email_service import email_service
 
 logger = logging.getLogger("agent.notification_service")
@@ -12,10 +13,7 @@ DASHBOARD_APPROVAL_URL = "https://ts-industries.co.za/dashboard/approvals"
 
 
 async def notify_admin_approval_needed(
-    thread_id: str,
-    client_name: str,
-    intent: str = "quote_request",
-    details: str = ""
+    thread_id: str, client_name: str, intent: str = "quote_request", details: str = ""
 ) -> Dict[str, Any]:
     """
     Sends a priority email notification to the admin (Pharez) containing a direct link
@@ -35,28 +33,27 @@ async def notify_admin_approval_needed(
         f"Best regards,\nT.s Industries Autonomous Agent System"
     )
 
-    logger.info(f"Sending human approval notification email to {ADMIN_EMAIL} for thread {thread_id}...")
+    logger.info(
+        f"Sending human approval notification email to {ADMIN_EMAIL} for thread {thread_id}..."
+    )
 
     # Send Priority Email
     email_result = await email_service.send_email(
-        to=ADMIN_EMAIL,
-        subject=subject,
-        body=body,
-        thread_id=thread_id
+        to=ADMIN_EMAIL, subject=subject, body=body
     )
 
     # Trigger Web Push Notification
     push_result = await send_web_push(
         thread_id=thread_id,
         title=f"Approval Needed: {client_name}",
-        body=f"Intent: '{intent}'. Tap to approve in Dashboard."
+        body=f"Intent: '{intent}'. Tap to approve in Dashboard.",
     )
 
     return {
         "status": "notification_sent",
         "email_result": email_result,
         "push_result": push_result,
-        "approval_link": approval_link
+        "approval_link": approval_link,
     }
 
 
@@ -64,11 +61,13 @@ async def send_web_push(thread_id: str, title: str, body: str) -> Dict[str, Any]
     """
     Web Push Notification placeholder. Wired to Next.js frontend via VAPID keys, Pusher, or Firebase.
     """
-    logger.info(f"[WebPush] Triggering push notification for thread {thread_id}: '{title}'")
+    logger.info(
+        f"[WebPush] Triggering push notification for thread {thread_id}: '{title}'"
+    )
     return {
-        "status": "push_dispatched",
+        "status": "not_configured",
         "thread_id": thread_id,
         "title": title,
         "body": body,
-        "link": f"{DASHBOARD_APPROVAL_URL}/{thread_id}"
+        "link": f"{DASHBOARD_APPROVAL_URL}/{thread_id}",
     }

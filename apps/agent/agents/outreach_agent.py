@@ -3,8 +3,9 @@ Autonomous Outreach Sub-Graph.
 Multi-node LangGraph sub-workflow for: lead discovery -> contact enrichment -> pitch composition -> approval queue.
 Enforces T.s Industries unbreakable business rules on all generated pitches.
 """
+
 import logging
-from typing import List, Dict, Any, TypedDict, Optional
+from typing import List, Dict, Any, TypedDict
 
 try:
     from langgraph.graph import StateGraph, END  # type: ignore
@@ -17,13 +18,16 @@ from core.memory import memory_manager
 from services.llm_factory import llm_factory
 from tools.lead_finder import search_businesses_without_websites, find_contact_email
 from tools.procedural_tools import load_unbreakable_rules
-from agents.human_approval import PENDING_APPROVAL_QUEUE
+from agents.human_approval import queue_approval
+from core.store import store
+import hashlib
 
 logger = logging.getLogger("agent.outreach")
 
 
 class OutreachState(TypedDict, total=False):
     """State schema for the outreach sub-graph pipeline."""
+
     location: str
     industry: str
     leads: List[Dict[str, Any]]
@@ -54,9 +58,13 @@ async def find_leads_node(state: OutreachState) -> OutreachState:
     """
     location = state.get("location", "Atlanta, GA")
     industry = state.get("industry", "local services")
-    logger.info(f"[OutreachGraph] find_leads_node: location='{location}', industry='{industry}'")
+    logger.info(
+        f"[OutreachGraph] find_leads_node: location='{location}', industry='{industry}'"
+    )
 
-    leads = await search_businesses_without_websites(location=location, industry=industry, limit=10)
+    leads = await search_businesses_without_websites(
+        location=location, industry=industry, limit=10
+    )
     logger.info(f"[OutreachGraph] Found {len(leads)} leads without websites.")
 
     return {**state, "leads": leads, "sender": "find_leads_node"}
@@ -74,11 +82,13 @@ async def enrich_leads_node(state: OutreachState) -> OutreachState:
     for lead in leads:
         contact_info = await find_contact_email(
             business_name=lead.get("name", ""),
-            location=location or lead.get("address", "")
+            location=location or lead.get("address", ""),
         )
         enriched.append({**lead, **contact_info})
 
-    logger.info(f"[OutreachGraph] Enrichment complete. {len(enriched)} leads with contact data.")
+    logger.info(
+        f"[OutreachGraph] Enrichment complete. {len(enriched)} leads with contact data."
+    )
     return {**state, "enriched_leads": enriched, "sender": "enrich_leads_node"}
 
 
@@ -87,20 +97,28 @@ async def compose_pitch_node(state: OutreachState) -> OutreachState:
     Node 3: Generates personalized pitch emails using Gemini + unbreakable rules context.
     """
     enriched = state.get("enriched_leads", [])
-    logger.info(f"[OutreachGraph] compose_pitch_node: drafting {len(enriched)} pitch emails...")
+    logger.info(
+        f"[OutreachGraph] compose_pitch_node: drafting {len(enriched)} pitch emails..."
+    )
 
     # Load unbreakable rules dynamically
     rules_text = load_unbreakable_rules()
-    combined_system = f"CRITICAL CONSTRAINTS:\n{rules_text}\n\n{PITCH_SYSTEM_PROMPT}".strip()
+    combined_system = (
+        f"CRITICAL CONSTRAINTS:\n{rules_text}\n\n{PITCH_SYSTEM_PROMPT}".strip()
+    )
 
     # Pull portfolio and case study context from memory store
     portfolio_context = await memory_manager.search_memory(
         query="web development portfolio project case study agency", limit=3
     )
-    context_text = " ".join([str(c.get("value", {}).get("content", "")) for c in portfolio_context])
+    context_text = " ".join(
+        [str(c.get("value", {}).get("content", "")) for c in portfolio_context]
+    )
 
     drafted: List[Dict[str, Any]] = []
     for lead in enriched:
+        if not lead.get("email") or lead.get("confidence") != "verified":
+            continue
         biz_name = lead.get("name", "Your Business")
         email_addr = lead.get("email", "")
 
@@ -122,13 +140,15 @@ async def compose_pitch_node(state: OutreachState) -> OutreachState:
                 f"Best,\nT.s Industries Team\npharezsigasa@gmail.com | +447544357979"
             )
 
-        drafted.append({
-            "business_name": biz_name,
-            "recipient_email": email_addr,
-            "subject": f"Quick question about {biz_name}'s online presence",
-            "body": body,
-            "lead_data": lead
-        })
+        drafted.append(
+            {
+                "business_name": biz_name,
+                "recipient_email": email_addr,
+                "subject": f"Quick question about {biz_name}'s online presence",
+                "body": body,
+                "lead_data": lead,
+            }
+        )
 
     logger.info(f"[OutreachGraph] {len(drafted)} pitch emails composed.")
     return {**state, "drafted_pitches": drafted, "sender": "compose_pitch_node"}
@@ -139,23 +159,31 @@ async def outreach_dispatcher_node(state: OutreachState) -> OutreachState:
     Node 4: Places drafted pitch emails into the human approval queue for review before sending.
     """
     pitches = state.get("drafted_pitches", [])
-    logger.info(f"[OutreachGraph] outreach_dispatcher_node: queuing {len(pitches)} pitches for approval...")
+    logger.info(
+        f"[OutreachGraph] outreach_dispatcher_node: queuing {len(pitches)} pitches for approval..."
+    )
 
     for pitch in pitches:
-        thread_id = f"outreach_{pitch.get('business_name', 'lead').replace(' ', '_').lower()}"
-        PENDING_APPROVAL_QUEUE[thread_id] = {
-            "thread_id": thread_id,
-            "intent": "sales",
-            "email_input": {
-                "sender": pitch.get("recipient_email"),
-                "subject": pitch.get("subject"),
-                "body": pitch.get("body"),
+        recipient = pitch["recipient_email"].strip().lower()
+        thread_id = "outreach_" + hashlib.sha256(recipient.encode()).hexdigest()[:24]
+        lead = pitch.get("lead_data", {})
+        store.put("leads", lead.get("id") or thread_id, lead)
+        queue_approval(
+            thread_id,
+            {
+                "thread_id": thread_id,
+                "intent": "sales",
+                "email_input": {
+                    "sender": pitch.get("recipient_email"),
+                    "subject": pitch.get("subject"),
+                    "body": pitch.get("body"),
+                },
+                "draft_response": pitch.get("body"),
+                "status": "pending",
+                "purpose": "outreach",
+                "lead_data": pitch.get("lead_data", {}),
             },
-            "draft_response": pitch.get("body"),
-            "status": "pending",
-            "created_at": "Just now",
-            "lead_data": pitch.get("lead_data", {})
-        }
+        )
 
     summary = (
         f"[SUCCESS] {len(pitches)} personalized outreach email(s) drafted and placed in the Approval Queue.\n"
