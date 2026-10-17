@@ -502,13 +502,18 @@ def lead_view(lead):
     return lead
 
 
-def draft_lead(record_id, subject, body, mailbox):
+def draft_lead(record_id, subject, body, mailbox, proposal_preview_id=None):
     if not subject.strip() or not body.strip() or "\r" in subject or "\n" in subject:
         raise ValueError("Provide a non-empty message and a single-line subject")
     if not mailbox:
         raise EligibilityError("Connect Gmail before creating outreach drafts")
     lead = ensure_qualified(record_id)
     email = lead["review"]["email"]
+    snapshot = None
+    if proposal_preview_id:
+        from services.proposals import preview_snapshot
+
+        snapshot = preview_snapshot(proposal_preview_id, lead, mailbox, subject, body)
     from agents.human_approval import queue_approval
 
     # One initial outreach per mailbox/contact. Repeat discovery cannot queue duplicate sends.
@@ -549,5 +554,6 @@ def draft_lead(record_id, subject, body, mailbox):
             "lead_revision": lead["revision"],
             "client_name": lead["name"],
             "lead_data": {"id": record_id, "name": lead["name"]},
+            **({"proposal_snapshot": snapshot} if snapshot else {}),
         },
     )
