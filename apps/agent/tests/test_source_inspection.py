@@ -76,7 +76,7 @@ async def test_source_inspection_returns_literal_evidence_without_mutating_revie
         "owner@example.test",
         "directory@example.test",
     ]
-    assert found["phones"][0]["value"] == "+27 82 123 4567"
+    assert found["phones"][0]["value"] == "+27821234567"
     assert any(link["value"].endswith("/contact") for link in found["links"])
     assert found["dates"][0]["value"] == "2026-10-01"
     assert found["closure_mentions"] and found["activity_status"] == "unverified"
