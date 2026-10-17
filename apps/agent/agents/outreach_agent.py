@@ -14,13 +14,11 @@ except ImportError as e:
     StateGraph = object
     END = "__end__"
 
-from core.memory import memory_manager
-from services.llm_factory import llm_factory
 from tools.lead_finder import search_businesses_without_websites, find_contact_email
-from tools.procedural_tools import load_unbreakable_rules
 from services.lead_service import ensure_qualified, draft_lead
 from services.contacts import EligibilityError
 from services.email_service import email_service
+from services.proposals import create_preview
 
 logger = logging.getLogger("agent.outreach")
 
@@ -35,21 +33,6 @@ class OutreachState(TypedDict, total=False):
     drafted_pitches: List[Dict[str, Any]]
     sender: str
     outreach_status: str
-
-
-PITCH_SYSTEM_PROMPT = """
-You are an expert sales copywriter for T.s Industries.
-Write a concise, friendly, and personalized cold outreach email to a local business owner.
-The email should:
-- Address the business owner by their business name.
-- Empathize with the challenge of being invisible online.
-- Highlight a clear value proposition: professional website + local SEO + mobile-first design.
-- Include a clear CTA: "Reply to this email to claim your free 30-minute strategy call or request a custom quotation on ts-industries.co.za."
-- Include T.s Industries contact email (pharezsigasa@gmail.com) and phone (+447544357979).
-- Be under 120 words, professional but warm, short punchy paragraphs. Never use em dashes (—).
-
-Return ONLY the email body text, no subject line.
-"""
 
 
 async def find_leads_node(state: OutreachState) -> OutreachState:
@@ -95,74 +78,22 @@ async def enrich_leads_node(state: OutreachState) -> OutreachState:
 
 
 async def compose_pitch_node(state: OutreachState) -> OutreachState:
-    """
-    Node 3: Generates personalized pitch emails using Gemini + unbreakable rules context.
-    """
-    enriched = []
+    """Compose local portfolio proposals only for currently eligible contacts."""
+    drafted = []
     for candidate in state.get("enriched_leads", []):
         try:
-            lead = ensure_qualified(candidate.get("id"))
-            enriched.append(
-                {**lead, "email": lead["review"]["email"], "confidence": "verified"}
-            )
-        except EligibilityError:
+            preview = create_preview(candidate.get("id"), email_service.expected_email)
+        except (EligibilityError, KeyError):
             continue
-    if not enriched:
-        return {**state, "drafted_pitches": [], "sender": "compose_pitch_node"}
-    logger.info(
-        f"[OutreachGraph] compose_pitch_node: drafting {len(enriched)} pitch emails..."
-    )
-
-    # Load unbreakable rules dynamically
-    rules_text = load_unbreakable_rules()
-    combined_system = (
-        f"CRITICAL CONSTRAINTS:\n{rules_text}\n\n{PITCH_SYSTEM_PROMPT}".strip()
-    )
-
-    # Pull portfolio and case study context from memory store
-    portfolio_context = await memory_manager.search_memory(
-        query="web development portfolio project case study agency", limit=3
-    )
-    context_text = " ".join(
-        [str(c.get("value", {}).get("content", "")) for c in portfolio_context]
-    )
-
-    drafted: List[Dict[str, Any]] = []
-    for lead in enriched:
-        if not lead.get("email") or lead.get("confidence") != "verified":
-            continue
-        biz_name = lead.get("name", "Your Business")
-        email_addr = lead.get("email", "")
-
-        prompt = (
-            f"Business: {biz_name}\n"
-            f"Location: {lead.get('address', '')}\n"
-            f"Agency context: {context_text[:300]}\n"
-            f"Write a personalized pitch email for {biz_name}."
-        )
-
-        try:
-            body = await llm_factory.invoke_drafter(prompt, combined_system)
-        except Exception as e:
-            logger.warning(f"LLM pitch generation failed for '{biz_name}': {e}")
-            body = (
-                f"Hi {biz_name} team,\n\n"
-                f"We help local businesses get a professional online presence quickly and affordably. "
-                f"If you are ready to attract more customers online, reply or visit ts-industries.co.za to set up a strategy call.\n\n"
-                f"Best,\nT.s Industries Team\npharezsigasa@gmail.com | +447544357979"
-            )
-
         drafted.append(
             {
-                "business_name": biz_name,
-                "recipient_email": email_addr,
-                "subject": f"Quick question about {biz_name}'s online presence",
-                "body": body,
-                "lead_data": lead,
+                "recipient_email": preview["recipient_email"],
+                "subject": preview["subject"],
+                "body": preview["body"],
+                "lead_data": {"id": preview["lead_id"]},
+                "proposal_preview_id": preview["id"],
             }
         )
-
-    logger.info(f"[OutreachGraph] {len(drafted)} pitch emails composed.")
     return {**state, "drafted_pitches": drafted, "sender": "compose_pitch_node"}
 
 
@@ -180,7 +111,11 @@ async def outreach_dispatcher_node(state: OutreachState) -> OutreachState:
         lead_id = pitch.get("lead_data", {}).get("id")
         ensure_qualified(lead_id, pitch["recipient_email"])
         draft_lead(
-            lead_id, pitch["subject"], pitch["body"], email_service.expected_email
+            lead_id,
+            pitch["subject"],
+            pitch["body"],
+            email_service.expected_email,
+            pitch.get("proposal_preview_id"),
         )
         queued += 1
 

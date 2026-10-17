@@ -2,7 +2,7 @@
 
 A Python/FastAPI + LangGraph backend and Next.js dashboard for a local business website outreach workflow.
 
-## Current milestone: Phase 4 business research
+## Current milestone: Phase 5 portfolio proposals
 
 Phase 1 persists workflow records and approvals. Phase 2 adds a local OAuth connection helper, account verification, MIME message parsing, paginated history sync, reply threading, contact eligibility/suppression, uncertain-send reconciliation and connected Gmail dashboard controls.
 
@@ -12,7 +12,9 @@ Phase 3 adds real conversation reply metrics, inclusive SAST date ranges, operat
 
 Phase 4 adds free bounded OpenStreetMap discovery, manual/CSV candidates, source observations, identity/activity/website/contact review, duplicate checks and qualified-lead drafts. See [LEAD_RESEARCH.md](LEAD_RESEARCH.md). New business outreach starts in Leads. No new API key or LLM is required for the default research/manual draft flow.
 
-Voice features are retained. Portfolio matching, sales interpretation, follow-ups and autonomous campaigns remain later phases.
+Phase 5 now adds the supplied TS Industries portfolio, RBP Tech and Rhyma Music projects, editable project descriptions/industry tags, local template matching and editable proposal previews. See [PROPOSALS.md](PROPOSALS.md). Generating a proposal uses no Tavily/model credits, requires an eligible reviewed lead, and never sends automatically.
+
+Voice features are retained. Reply interpretation, follow-ups and autonomous campaigns remain later work.
 
 ## Roadmap
 
@@ -20,7 +22,7 @@ Voice features are retained. Portfolio matching, sales interpretation, follow-up
 2. **Email integration (implemented; operator must authorise and run the live test):** full message parsing, Gmail history synchronisation, threading, delivery reconciliation, contact eligibility and suppression.
 3. **Reporting (implemented):** actual reply outcomes, reporting periods, dashboard trends, Excel exports and attachments.
 4. **Research and qualification (implemented):** supported sources, identity checks, website evidence and reviewed contact details.
-5. **Outreach and conversation management:** portfolio matching, templates, reply interpretation and permitted follow-ups.
+5. **Outreach and conversation management (partially implemented):** portfolio matching and templates are available; reply interpretation and permitted follow-ups remain.
 6. **Controlled autonomy:** campaign schedules, quotas, spending caps, operational controls and a small pilot.
 
 Reports use only provider-confirmed submissions and matched incoming records from this installation. Tests are excluded by default. Reply rates count unique conversations and are blank when no conversations were sent. Interested/declined/won outcomes require an operator note and a synced human response. Unsubscribe blocks further contact. Gmail acceptance does not prove inbox delivery or opening. Scheduled reports are opt-in and queue a draft for approval; they never send themselves.

@@ -388,8 +388,11 @@ async def test_unqualified_candidates_do_not_trigger_llm_or_portfolio_calls(
     lead = ingest_candidate(candidate())
     llm = AsyncMock(side_effect=AssertionError("No LLM for unqualified candidates"))
     memory = AsyncMock(side_effect=AssertionError("No provider lookup"))
-    monkeypatch.setattr(outreach_agent.llm_factory, "invoke_drafter", llm)
-    monkeypatch.setattr(outreach_agent.memory_manager, "search_memory", memory)
+    from services.llm_factory import llm_factory
+    from core.memory import memory_manager
+
+    monkeypatch.setattr(llm_factory, "invoke_drafter", llm)
+    monkeypatch.setattr(memory_manager, "search_memory", memory)
     result = await outreach_agent.compose_pitch_node(
         {
             "enriched_leads": [

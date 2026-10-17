@@ -3,6 +3,7 @@
 import { FormEvent, useContext, useEffect, useState } from "react";
 import { apiRequest, ApiError } from "@/lib/api";
 import { ResearchJobs, ResearchJob } from "@/components/dashboard/research-jobs";
+import { PortfolioEditor, ProposalPreview } from "@/components/dashboard/portfolio";
 import { TabContext } from "@/components/app-shell";
 
 type Review = {
@@ -32,13 +33,22 @@ function freshReview(lead: Lead): Review {
 }
 function Field({ title, children }: { title: string; children: React.ReactNode }) { return <label className="block text-sm font-medium text-slate-700">{title}{children}</label>; }
 
-function LeadReview({ lead, busy, onReview, onDraft, onInspect, inspectionAvailable, inspectionWait }: { lead: Lead; busy: boolean; onInspect: () => void; inspectionAvailable: boolean; inspectionWait: number; onReview: (payload: Review) => void; onDraft: (subject: string, body: string) => void }) {
+function LeadReview({ lead, busy, onReview, onDraft, onInspect, inspectionAvailable, inspectionWait }: { lead: Lead; busy: boolean; onInspect: () => void; inspectionAvailable: boolean; inspectionWait: number; onReview: (payload: Review) => void; onDraft: (subject: string, body: string, previewId?: string) => void }) {
   const [review, setReview] = useState<Review>(freshReview(lead));
   const [subject, setSubject] = useState(`Website enquiry for ${lead.name}`);
   const [body, setBody] = useState("");
+  const [preview, setPreview] = useState<ProposalPreview | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [proposalError, setProposalError] = useState("");
+  async function generate() {
+    setGenerating(true); setProposalError("");
+    try { const result: ProposalPreview = await apiRequest(`/api/leads/${lead.id}/proposal`, { method: "POST" }); setPreview(result); setSubject(result.subject); setBody(result.body); }
+    catch (e) { setProposalError(e instanceof Error ? e.message : "Could not generate proposal"); }
+    finally { setGenerating(false); }
+  }
   const { setTab } = useContext(TabContext);
   useEffect(() => { setReview(freshReview(lead)); }, [lead.id, lead.revision]);
-  useEffect(() => { setSubject(`Website enquiry for ${lead.name}`); setBody(""); }, [lead.id]);
+  useEffect(() => { setSubject(`Website enquiry for ${lead.name}`); setBody(""); setPreview(null); setProposalError(""); }, [lead.id]);
   function text(key: keyof Review, title: string, type = "text") {
     return <Field title={title}><input type={type} className={input} value={String(review[key])} maxLength={2000} onChange={(e) => setReview({ ...review, [key]: e.target.value })} /></Field>;
   }
@@ -94,15 +104,18 @@ function LeadReview({ lead, busy, onReview, onDraft, onInspect, inspectionAvaila
       <button className={button} disabled={busy}>Save review</button>
       <p className="text-xs text-slate-500">Review validity: 30 days. Unknown identity/activity, uncertain website status or missing contact evidence blocks qualification.</p>
     </form>
-    <form onSubmit={(e) => { e.preventDefault(); onDraft(subject, body); }} className={panel}>
+    <form onSubmit={(e) => { e.preventDefault(); onDraft(subject, body, preview?.id); }} className={panel}>
       <h3 className="font-semibold">Prepare outreach for approval</h3>
       <p className="text-sm">Review: <strong>{lead.status || "needs_review"}</strong> · Permission: <strong>{lead.consent}</strong></p>
       {!lead.ready_to_draft && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{lead.dispatch_blocker}</p>}
       <button type="button" className="text-sm text-indigo-700 underline" onClick={() => setTab("settings")}>Open Settings to record actual contact permission</button>
+      <button type="button" disabled={busy || generating || !lead.ready_to_draft} className={button} onClick={() => void generate()}>{generating ? "Generating…" : "Generate portfolio proposal"}</button>
+      {proposalError && <p role="alert" className="text-sm text-red-700">{proposalError}</p>}
+      {preview && <div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm"><p className="font-medium">Selected portfolio examples</p>{preview.projects.map((p) => <p key={p.id}><a href={p.url} target="_blank" rel="noreferrer" className="text-indigo-700 underline">{p.name}</a><br /><span className="text-xs text-slate-500">{p.reason}</span></p>)}{!preview.projects.length && <p>No active project examples; agency portfolio link only.</p>}<p className="text-xs text-slate-500">Edit the subject and message below before saving. Regenerate after changing the lead review or portfolio.</p></div>}
       <Field title="Subject"><input className={input} required maxLength={300} value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
       <Field title="Message"><textarea className={input} required rows={7} maxLength={20000} value={body} onChange={(e) => setBody(e.target.value)} /></Field>
-      <p className="text-xs text-slate-500">Describe your service accurately. Use “I couldn’t find your website” when that is your evidence, rather than claiming the business has none. Portfolio matching/templates come in Phase 5.</p>
-      <button disabled={busy || !lead.ready_to_draft} className={button}>Save for approval</button>
+      <p className="text-xs text-slate-500">Describe your service accurately. Use “I couldn’t find your website” when that is your evidence, rather than claiming the business has none. Generated text uses your saved portfolio and reviewed business details.</p>
+      <button disabled={busy || generating || !lead.ready_to_draft} className={button}>Save for approval</button>
       <p className="text-xs text-slate-500">Creates one initial outreach draft per connected mailbox/contact. Review it in Approvals to send. Repeating this action does not resend or replace an existing draft.</p>
     </form>
   </div>;
@@ -177,6 +190,7 @@ export function LeadsDashboard() {
     <div><h2 className="text-xl font-semibold">Business research</h2><p className="mt-1 text-sm text-slate-500">Find candidates, review evidence, and prepare eligible outreach. Discovery never sends emails.</p></div>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
+    <PortfolioEditor />
     <ResearchJobs jobs={jobs} available={Boolean(webStatus?.enabled && webStatus?.configured)} workerEnabled={workerEnabled} busy={busy} clock={clock} onStart={(payload) => void act(async () => { await apiRequest("/api/leads/jobs", { method: "POST", body: JSON.stringify(payload) }); await refresh(); setNotice("Research job started. Progress is saved; cooldown waits are automatic. No email will be drafted or sent."); }, "tavily")} onControl={(id, action, budget) => void act(async () => { await apiRequest(`/api/leads/jobs/${id}`, { method: "PATCH", body: JSON.stringify({ action, ...(budget === undefined ? {} : { max_requests: budget }) }) }); await refresh(); }, "tavily")} onSelect={(id) => { setSelected(id); setFilter("all"); setSourceFilter("all"); setSearch(""); document.getElementById("lead-candidates")?.scrollIntoView({ behavior: "smooth" }); }} />
     <div className="grid items-start gap-5 xl:grid-cols-2">
       <div className="space-y-5"><details open className={panel}><summary className="cursor-pointer font-semibold">Add an independently sourced business</summary><form onSubmit={add} className="mt-4 space-y-3">{Object.entries({ name: "Business name", location: "Town / area", source_url: "Original business / independent source URL", address: "Address / branch", phone: "Phone", email: "Listed email (unverified)", website: "Listed website URL (if any)", industry: "Industry" }).map(([key, title]) => <Field key={key} title={title}><input className={input} type={key === "source_url" || key === "website" ? "url" : key === "email" ? "email" : "text"} required={["name", "location", "source_url"].includes(key)} maxLength={key.endsWith("url") || key === "website" ? 2000 : key === "address" ? 500 : 200} value={manual[key as keyof typeof manual]} onChange={(e) => setManual({ ...manual, [key]: e.target.value })} /></Field>)}<Field title="Where did these details come from?"><select className={input} required value={manual.source_kind} onChange={(e) => setManual({ ...manual, source_kind: e.target.value })}><option value="">Choose a source type</option>{Object.entries(sourceKinds).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field><Field title="Source note"><textarea className={input} required rows={3} maxLength={2000} placeholder="Describe the page, owner confirmation or visit supporting these details. Record when it happened." value={manual.source_note} onChange={(e) => setManual({ ...manual, source_note: e.target.value })} /></Field><p className="text-xs text-slate-500">Save facts from the original business source or your own observations. Do not copy Google Maps listings into this ledger. Qualification and contact permission are reviewed separately.</p><button disabled={busy} className={button}>Save candidate</button></form></details>
@@ -206,7 +220,7 @@ export function LeadsDashboard() {
       <div className={panel}><div className="flex items-center justify-between gap-2"><h3 className="font-semibold">Candidates ({visible.length} / {leads.length})</h3><button className="text-sm text-indigo-700 underline disabled:opacity-50" disabled={busy} onClick={() => act(refresh)}>Refresh</button></div><Field title="Search candidates"><input className={input} value={search} onChange={(e) => setSearch(e.target.value)} /></Field><Field title="Candidate source"><select className={input} value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}><option value="all">All sources</option><option value="manual">Manual / CSV research</option><option value="openstreetmap">OpenStreetMap</option><option value="tavily">Tavily (optional)</option></select></Field><Field title="Review status"><select className={input} value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All statuses</option><option value="needs_review">Needs review</option><option value="qualified">Qualified</option><option value="rejected">Rejected</option></select></Field>
         <div className="max-h-[36rem] space-y-2 overflow-auto">{visible.map((lead) => <button key={lead.id} className={`w-full rounded-lg border p-3 text-left text-sm ${selected === lead.id ? "border-indigo-300 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"}`} onClick={() => setSelected(lead.id)}><strong className="block">{lead.name}</strong><span className="block text-xs text-slate-500">{lead.location} · {lead.status || "needs_review"}</span><span className="block text-xs text-slate-500">{lead.source === "manual" ? sourceKinds[lead.observation?.source_kind || ""] || "Manual / CSV" : lead.source === "openstreetmap" ? "OpenStreetMap" : lead.source}</span><span className="block text-xs text-slate-500">{lead.observation?.website ? "Website listed · verify" : "No website listed · unverified"}</span><span className="block text-xs text-slate-500">{lead.ready_to_draft ? "Ready to draft" : "Review or permission required"}</span></button>)}{visible.length === 0 && <p className="text-sm text-slate-500">No matching candidates. Run a small search or add/import sourced businesses.</p>}</div>
       </div>
-      <div className="min-w-0 lg:col-span-2">{active ? <LeadReview key={active.id} lead={active} busy={busy} onInspect={() => void inspectCandidate(active.id)} inspectionAvailable={Boolean(webStatus?.enabled && webStatus?.configured)} inspectionWait={webRemaining} onReview={(payload) => act(async () => { await apiRequest(`/api/leads/${active.id}/review`, { method: "PUT", body: JSON.stringify(payload) }); await refresh(); setNotice("Review saved. Contact permission and suppression were preserved."); })} onDraft={(subject, body) => act(async () => { const result = await apiRequest(`/api/leads/${active.id}/draft`, { method: "POST", body: JSON.stringify({ subject, body }) }); setNotice(`Initial outreach draft status: ${result.status}. Open Approvals to review it. No email was sent by this action.`); })} /> : <div className={`${panel} text-sm text-slate-500`}>Select a candidate to review its business identity, website research and contact evidence.</div>}</div>
+      <div className="min-w-0 lg:col-span-2">{active ? <LeadReview key={active.id} lead={active} busy={busy} onInspect={() => void inspectCandidate(active.id)} inspectionAvailable={Boolean(webStatus?.enabled && webStatus?.configured)} inspectionWait={webRemaining} onReview={(payload) => act(async () => { await apiRequest(`/api/leads/${active.id}/review`, { method: "PUT", body: JSON.stringify(payload) }); await refresh(); setNotice("Review saved. Contact permission and suppression were preserved."); })} onDraft={(subject, body, previewId) => act(async () => { const result = await apiRequest(`/api/leads/${active.id}/draft`, { method: "POST", body: JSON.stringify({ subject, body, proposal_preview_id: previewId }) }); setNotice(`Initial outreach draft status: ${result.status}. Open Approvals to review it. No email was sent by this action.`); })} /> : <div className={`${panel} text-sm text-slate-500`}>Select a candidate to review its business identity, website research and contact evidence.</div>}</div>
     </div>
   </section>;
 }

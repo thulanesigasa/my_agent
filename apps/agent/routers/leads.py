@@ -275,8 +275,20 @@ def review(lead_id: str, payload: ReviewInput):
 
 
 class DraftInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     subject: str = Field(min_length=1, max_length=300)
     body: str = Field(min_length=1, max_length=20000)
+    proposal_preview_id: str | None = Field(default=None, max_length=60)
+
+
+@router.post("/{lead_id}/proposal")
+def proposal(lead_id: str):
+    from services.proposals import create_preview
+
+    try:
+        return create_preview(lead_id, email_service.expected_email)
+    except (ValueError, KeyError) as exc:
+        failure(exc)
 
 
 @router.post("/{lead_id}/draft")
@@ -285,7 +297,11 @@ def draft(lead_id: str, payload: DraftInput):
         if not payload.subject.strip() or not payload.body.strip():
             raise ValueError("Subject and message cannot be blank")
         return draft_lead(
-            lead_id, payload.subject, payload.body, email_service.expected_email
+            lead_id,
+            payload.subject,
+            payload.body,
+            email_service.expected_email,
+            payload.proposal_preview_id,
         )
     except (ValueError, KeyError) as exc:
         failure(exc)
