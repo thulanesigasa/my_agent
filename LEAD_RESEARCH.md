@@ -54,7 +54,7 @@ name,location,source_url,address,phone,email,website,industry
 
 Only `name`, `location` and `source_url` are required columns. Paste CSV or select a file, up to 100 rows per request and 200 KB in the file picker. The complete CSV is validated before any row is written. A batch can still be interrupted by an unexpected system/storage failure; reimport safely to recover. No email is inferred from a business name/domain, and multiple possible email addresses must be reviewed rather than guessed.
 
-OpenStreetMap records deduplicate by stable node/way/relation ID. Manual/Tavily records use normalised name, location, address and phone; changing branch details can create a distinct candidate. Same-name entries in one location are flagged as possible duplicates, not automatically merged. Reject duplicates after checking the address/branch. The draft ledger also prevents repeated initial outreach to the same mailbox/contact, including previous recorded outreach.
+OpenStreetMap records deduplicate by stable node/way/relation ID. Manual/Tavily records use normalised name, location, address and phone (plus source URL when both address and phone are missing); changing branch details can create a distinct candidate. Same-name entries in one location are flagged as possible duplicates, not automatically merged. Reject duplicates after checking the address/branch. The draft ledger also prevents repeated initial outreach to the same mailbox/contact, including previous recorded outreach.
 
 ## Evidence review
 

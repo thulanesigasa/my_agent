@@ -80,6 +80,13 @@ def candidate_id(candidate):
             normalized(candidate.get(k, ""))
             for k in ("name", "location", "address", "phone")
         )
+        if (
+            not candidate.get("address", "").strip()
+            and not candidate.get("phone", "").strip()
+        ):
+            # Without branch facts, two same-name businesses from different sources
+            # are only possible duplicates, not established identical businesses.
+            identity += "|" + candidate["source_url"]
     return hashlib.sha256(identity.encode()).hexdigest()[:24]
 
 

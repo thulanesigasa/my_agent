@@ -15,8 +15,15 @@ def matching_leads(location, industry):
         and normalized(location)
         in normalized(lead.get("location") or lead.get("address", ""))
         and (
-            industry
-            in ("local businesses", "local services", "local service businesses")
+            normalized(industry)
+            in (
+                "businesses",
+                "small businesses",
+                "companies",
+                "local businesses",
+                "local services",
+                "local service businesses",
+            )
             or normalized(industry) in normalized(lead.get("industry", ""))
         )
     ]

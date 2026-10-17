@@ -363,6 +363,11 @@ async def test_core_uses_saved_candidates_and_paid_search_is_explicitly_disabled
     assert (await lead_finder.find_contact_email(lead["name"], lead["location"]))[
         "email"
     ] is None
+    assert (
+        await lead_finder.search_businesses_without_websites(
+            "Example Town", "businesses"
+        )
+    )[0]["id"] == lead["id"]
     network.assert_not_called()
 
 
@@ -515,3 +520,14 @@ def test_previous_legacy_outreach_cannot_be_duplicated_by_new_lead_flow():
     )
     with pytest.raises(EligibilityError, match="already exists"):
         draft_lead(lead["id"], "Hello", "Hello", email_service.expected_email)
+
+
+def test_missing_branch_details_do_not_merge_same_name_from_different_sources():
+    one = ingest_candidate(candidate(address="", phone=""))
+    two = ingest_candidate(
+        candidate(
+            address="", phone="", source_url="https://another.example.test/business"
+        )
+    )
+    assert one["id"] != two["id"]
+    assert lead_view(one)["possible_duplicates"] == [two["id"]]
