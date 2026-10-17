@@ -162,3 +162,11 @@ Full page bodies, images and provider error bodies are not retained. The latest 
 Inspecting does not overwrite an operator's review or contact record. A successful fresh inspection of the current source requires the operator to review the findings and save the evidence again before a previously qualified lead can draft/send, including an already queued approval. New source observations invalidate the inspection fingerprint and label earlier findings stale. Inspection results older than 24 hours are also labeled stale, and their suggestion buttons are disabled. Merely rediscovering the same observation or reading the cache does not renew evidence dates. A source changed during an in-flight inspection causes a conflict instead of storing mismatched findings.
 
 This is automated extraction after one explicit source selection. It does not fully automate business identification, establish that no website exists, guarantee that a business is operating, or perform bulk enrichment. Live extraction availability and quality still need a small test on your own account.
+
+### Cleaning inspection suggestions
+
+South African phone variants such as `072 760 5595`, `+27 72 760 5595` and a `tel:` link normalize to one `+27727605595` suggestion. Recognized image, script, font, media, archive and PDF paths are omitted from website suggestions. Same-site pages and external references appear separately; external articles/suppliers/advertisers have no one-click website-finding action. This host grouping does not establish business ownership.
+
+If the inspected page itself is the business’s existing website, use **Mark this inspected page as the business website after checking ownership**, then save the review with **Independent website found** and reject it for no-website outreach. That action only edits the unsaved review; it does not assume the business serves the target town.
+
+Formatting cleanup also applies to older saved/cached findings on read. Pull and restart to see cleaned results without spending another extraction attempt or renewing the inspection/review timestamp. Unsupported or dynamic asset URLs may still need operator review.

@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 import time
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit, unquote
 from uuid import uuid4
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -33,6 +33,49 @@ def observation_fingerprint(lead):
             sort_keys=True,
         ).encode()
     ).hexdigest()
+
+
+def normalize_inspection(inspection):
+    """Presentation cleanup also applies to old cached findings without a new call."""
+    findings = dict(inspection["findings"])
+    phones, seen = [], set()
+    for item in findings.get("phones", []):
+        digits = re.sub(r"\D", "", item["value"])
+        if len(digits) == 10 and digits.startswith("0"):
+            digits = "27" + digits[1:]
+        if len(digits) != 11 or not digits.startswith("27") or digits in seen:
+            continue
+        seen.add(digits)
+        phones.append({**item, "value": "+" + digits})
+    findings["phones"] = phones[:10]
+    links, external, seen = [], [], set()
+    source_host = (urlsplit(inspection["source_url"]).hostname or "").removeprefix(
+        "www."
+    )
+    for item in findings.get("links", []) + findings.get("external_links", []):
+        try:
+            url = public_url(item["value"])
+        except ValueError:
+            continue
+        parts = urlsplit(url)
+        if re.search(
+            r"\.(?:png|jpe?g|gif|webp|svg|ico|avif|bmp|css|js|woff2?|ttf|eot|mp[34]|webm|wav|pdf|zip)$",
+            unquote(parts.path),
+            re.I,
+        ):
+            continue
+        if url in seen or url == inspection["source_url"]:
+            continue
+        seen.add(url)
+        target = (
+            links
+            if (parts.hostname or "").removeprefix("www.") == source_host
+            else external
+        )
+        if len(target) < 10:
+            target.append({**item, "value": url})
+    findings["links"], findings["external_links"] = links, external
+    return {**inspection, "findings": findings}
 
 
 def activity_blockers(review):
@@ -428,6 +471,8 @@ def lead_view(lead):
     lead["blockers"] = review_blockers(review)
     lead["source_freshness"] = source_freshness(lead.get("observation") or {})
     inspection = store.get("lead_inspections", lead["id"])
+    if inspection:
+        inspection = normalize_inspection(inspection)
     lead["source_inspection"] = (
         {
             **inspection,

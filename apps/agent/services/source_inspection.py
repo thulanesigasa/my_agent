@@ -9,7 +9,11 @@ from uuid import uuid4
 
 from core.store import store, now, ConflictError
 from services.contacts import normalize_email
-from services.lead_service import public_url, observation_fingerprint
+from services.lead_service import (
+    public_url,
+    observation_fingerprint,
+    normalize_inspection,
+)
 from services.lead_discovery import DiscoveryUnavailable
 from services.web_research import research_status, reserve_request, request_provider
 
@@ -17,7 +21,7 @@ MAX_TEXT = 200_000
 EMAIL = re.compile(
     r"(?<![\w@])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}(?![\w@])"
 )
-PHONE = re.compile(r"(?<!\d)(?:\+27[ ().-]*|0)(?:\d[ ().-]*){9}(?!\d)")
+PHONE = re.compile(r"(?<!\d)(?:\+27[ ().-]*|0)(?:\d[ ().-]*){8}\d(?!\d)")
 URL = re.compile(r"https?://[^\s<>\[\]\"']{1,2000}")
 
 
@@ -137,9 +141,10 @@ async def inspect_source(lead_id):
     )
     cached = store.get("research_cache", cache_id)
     if cached and cached.get("expires", 0) > time.time():
-        save_inspection(lead_id, fingerprint, cached["inspection"])
+        cleaned = normalize_inspection(cached["inspection"])
+        save_inspection(lead_id, fingerprint, cleaned)
         return {
-            "inspection": cached["inspection"],
+            "inspection": cleaned,
             "cached": True,
             "usage": research_status(),
         }
@@ -194,6 +199,7 @@ async def inspect_source(lead_id):
             "findings": parse_evidence(text, url, lead["location"]),
             "warning": "Unverified literal page findings. Directory contacts and linked websites may belong to other businesses. Dates and closure phrases need context. No finding proves current activity, website absence or contact permission.",
         }
+        inspection = normalize_inspection(inspection)
         save_inspection(lead_id, fingerprint, inspection, fresh=True)
         store.put(
             "research_cache",
