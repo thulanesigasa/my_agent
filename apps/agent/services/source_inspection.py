@@ -25,6 +25,10 @@ PHONE = re.compile(r"(?<!\d)(?:\+27[ ().-]*|0)(?:\d[ ().-]*){8}\d(?!\d)")
 URL = re.compile(r"https?://[^\s<>\[\]\"']{1,2000}")
 
 
+class SourceInspectionFailed(DiscoveryUnavailable):
+    """A single source was unreadable; a job can record it as an exception."""
+
+
 def allowed_source(lead):
     url = public_url(lead["source_url"])
     parts = urlsplit(url)
@@ -170,7 +174,7 @@ async def inspect_source(lead_id):
             or len(results) != 1
             or not isinstance(results[0], dict)
         ):
-            raise DiscoveryUnavailable(
+            raise SourceInspectionFailed(
                 "The source could not be inspected. Activity, email and website status remain unknown.",
                 research_status()["retry_after_seconds"],
             )
@@ -180,13 +184,13 @@ async def inspect_source(lead_id):
         except (ValueError, AttributeError):
             returned_url = ""
         if returned_url != url:
-            raise DiscoveryUnavailable(
+            raise SourceInspectionFailed(
                 "The provider returned a different source URL. Open the source manually; no findings were saved.",
                 research_status()["retry_after_seconds"],
             )
         text = result.get("raw_content")
         if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT:
-            raise DiscoveryUnavailable(
+            raise SourceInspectionFailed(
                 "Source content was empty or exceeded the inspection limit. No findings were saved.",
                 research_status()["retry_after_seconds"],
             )

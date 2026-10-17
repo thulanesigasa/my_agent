@@ -2,6 +2,7 @@
 
 import { FormEvent, useContext, useEffect, useState } from "react";
 import { apiRequest, ApiError } from "@/lib/api";
+import { ResearchJobs, ResearchJob } from "@/components/dashboard/research-jobs";
 import { TabContext } from "@/components/app-shell";
 
 type Review = {
@@ -109,6 +110,8 @@ function LeadReview({ lead, busy, onReview, onDraft, onInspect, inspectionAvaila
 
 export function LeadsDashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [jobs, setJobs] = useState<ResearchJob[]>([]);
+  const [workerEnabled, setWorkerEnabled] = useState(false);
   const [selected, setSelected] = useState("");
   const [filter, setFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -130,13 +133,20 @@ export function LeadsDashboard() {
   const [manual, setManual] = useState(empty);
   const [csv, setCsv] = useState("name,location,source_url,address,phone,email,website,industry,source_kind,source_note\n");
   const [area, setArea] = useState({ location: "Standerton, Mpumalanga", latitude: "", longitude: "", radius_km: "1", category: "all", limit: "25" });
-  async function refresh() { const result = await apiRequest("/api/leads"); setLeads(result.leads); setWebStatus(result.web_research); setWebCooldownUntil(Date.now() + (result.web_research?.retry_after_seconds || 0) * 1000); setDailyLimit(result.daily_limit); setProviderName(result.provider?.name || "OpenStreetMap provider"); setCooldownUntil(Date.now() + (result.retry_after_seconds || 0) * 1000); setClock(Date.now()); }
+  async function refresh() { const result = await apiRequest("/api/leads"); setLeads(result.leads); setJobs(result.research_jobs || []); setWorkerEnabled(Boolean(result.research_worker_enabled)); setWebStatus(result.web_research); setWebCooldownUntil(Date.now() + (result.web_research?.retry_after_seconds || 0) * 1000); setDailyLimit(result.daily_limit); setProviderName(result.provider?.name || "OpenStreetMap provider"); setCooldownUntil(Date.now() + (result.retry_after_seconds || 0) * 1000); setClock(Date.now()); }
   async function act(call: () => Promise<void>, provider: "osm" | "tavily" = "osm") {
     setBusy(true); setError(""); setNotice("");
     try { await call(); } catch (e) { setError(e instanceof Error ? e.message : "Lead operation failed"); if (e instanceof ApiError && e.retryAfterSeconds > 0) { if (provider === "tavily") setWebCooldownUntil(Date.now() + e.retryAfterSeconds * 1000); else setCooldownUntil(Date.now() + e.retryAfterSeconds * 1000); setClock(Date.now()); } }
     finally { setBusy(false); }
   }
   useEffect(() => { void act(refresh); }, []);
+  const activeJob = jobs.some((job) => ["queued", "running", "waiting"].includes(job.status));
+  useEffect(() => {
+    if (!activeJob) return;
+    let pending = false;
+    const timer = setInterval(async () => { if (pending) return; pending = true; try { await refresh(); } catch (e) { setError(e instanceof Error ? e.message : "Could not refresh job progress"); } finally { pending = false; } }, 5000);
+    return () => clearInterval(timer);
+  }, [activeJob]);
   async function discover(e: FormEvent) {
     e.preventDefault();
     await act(async () => { const result = await apiRequest("/api/leads/discover", { method: "POST", body: JSON.stringify({ ...area, latitude: Number(area.latitude), longitude: Number(area.longitude), radius_km: Number(area.radius_km), limit: Number(area.limit) }) }); await refresh(); setSourceFilter("all"); setFilter("all"); setSearch(""); if (result.leads[0]) setSelected(result.leads[0].id); setNotice(`${result.leads.length} unverified candidates loaded${result.cached ? " from the 24-hour cache" : " from OpenStreetMap"}.${result.truncated ? " Results were capped; narrow the radius." : ""} No email was sent.`); });
@@ -167,6 +177,7 @@ export function LeadsDashboard() {
     <div><h2 className="text-xl font-semibold">Business research</h2><p className="mt-1 text-sm text-slate-500">Find candidates, review evidence, and prepare eligible outreach. Discovery never sends emails.</p></div>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
+    <ResearchJobs jobs={jobs} available={Boolean(webStatus?.enabled && webStatus?.configured)} workerEnabled={workerEnabled} busy={busy} clock={clock} onStart={(payload) => void act(async () => { await apiRequest("/api/leads/jobs", { method: "POST", body: JSON.stringify(payload) }); await refresh(); setNotice("Research job started. Progress is saved; cooldown waits are automatic. No email will be drafted or sent."); }, "tavily")} onControl={(id, action, budget) => void act(async () => { await apiRequest(`/api/leads/jobs/${id}`, { method: "PATCH", body: JSON.stringify({ action, ...(budget === undefined ? {} : { max_requests: budget }) }) }); await refresh(); }, "tavily")} onSelect={(id) => { setSelected(id); setFilter("all"); setSourceFilter("all"); setSearch(""); document.getElementById("lead-candidates")?.scrollIntoView({ behavior: "smooth" }); }} />
     <div className="grid items-start gap-5 xl:grid-cols-2">
       <div className="space-y-5"><details open className={panel}><summary className="cursor-pointer font-semibold">Add an independently sourced business</summary><form onSubmit={add} className="mt-4 space-y-3">{Object.entries({ name: "Business name", location: "Town / area", source_url: "Original business / independent source URL", address: "Address / branch", phone: "Phone", email: "Listed email (unverified)", website: "Listed website URL (if any)", industry: "Industry" }).map(([key, title]) => <Field key={key} title={title}><input className={input} type={key === "source_url" || key === "website" ? "url" : key === "email" ? "email" : "text"} required={["name", "location", "source_url"].includes(key)} maxLength={key.endsWith("url") || key === "website" ? 2000 : key === "address" ? 500 : 200} value={manual[key as keyof typeof manual]} onChange={(e) => setManual({ ...manual, [key]: e.target.value })} /></Field>)}<Field title="Where did these details come from?"><select className={input} required value={manual.source_kind} onChange={(e) => setManual({ ...manual, source_kind: e.target.value })}><option value="">Choose a source type</option>{Object.entries(sourceKinds).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field><Field title="Source note"><textarea className={input} required rows={3} maxLength={2000} placeholder="Describe the page, owner confirmation or visit supporting these details. Record when it happened." value={manual.source_note} onChange={(e) => setManual({ ...manual, source_note: e.target.value })} /></Field><p className="text-xs text-slate-500">Save facts from the original business source or your own observations. Do not copy Google Maps listings into this ledger. Qualification and contact permission are reviewed separately.</p><button disabled={busy} className={button}>Save candidate</button></form></details>
         <details className={panel}><summary className="cursor-pointer font-semibold">Import CSV</summary><form onSubmit={importCSV} className="mt-4 space-y-3"><p className="text-sm text-slate-500">Up to 100 rows, 200 KB. Required headers: name, location, source_url. Optional source_kind and source_note columns preserve provenance. Source kinds: business_owned_page, public_business_social, owner_provided, local_observation, other. A selected kind requires a note. Older CSV files still work. Imports create candidates and cannot grant consent.</p><Field title="Choose a CSV file"><input className={input} type="file" accept=".csv,text/csv" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 200000) { setError("CSV exceeds 200 KB"); return; } setCsv(await file.text()); }} /></Field><Field title="CSV content"><textarea className={`${input} font-mono`} rows={6} required maxLength={200000} value={csv} onChange={(e) => setCsv(e.target.value)} /></Field><button disabled={busy} className={button}>Import candidates</button></form></details>
@@ -191,7 +202,7 @@ export function LeadsDashboard() {
       </form></details>
       </div>
     </div>
-    <div className="grid items-start gap-5 lg:grid-cols-3">
+    <div id="lead-candidates" className="grid items-start gap-5 lg:grid-cols-3">
       <div className={panel}><div className="flex items-center justify-between gap-2"><h3 className="font-semibold">Candidates ({visible.length} / {leads.length})</h3><button className="text-sm text-indigo-700 underline disabled:opacity-50" disabled={busy} onClick={() => act(refresh)}>Refresh</button></div><Field title="Search candidates"><input className={input} value={search} onChange={(e) => setSearch(e.target.value)} /></Field><Field title="Candidate source"><select className={input} value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}><option value="all">All sources</option><option value="manual">Manual / CSV research</option><option value="openstreetmap">OpenStreetMap</option><option value="tavily">Tavily (optional)</option></select></Field><Field title="Review status"><select className={input} value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All statuses</option><option value="needs_review">Needs review</option><option value="qualified">Qualified</option><option value="rejected">Rejected</option></select></Field>
         <div className="max-h-[36rem] space-y-2 overflow-auto">{visible.map((lead) => <button key={lead.id} className={`w-full rounded-lg border p-3 text-left text-sm ${selected === lead.id ? "border-indigo-300 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"}`} onClick={() => setSelected(lead.id)}><strong className="block">{lead.name}</strong><span className="block text-xs text-slate-500">{lead.location} · {lead.status || "needs_review"}</span><span className="block text-xs text-slate-500">{lead.source === "manual" ? sourceKinds[lead.observation?.source_kind || ""] || "Manual / CSV" : lead.source === "openstreetmap" ? "OpenStreetMap" : lead.source}</span><span className="block text-xs text-slate-500">{lead.observation?.website ? "Website listed · verify" : "No website listed · unverified"}</span><span className="block text-xs text-slate-500">{lead.ready_to_draft ? "Ready to draft" : "Review or permission required"}</span></button>)}{visible.length === 0 && <p className="text-sm text-slate-500">No matching candidates. Run a small search or add/import sourced businesses.</p>}</div>
       </div>
