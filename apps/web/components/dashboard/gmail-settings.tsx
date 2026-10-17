@@ -79,8 +79,9 @@ export function GmailSettings() {
     </form>
     <form onSubmit={draft} className="rounded-xl border border-slate-200 p-5 space-y-3">
       <h2 className="font-semibold">Create a draft</h2>
+      <p className="text-sm text-slate-500">For new business outreach, review a candidate in Leads and prepare its draft there.</p>
       <label className="block text-sm">Purpose<select className={input} value={purpose} onChange={(e) => { setPurpose(e.target.value); setIncomingId(null); }}>
-        <option value="test">Connection test to an address I control</option><option value="outreach">Outreach to a verified contact with recorded permission</option><option value="reply">Reply to the message selected below</option>
+        <option value="test">Connection test to an address I control</option><option value="reply">Reply to the message selected below</option>
       </select></label>
       {purpose === "reply" && <p className="text-xs">{incomingId ? "Reply selected. Recipient and thread will be taken from the saved incoming message." : "Select Reply on an incoming message below."}</p>}
       <label className="block text-sm">Recipient<input className={input} type="email" required readOnly={purpose === "reply"} value={recipient} onChange={(e) => setRecipient(e.target.value)} /></label>

@@ -7,9 +7,10 @@ import {
   ShieldCheck, Database, PanelLeft, Bell, Send, FileSpreadsheet
 } from "lucide-react";
 
-export type NavTab = "overview" | "logs" | "approvals" | "memory" | "settings" | "reports";
+export type NavTab = "overview" | "logs" | "approvals" | "memory" | "settings" | "reports" | "leads";
 
 const WORKSPACE_NAV = [
+  { id: "leads" as NavTab, label: "Leads", icon: Users },
   { id: "reports" as NavTab, label: "Reports", icon: FileSpreadsheet },
   { id: "overview"  as NavTab, label: "Overview",      icon: LayoutDashboard },
   { id: "logs"      as NavTab, label: "Outreach Logs", icon: Mail            },
@@ -37,7 +38,7 @@ export function AppShell({ children }: AppShellProps) {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const urlTab = params.get("tab") as NavTab;
-      if (urlTab && ["overview", "logs", "approvals", "memory", "settings", "reports"].includes(urlTab)) {
+      if (urlTab && ["overview", "logs", "approvals", "memory", "settings", "reports", "leads"].includes(urlTab)) {
         setTab(urlTab);
       }
     }

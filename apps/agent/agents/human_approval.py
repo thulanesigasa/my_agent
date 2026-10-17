@@ -73,6 +73,11 @@ async def approve_draft(thread_id):
     ):
         raise EligibilityError("This draft belongs to another sending mailbox")
     ensure_eligible(item["recipient_email"], item.get("purpose", "outreach"))
+    lead_id = item.get("lead_id") or (item.get("lead_data") or {}).get("id")
+    if item.get("purpose") == "outreach" and lead_id:
+        from services.lead_service import ensure_qualified
+
+        ensure_qualified(lead_id, item["recipient_email"])
     attachment = None
     if item.get("purpose") == "report":
         from services.report_service import report_attachment
@@ -100,13 +105,17 @@ async def approve_draft(thread_id):
         )
         if result.get("status") != "sent" or not result.get("id"):
             raise DeliveryUnknown("Provider did not confirm the send")
-    except (EmailUnavailable, EligibilityError):
+    except (EmailUnavailable, EligibilityError) as exc:
         store.transition(
             "approvals",
             thread_id,
             ["sending"],
             "failed",
-            error="Gmail unavailable; configure it before retrying",
+            error=(
+                str(exc)
+                if isinstance(exc, EligibilityError)
+                else "Gmail unavailable; configure it before retrying"
+            ),
         )
         raise
     except Exception:

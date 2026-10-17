@@ -434,6 +434,7 @@ async def test_search_candidates_are_persisted_without_claiming_verification(
             )
 
     monkeypatch.setattr(settings, "TAVILY_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "ALLOW_TAVILY_RESEARCH", True)
     monkeypatch.setattr(
         lead_finder.httpx, "AsyncClient", lambda **kwargs: SearchClient()
     )

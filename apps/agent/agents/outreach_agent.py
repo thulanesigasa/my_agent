@@ -18,9 +18,9 @@ from core.memory import memory_manager
 from services.llm_factory import llm_factory
 from tools.lead_finder import search_businesses_without_websites, find_contact_email
 from tools.procedural_tools import load_unbreakable_rules
-from agents.human_approval import queue_approval
-from core.store import store
-import hashlib
+from services.lead_service import ensure_qualified, draft_lead
+from services.contacts import EligibilityError
+from services.email_service import email_service
 
 logger = logging.getLogger("agent.outreach")
 
@@ -56,7 +56,7 @@ async def find_leads_node(state: OutreachState) -> OutreachState:
     """
     Node 1: Searches for businesses without websites and populates state['leads'].
     """
-    location = state.get("location", "Atlanta, GA")
+    location = state.get("location", "Standerton, Mpumalanga")
     industry = state.get("industry", "local services")
     logger.info(
         f"[OutreachGraph] find_leads_node: location='{location}', industry='{industry}'"
@@ -65,7 +65,9 @@ async def find_leads_node(state: OutreachState) -> OutreachState:
     leads = await search_businesses_without_websites(
         location=location, industry=industry, limit=10
     )
-    logger.info(f"[OutreachGraph] Found {len(leads)} leads without websites.")
+    logger.info(
+        f"[OutreachGraph] Found {len(leads)} candidates requiring evidence review."
+    )
 
     return {**state, "leads": leads, "sender": "find_leads_node"}
 
@@ -96,7 +98,17 @@ async def compose_pitch_node(state: OutreachState) -> OutreachState:
     """
     Node 3: Generates personalized pitch emails using Gemini + unbreakable rules context.
     """
-    enriched = state.get("enriched_leads", [])
+    enriched = []
+    for candidate in state.get("enriched_leads", []):
+        try:
+            lead = ensure_qualified(candidate.get("id"))
+            enriched.append(
+                {**lead, "email": lead["review"]["email"], "confidence": "verified"}
+            )
+        except EligibilityError:
+            continue
+    if not enriched:
+        return {**state, "drafted_pitches": [], "sender": "compose_pitch_node"}
     logger.info(
         f"[OutreachGraph] compose_pitch_node: drafting {len(enriched)} pitch emails..."
     )
@@ -163,31 +175,18 @@ async def outreach_dispatcher_node(state: OutreachState) -> OutreachState:
         f"[OutreachGraph] outreach_dispatcher_node: queuing {len(pitches)} pitches for approval..."
     )
 
+    queued = 0
     for pitch in pitches:
-        recipient = pitch["recipient_email"].strip().lower()
-        thread_id = "outreach_" + hashlib.sha256(recipient.encode()).hexdigest()[:24]
-        lead = pitch.get("lead_data", {})
-        store.put("leads", lead.get("id") or thread_id, lead)
-        queue_approval(
-            thread_id,
-            {
-                "thread_id": thread_id,
-                "intent": "sales",
-                "email_input": {
-                    "sender": pitch.get("recipient_email"),
-                    "subject": pitch.get("subject"),
-                    "body": pitch.get("body"),
-                },
-                "draft_response": pitch.get("body"),
-                "status": "pending",
-                "purpose": "outreach",
-                "lead_data": pitch.get("lead_data", {}),
-            },
+        lead_id = pitch.get("lead_data", {}).get("id")
+        ensure_qualified(lead_id, pitch["recipient_email"])
+        draft_lead(
+            lead_id, pitch["subject"], pitch["body"], email_service.expected_email
         )
+        queued += 1
 
     summary = (
-        f"[SUCCESS] {len(pitches)} personalized outreach email(s) drafted and placed in the Approval Queue.\n"
-        f"Go to the Admin Dashboard > Approval Queue to review and send them."
+        f"{queued} eligible outreach draft(s) available in the Approval Queue.\n"
+        f"Review candidates and evidence in Leads. Outreach requires current qualification and recorded permission; sending remains explicitly approved."
     )
     return {**state, "outreach_status": summary, "sender": "outreach_dispatcher_node"}
 

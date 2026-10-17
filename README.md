@@ -2,7 +2,7 @@
 
 A Python/FastAPI + LangGraph backend and Next.js dashboard for a local business website outreach workflow.
 
-## Current milestone: Phase 3 reporting
+## Current milestone: Phase 4 business research
 
 Phase 1 persists workflow records and approvals. Phase 2 adds a local OAuth connection helper, account verification, MIME message parsing, paginated history sync, reply threading, contact eligibility/suppression, uncertain-send reconciliation and connected Gmail dashboard controls.
 
@@ -10,14 +10,16 @@ Phase 1 persists workflow records and approvals. Phase 2 adds a local OAuth conn
 
 Phase 3 adds real conversation reply metrics, inclusive SAST date ranges, operator-recorded outcomes, daily activity, saved snapshots, Excel exports and approval-controlled report attachments. See [REPORTING.md](REPORTING.md) for the reporting workflow and optional Monday schedule. The dashboard styling pipeline is restored.
 
-Voice features are retained. Research qualification, sales interpretation, follow-ups and autonomous campaigns remain later phases.
+Phase 4 adds free bounded OpenStreetMap discovery, manual/CSV candidates, source observations, identity/activity/website/contact review, duplicate checks and qualified-lead drafts. See [LEAD_RESEARCH.md](LEAD_RESEARCH.md). New business outreach starts in Leads. No new API key or LLM is required for the default research/manual draft flow.
+
+Voice features are retained. Portfolio matching, sales interpretation, follow-ups and autonomous campaigns remain later phases.
 
 ## Roadmap
 
 1. **Foundation:** persistence, truthful statuses, approval dispatch, webhook protection.
 2. **Email integration (implemented; operator must authorise and run the live test):** full message parsing, Gmail history synchronisation, threading, delivery reconciliation, contact eligibility and suppression.
 3. **Reporting (implemented):** actual reply outcomes, reporting periods, dashboard trends, Excel exports and attachments.
-4. **Research and qualification:** supported sources, identity checks, website evidence and reviewed contact details.
+4. **Research and qualification (implemented):** supported sources, identity checks, website evidence and reviewed contact details.
 5. **Outreach and conversation management:** portfolio matching, templates, reply interpretation and permitted follow-ups.
 6. **Controlled autonomy:** campaign schedules, quotas, spending caps, operational controls and a small pilot.
 
