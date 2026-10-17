@@ -1,0 +1,24 @@
+# Reply handling
+
+Pull the update and restart both servers. No new requirements or credentials are needed. Open **Settings → Gmail → Sync replies**, then scroll to **Replies in recorded conversations**.
+
+## Review and respond
+
+1. Read the actual synced message. Local rules suggest **Interested**, **Declined**, **Question**, **Needs review**, **Unsubscribed**, **Automated** or **Bounced**, with reasons and any matching phrases. These are conservative English-language rules, not reliable interpretation of every message, language, negation or context. Quoted text is excluded using the existing parser. Mixed/conditional wording goes to review. A suggestion alone never changes report outcomes or contact permission.
+2. For clear interest/questions, click **Prepare response template**. This fills **Create a draft** with an editable scope-discussion response and the configured agency portfolio. It makes no price, feature commitment, delivery promise or claim of a sale. A question template asks for scope; **edit it to answer the actual question**. No template is offered for declines, ambiguous messages, opt-outs, automated mail or bounces. Use **Write reply** for a manually composed response when appropriate and eligible.
+3. Click **Save for approval**, then open **Approvals** and review the saved recipient, subject and message before sending. Recipient, Message-ID and Gmail thread come from the persisted incoming record; they cannot be redirected through editable recipient/subject fields. Existing contact eligibility still applies. One approval per incoming message is retained; repeating draft creation does not replace or resend it. An existing approval can be edited through Approvals under the existing status rules.
+4. In the reply card, choose an outcome and enter your evidence before clicking **Confirm outcome for reports**. This records an operator decision with a reference to the reply. It does not send email or grant permission. Refresh a current report to include it. Saved report/Excel snapshots retain their original values. A confirmed decline is a conversation result, not automatic contact suppression; explicit opt-outs retain the existing immediate suppression behavior. Confirm a sale as **Won** through Reports only after checking the actual result.
+
+Templates and outcome confirmation require the latest human reply from the tracked participant in that mailbox/thread. A newer human message blocks queueing and sending an older response, including a second check immediately before Gmail submission. Changes to the incoming source or portfolio invalidate an unqueued preview. Once queued, the saved response is preserved; catalogue edits do not rewrite it. Newer automated notices alone do not supersede a human reply. Older messages remain visible for history.
+
+Legacy approvals without an incoming-record binding retain their previous eligibility checks. Review existing drafts before using this update. All checks apply only to messages already synced locally: sync before sending so the app can see later replies and opt-outs. The app cannot detect a Gmail message it has not downloaded.
+
+## Optional templates during sync
+
+`GMAIL_DRAFT_REPLIES=false` remains the default. Suggestions are available regardless of this setting, including for old records when displayed. With `GMAIL_DRAFT_REPLIES=true`, newly processed, eligible, current interest/question messages can queue local templates automatically. They still require sending approval. Ambiguous replies, declines, automated mail, bounces and opt-outs do not get automatic templates. Missing consent/verification or a newer reply leaves the message for manual review. A processing error preserves the incoming record and sync cursor; retry it from Settings after resolving the issue.
+
+This setting previously invoked the general AI workflow; it now uses the local template service. Incoming text is treated as message content and cannot invoke admin/knowledge commands through the sync processor. No model, memory-provider, Tavily or research requests are used for categorization/templates. Gmail sync/approved sends continue to use the existing connection.
+
+API: existing `GET /api/gmail/inbox` adds `reply_assessment` and `reply_blocker`; `POST /api/gmail/inbox/{id}/reply-preview` creates a source-bound preview; `POST /api/gmail/drafts` accepts `reply_preview_id` for reply drafts; `PUT /api/gmail/inbox/{id}/outcome` accepts the reply fingerprint, supported outcome and operator evidence. Existing API-key protection and mailbox scoping apply.
+
+This completes local reply suggestions and response templates, not autonomous conversation management. Scheduled follow-ups, sales negotiation, campaign sending and automatic outcome interpretation remain later work. Offline tests use isolated ledgers and fake Gmail responses; a small owned-mailbox test is still needed to validate the live UI and threading on your computer.

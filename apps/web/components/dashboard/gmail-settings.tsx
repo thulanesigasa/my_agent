@@ -1,9 +1,9 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
+import { ReplyReview, Incoming, ReplyPreview } from "@/components/dashboard/reply-review";
 
 type Contact = { email: string; name?: string; consent: string; verified: boolean; test_recipient: boolean };
-type Incoming = { id: string; sender: string; subject: string; body: string; status: string; error?: string; automated?: boolean; unsubscribe?: boolean };
 type GmailStatus = { configured: boolean; connection?: { status: string; email?: string }; reply_drafting_enabled: boolean };
 
 export function GmailSettings() {
@@ -23,6 +23,13 @@ export function GmailSettings() {
   const [body, setBody] = useState("This is a connection test from my_agent. Please reply so I can verify that replies are matched to this conversation.");
   const [purpose, setPurpose] = useState("test");
   const [incomingId, setIncomingId] = useState<string | null>(null);
+  const [replyPreviewId, setReplyPreviewId] = useState<string | null>(null);
+  function selectReply(mail: Incoming, preview?: ReplyPreview) {
+    setPurpose("reply"); setIncomingId(mail.id); setReplyPreviewId(preview?.id || null); setRecipient(mail.sender);
+    setSubject(preview?.subject || (mail.subject.toLowerCase().startsWith("re:") ? mail.subject : `Re: ${mail.subject}`));
+    setBody(preview?.body || "");
+    document.getElementById("gmail-reply-draft")?.scrollIntoView({ behavior: "smooth" });
+  }
 
   async function refresh() {
     const [state, people, messages] = await Promise.all([
@@ -46,7 +53,7 @@ export function GmailSettings() {
   function draft(e: FormEvent) {
     e.preventDefault();
     void action(() => apiRequest("/api/gmail/drafts", { method: "POST", body: JSON.stringify({
-      recipient, subject, body, purpose, incoming_id: purpose === "reply" ? incomingId : undefined,
+      recipient, subject, body, purpose, incoming_id: purpose === "reply" ? incomingId : undefined, reply_preview_id: purpose === "reply" ? replyPreviewId : undefined,
     }) }), "Draft saved. Open Approval Queue to review it and explicitly send.");
   }
   const input = "mt-2 block w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500";
@@ -62,7 +69,7 @@ export function GmailSettings() {
         <button disabled={busy} className={button} onClick={() => action(() => apiRequest("/api/gmail/verify", { method: "POST" }), "Mailbox verified. No email was sent.")}>Verify connection</button>
         <button disabled={busy} className={button} onClick={() => action(() => apiRequest("/api/gmail/sync", { method: "POST" }), "Sync finished. Recorded conversations refreshed.")}>Sync replies</button>
       </div>
-      <p className="text-xs text-slate-500">Sync reads recorded conversations, including read and archived replies. AI reply drafting is {status?.reply_drafting_enabled ? "enabled" : "off"}. Testing-mode Google authorisation can expire after seven days.</p>
+      <p className="text-xs text-slate-500">Sync reads recorded conversations, including read and archived replies. Local response-template drafting is {status?.reply_drafting_enabled ? "enabled" : "off"}. Testing-mode Google authorisation can expire after seven days.</p>
     </div>
     <div className="grid gap-6 xl:grid-cols-2 items-start">
     <form onSubmit={saveContact} className="rounded-xl border border-slate-200 p-5 space-y-3">
@@ -77,15 +84,16 @@ export function GmailSettings() {
       <button disabled={busy} className={button}>Save contact</button>
       <ul className="space-y-1 text-xs text-slate-600">{contacts.map((c) => <li key={c.email}>{c.email} · {c.consent} · {c.test_recipient ? "owned test address" : c.verified ? "verified address" : "unverified"}</li>)}</ul>
     </form>
-    <form onSubmit={draft} className="rounded-xl border border-slate-200 p-5 space-y-3">
+    <form id="gmail-reply-draft" onSubmit={draft} className="rounded-xl border border-slate-200 p-5 space-y-3">
       <h2 className="font-semibold">Create a draft</h2>
       <p className="text-sm text-slate-500">For new business outreach, review a candidate in Leads and prepare its draft there.</p>
-      <label className="block text-sm">Purpose<select className={input} value={purpose} onChange={(e) => { setPurpose(e.target.value); setIncomingId(null); }}>
+      <label className="block text-sm">Purpose<select className={input} value={purpose} onChange={(e) => { setPurpose(e.target.value); setIncomingId(null); setReplyPreviewId(null); }}>
         <option value="test">Connection test to an address I control</option><option value="reply">Reply to the message selected below</option>
       </select></label>
       {purpose === "reply" && <p className="text-xs">{incomingId ? "Reply selected. Recipient and thread will be taken from the saved incoming message." : "Select Reply on an incoming message below."}</p>}
       <label className="block text-sm">Recipient<input className={input} type="email" required readOnly={purpose === "reply"} value={recipient} onChange={(e) => setRecipient(e.target.value)} /></label>
       <label className="block text-sm">Subject<input className={input} required readOnly={purpose === "reply"} value={subject} onChange={(e) => setSubject(e.target.value)} /></label>
+      {replyPreviewId && <p className="text-xs text-slate-500">Response template selected. Edit it to answer the actual question before saving for approval. Regenerate if the incoming reply or portfolio changes.</p>}
       <label className="block text-sm">Message<textarea className={input} required rows={5} value={body} onChange={(e) => setBody(e.target.value)} /></label>
       <button disabled={busy || (purpose === "reply" && !incomingId)} className={button}>Save for approval</button>
     </form>
@@ -93,13 +101,13 @@ export function GmailSettings() {
     <div className="rounded-xl border border-slate-200 p-5 space-y-4">
       <h2 className="font-semibold">Replies in recorded conversations</h2>
       {inbox.length === 0 && <p className="text-sm text-slate-500">No incoming messages recorded yet. Send your test draft, reply from the other inbox, then sync.</p>}
-      {inbox.map((mail) => <article key={mail.id} className="border-t border-slate-200 pt-3 space-y-2">
-        <p className="text-sm font-medium">{mail.sender} · {mail.subject}</p>
-        <p className="text-xs text-slate-500">{mail.status} {mail.automated ? "· Automated message" : ""} {mail.unsubscribe ? "· Contact suppressed" : ""} {mail.error}</p>
-        <p className="text-sm whitespace-pre-wrap max-h-48 overflow-auto">{mail.body}</p>
-        {!mail.automated && !mail.unsubscribe && <button disabled={busy} className={button} onClick={() => { setPurpose("reply"); setIncomingId(mail.id); setRecipient(mail.sender); setSubject(mail.subject.toLowerCase().startsWith("re:") ? mail.subject : `Re: ${mail.subject}`); setBody(""); setNotice("Reply selected. Write the response in Create a draft above."); }}>Reply</button>}
-        {mail.status === "failed" && <button disabled={busy} className={button} onClick={() => action(() => apiRequest(`/api/gmail/inbox/${encodeURIComponent(mail.id)}/retry`, { method: "POST" }), "Incoming message processing retried.")}>Retry processing</button>}
-      </article>)}
+      <p className="text-sm text-slate-500">Reply suggestions and response templates run locally without model or research credits. Sync never sends them; approval is always required.</p>
+      {inbox.map((mail) => <ReplyReview key={mail.id} mail={mail} busy={busy}
+        onManual={() => { selectReply(mail); setNotice("Reply selected. Write the response in Create a draft above."); }}
+        onTemplate={() => void action(async () => { const preview: ReplyPreview = await apiRequest(`/api/gmail/inbox/${encodeURIComponent(mail.id)}/reply-preview`, { method: "POST" }); selectReply(mail, preview); }, "Response template prepared. Edit it in Create a draft, then save for approval.")}
+        onConfirm={(outcome, note) => void action(() => apiRequest(`/api/gmail/inbox/${encodeURIComponent(mail.id)}/outcome`, { method: "PUT", body: JSON.stringify({ fingerprint: mail.reply_assessment.fingerprint, outcome, note }) }), "Conversation outcome confirmed. Refresh Reports to include it; saved report snapshots keep their original values.")}
+        onRetry={() => void action(() => apiRequest(`/api/gmail/inbox/${encodeURIComponent(mail.id)}/retry`, { method: "POST" }), "Incoming message processing retried.")}
+      />)}
     </div>
   </section>;
 }

@@ -9,6 +9,7 @@ export interface PendingAction {
   recipient_email: string;
   subject: string;
   report_id?: string;
+  reply_snapshot?: { assessment: { category: string }; edited_before_queue: boolean };
   proposal_snapshot?: { portfolio_url: string; projects: { id: string; name: string; url: string; reason: string }[]; edited_before_queue: boolean };
   intent: string;
   email_input?: {
@@ -129,6 +130,7 @@ export const ApprovalQueueDashboard: React.FC = () => {
               )}
 
               <p className="text-sm break-all"><strong>To:</strong> {item.recipient_email}<br /><strong>Subject:</strong> {item.subject}</p>
+              {item.reply_snapshot && <p className="rounded-lg bg-slate-50 p-3 text-sm">Local response template · suggested {item.reply_snapshot.assessment.category}. {item.reply_snapshot.edited_before_queue ? "Edited before queueing." : "Template text was used when queueing."} Check the message answers the actual reply. A newer human response blocks sending this draft.</p>}
               {item.proposal_snapshot && <div className="rounded-lg bg-slate-50 p-3 text-sm"><p className="font-medium">Portfolio used for initial proposal</p><a className="text-indigo-700 underline" href={item.proposal_snapshot.portfolio_url} target="_blank" rel="noreferrer">Agency portfolio</a>{item.proposal_snapshot.projects.map((p) => <p key={p.id}><a className="text-indigo-700 underline" href={p.url} target="_blank" rel="noreferrer">{p.name}</a> · {p.reason}</p>)}<p className="mt-2 text-xs text-slate-500">Saved source snapshot; later portfolio changes do not rewrite this message. {item.proposal_snapshot.edited_before_queue ? "The generated text was edited before queueing." : "Generated text was used when queueing."} Review the current message below before sending.</p></div>}
               {item.report_id && <p className="text-sm text-slate-600">Attachment: saved Excel report. Download the snapshot from Reports to review its figures.</p>}
               {/* Proposed Response Draft */}

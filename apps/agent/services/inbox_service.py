@@ -4,8 +4,9 @@ import logging
 from uuid import uuid4
 from config import settings
 from core.store import store, ConflictError
-from services.contacts import suppress
+from services.contacts import suppress, EligibilityError
 from services.email_service import email_service
+from services.reply_service import assess_reply, reply_preview, queue_reply
 
 logger = logging.getLogger("agent.inbox")
 
@@ -40,8 +41,6 @@ def match_conversation(mail, mailbox):
 
 
 async def process_pending(limit=25):
-    from core.graph import agent_workflow
-
     result = {"processed": 0, "skipped": 0, "failed": 0}
     pending = [
         m
@@ -50,6 +49,8 @@ async def process_pending(limit=25):
     ][:limit]
     for mail in pending:
         try:
+            assessment = assess_reply(mail)
+            draft_action = "manual_review"
             store.transition("inbox", mail["id"], ["pending"], "processing")
         except ConflictError:
             result["skipped"] += 1
@@ -57,20 +58,26 @@ async def process_pending(limit=25):
         try:
             if mail.get("unsubscribe") and not mail.get("automated"):
                 suppress(mail["sender"], f"Gmail reply {mail['provider_message_id']}")
-            if (
-                settings.GMAIL_DRAFT_REPLIES
-                and not mail.get("automated")
-                and not mail.get("unsubscribe")
-            ):
-                await agent_workflow.ainvoke(
-                    {
-                        "messages": [{"role": "user", "content": mail["body"]}],
-                        "email_input": mail,
-                        "approval_status": "none",
-                    },
-                    config={"configurable": {"thread_id": f"inbox_{mail['id']}"}},
-                )
-            store.transition("inbox", mail["id"], ["processing"], "processed")
+            if settings.GMAIL_DRAFT_REPLIES and assessment["template_available"]:
+                try:
+                    preview = reply_preview(mail["id"], email_service.expected_email)
+                    queue_reply(
+                        mail["id"],
+                        preview["body"],
+                        email_service.expected_email,
+                        preview["id"],
+                    )
+                    draft_action = "queued"
+                except (EligibilityError, ConflictError):
+                    draft_action = "blocked"
+            store.transition(
+                "inbox",
+                mail["id"],
+                ["processing"],
+                "processed",
+                reply_assessment=assessment,
+                draft_action=draft_action,
+            )
             result["processed"] += 1
         except Exception:
             logger.warning(

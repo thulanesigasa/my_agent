@@ -98,7 +98,7 @@ Confirm it appears in the sender's Gmail Sent folder and arrives in your second 
 
 The recipient, original Message-ID and Gmail thread are taken from the saved incoming record. Read or archived replies are included; the application does not rely on unread status. Repeating sync must not duplicate the incoming record. Incoming messages from unrelated conversations are not imported into the agent queue.
 
-AI reply drafting is **off by default** (`GMAIL_DRAFT_REPLIES=false`), so the entire controlled cycle can be completed without an LLM API key. Optional AI drafting still saves drafts for human approval; it does not send replies automatically.
+Local reply-template drafting is **off by default** (`GMAIL_DRAFT_REPLIES=false`). Reply suggestions and manually requested templates use no model or research credits. If enabled, sync queues templates only for eligible, current human messages with a clear interest/question signal. Mixed/uncertain messages, declines, opt-outs, automated mail and bounces do not get automatic templates. Incoming text is not passed to the general command/LLM workflow. Templates still require review and explicit sending approval. See [REPLY_HANDLING.md](REPLY_HANDLING.md).
 
 ## 8. Restart and failure checks
 
