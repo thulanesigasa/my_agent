@@ -61,6 +61,12 @@ def suppress(email, reason):
 
 def ensure_eligible(email, purpose):
     email = normalize_email(email)
+    if purpose == "report":
+        from services.email_service import email_service
+
+        if email != email_service.expected_email:
+            raise EligibilityError("Reports may only be sent to the connected mailbox")
+        return {"email": email}
     contact = store.get("contacts", email) or {}
     if contact.get("consent") in ("declined", "unsubscribed"):
         raise EligibilityError("This contact is on the do-not-contact list")

@@ -6,6 +6,9 @@ import logging
 import threading
 import time
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+from email.policy import SMTP
 from email.utils import formatdate
 from uuid import uuid4
 
@@ -167,6 +170,7 @@ class GmailServiceAdapter:
         approval_id=None,
         in_reply_to=None,
         references=None,
+        attachment=None,
     ):
         # Preflight happens before recording any network send attempt.
         profile = await self.get_profile()
@@ -185,9 +189,26 @@ class GmailServiceAdapter:
             raise EmailUnavailable(
                 "Reply requires the original Message-ID to preserve the Gmail thread"
             )
+        if purpose == "report":
+            ensure_eligible(to, purpose)
         record_id = uuid4().hex
         rfc_id = f"<{record_id}.my-agent@{profile['emailAddress'].split('@')[1]}>"
         message = MIMEText(body, _charset="utf-8")
+        if attachment:
+            if purpose != "report":
+                raise EmailUnavailable(
+                    "Attachments are only supported for saved reports"
+                )
+            message = MIMEMultipart("mixed")
+            message.attach(MIMEText(body, _charset="utf-8"))
+            part = MIMEApplication(
+                attachment["content"],
+                _subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+            part.add_header(
+                "Content-Disposition", "attachment", filename=attachment["filename"]
+            )
+            message.attach(part)
         message["To"], message["From"], message["Subject"] = (
             to,
             profile["emailAddress"],
@@ -197,7 +218,11 @@ class GmailServiceAdapter:
         if in_reply_to:
             message["In-Reply-To"] = in_reply_to
             message["References"] = ((references or "") + " " + in_reply_to).strip()
-        payload = {"raw": base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")}
+        payload = {
+            "raw": base64.urlsafe_b64encode(message.as_bytes(policy=SMTP)).decode(
+                "utf-8"
+            )
+        }
         if thread_id:
             payload["threadId"] = thread_id
         store.put(
@@ -224,7 +249,7 @@ class GmailServiceAdapter:
 
             def submit():
                 with self._lock:
-                    if approval_id:
+                    if approval_id or purpose == "report":
                         ensure_eligible(to, purpose)
                     return (
                         self.client.users()

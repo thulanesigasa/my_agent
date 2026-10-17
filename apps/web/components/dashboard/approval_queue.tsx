@@ -6,6 +6,9 @@ import { ShieldAlert, CheckCircle2, XCircle, Edit3, Mail, RefreshCw } from "luci
 
 export interface PendingAction {
   thread_id: string;
+  recipient_email: string;
+  subject: string;
+  report_id?: string;
   intent: string;
   email_input?: {
     sender?: string;
@@ -124,6 +127,8 @@ export const ApprovalQueueDashboard: React.FC = () => {
                 </div>
               )}
 
+              <p className="text-sm break-all"><strong>To:</strong> {item.recipient_email}<br /><strong>Subject:</strong> {item.subject}</p>
+              {item.report_id && <p className="text-sm text-slate-600">Attachment: saved Excel report. Download the snapshot from Reports to review its figures.</p>}
               {/* Proposed Response Draft */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-slate-700">

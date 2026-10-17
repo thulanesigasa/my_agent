@@ -2,7 +2,7 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
 const AGENT_API_KEY = process.env.NEXT_PUBLIC_AGENT_API_KEY || "";
 
-export async function apiRequest(path: string, init: RequestInit = {}) {
+export async function apiResponse(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
   if (AGENT_API_KEY) headers.set("X-API-Key", AGENT_API_KEY);
@@ -11,7 +11,11 @@ export async function apiRequest(path: string, init: RequestInit = {}) {
     const error = await res.json().catch(() => ({}));
     throw new Error(typeof error.detail === "string" ? error.detail : `Request failed (${res.status})`);
   }
-  return res.json();
+  return res;
+}
+
+export async function apiRequest(path: string, init: RequestInit = {}) {
+  return (await apiResponse(path, init)).json();
 }
 
 export interface SystemHealth {

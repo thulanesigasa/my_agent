@@ -2,31 +2,34 @@
 
 A Python/FastAPI + LangGraph backend and Next.js dashboard for a local business website outreach workflow.
 
-## Current milestone: Phase 2 Gmail integration
+## Current milestone: Phase 3 reporting
 
 Phase 1 persists workflow records and approvals. Phase 2 adds a local OAuth connection helper, account verification, MIME message parsing, paginated history sync, reply threading, contact eligibility/suppression, uncertain-send reconciliation and connected Gmail dashboard controls.
 
 **Start with [GMAIL_SETUP.md](GMAIL_SETUP.md)** for the exact Windows steps using your existing Google JSON. No credentials need to be uploaded. API and worker stay on one host; neither a paid host nor a public webhook is needed for polling.
 
-Voice features are retained and were not redesigned. Weekly reports, aggregate reply/cohort analytics, research qualification, sales interpretation, follow-ups and autonomous campaigns remain later phases. Raw matched reply records are available now; aggregate reply totals/rates remain explicitly unavailable until Phase 3.
+Phase 3 adds real conversation reply metrics, inclusive SAST date ranges, operator-recorded outcomes, daily activity, saved snapshots, Excel exports and approval-controlled report attachments. See [REPORTING.md](REPORTING.md) for the reporting workflow and optional Monday schedule. The dashboard styling pipeline is restored.
+
+Voice features are retained. Research qualification, sales interpretation, follow-ups and autonomous campaigns remain later phases.
 
 ## Roadmap
 
 1. **Foundation:** persistence, truthful statuses, approval dispatch, webhook protection.
 2. **Email integration (implemented; operator must authorise and run the live test):** full message parsing, Gmail history synchronisation, threading, delivery reconciliation, contact eligibility and suppression.
-3. **Reporting:** actual reply outcomes, reporting periods, dashboard trends, Excel exports and attachments.
+3. **Reporting (implemented):** actual reply outcomes, reporting periods, dashboard trends, Excel exports and attachments.
 4. **Research and qualification:** supported sources, identity checks, website evidence and reviewed contact details.
 5. **Outreach and conversation management:** portfolio matching, templates, reply interpretation and permitted follow-ups.
 6. **Controlled autonomy:** campaign schedules, quotas, spending caps, operational controls and a small pilot.
 
-Weekly report generation/delivery is deliberately disabled until Phase 3. Reply totals and reply rate are `null` with `replyTrackingAvailable=false`, not fabricated zero results. The dashboard displays “Not tracked yet”. Confirmed send counts include only provider-confirmed outreach submissions recorded by this installation; they are not historical Gmail totals and do not prove recipient delivery or opening.
+Reports use only provider-confirmed submissions and matched incoming records from this installation. Tests are excluded by default. Reply rates count unique conversations and are blank when no conversations were sent. Interested/declined/won outcomes require an operator note and a synced human response. Unsubscribe blocks further contact. Gmail acceptance does not prove inbox delivery or opening. Scheduled reports are opt-in and queue a draft for approval; they never send themselves.
 
 ## Run locally
 
 Python 3.11+ and Node.js 22 are recommended. From the repository root:
 
 ```powershell
-Copy-Item .env.example .env
+# First-time setup only: keep your existing .env if you already have one.
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r apps/agent/requirements.txt
 .venv\Scripts\python.exe -m uvicorn main:app --app-dir apps/agent --host 127.0.0.1 --port 8000
@@ -43,7 +46,7 @@ Open `http://localhost:3000/dashboard`. On Linux/macOS use `cp .env.example .env
 
 The dashboard can show an empty database without any paid account. Chat/drafting needs a configured supported model provider. Sending needs the locally authorised token file; legacy OAuth environment values are also supported when bound to `GMAIL_USER_EMAIL`. The Gmail test cycle does not need an LLM key. Missing providers return explicit errors. Configure supported model names for the provider you choose; availability depends on that account.
 
-The scheduler is off by default. To run polling, either start `python apps/agent/worker.py` in a separate terminal **or** set `ENABLE_SCHEDULER=true` for a single API process. Do not enable both. The worker uses the existing South African active-hours calendar. Starting a worker does not launch an autonomous outreach campaign.
+The scheduler is off by default. To run polling, either start `.venv\Scripts\python.exe apps/agent/worker.py` in a separate terminal **or** set `ENABLE_SCHEDULER=true` for a single API process. Do not enable both. The worker uses the existing South African active-hours calendar. Starting a worker does not launch an autonomous outreach campaign.
 
 ## Data and configuration
 

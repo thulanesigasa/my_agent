@@ -4,12 +4,13 @@ import React, { useState } from "react";
 import {
   Users, Puzzle, KeyRound, Settings, CreditCard,
   HelpCircle, BookOpen, LayoutDashboard, Mail,
-  ShieldCheck, Database, PanelLeft, Bell, Send
+  ShieldCheck, Database, PanelLeft, Bell, Send, FileSpreadsheet
 } from "lucide-react";
 
-export type NavTab = "overview" | "logs" | "approvals" | "memory" | "settings";
+export type NavTab = "overview" | "logs" | "approvals" | "memory" | "settings" | "reports";
 
 const WORKSPACE_NAV = [
+  { id: "reports" as NavTab, label: "Reports", icon: FileSpreadsheet },
   { id: "overview"  as NavTab, label: "Overview",      icon: LayoutDashboard },
   { id: "logs"      as NavTab, label: "Outreach Logs", icon: Mail            },
   { id: "approvals" as NavTab, label: "Approvals",     icon: ShieldCheck     },
@@ -36,7 +37,7 @@ export function AppShell({ children }: AppShellProps) {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const urlTab = params.get("tab") as NavTab;
-      if (urlTab && ["overview", "logs", "approvals", "memory", "settings"].includes(urlTab)) {
+      if (urlTab && ["overview", "logs", "approvals", "memory", "settings", "reports"].includes(urlTab)) {
         setTab(urlTab);
       }
     }

@@ -30,6 +30,7 @@ os.environ["GMAIL_TOKEN_PATH"] = str(
 os.environ["GMAIL_DRAFT_REPLIES"] = "false"
 os.environ["ENV"] = "test"
 os.environ["ENABLE_SCHEDULER"] = "false"
+os.environ["WEEKLY_REPORTS_ENABLED"] = "false"
 os.environ["LANGSMITH_TRACING"] = "false"
 os.environ["LANGCHAIN_TRACING_V2"] = "false"
 os.environ["STATE_DB_PATH"] = str(
