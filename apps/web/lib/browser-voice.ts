@@ -9,7 +9,7 @@ type Recognition = {
 };
 type SpeechWindow = Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
 export function wakeCommand(text: string): string | null {
-  const match = /\belevate\s+agen(?:t)?\b[\s,.!?;:]*/i.exec(text);
+  const match = /\belevate\s+agent\b[\s,.!?;:]*/i.exec(text);
   return match ? text.slice(match.index + match[0].length).trim() : null;
 }
 

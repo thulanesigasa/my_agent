@@ -1,4 +1,4 @@
-"""Recognize 'elevate agen' from transcripts or an optional local Vosk model.
+"""Recognize 'elevate agent' from transcripts or an optional local Vosk model.
 
 Sound energy is not a keyword and a wake phrase is not speaker authentication.
 """
@@ -16,7 +16,7 @@ logger = logging.getLogger("agent.wake_word_service")
 
 class WakeWordDetector:
     def __init__(
-        self, wake_word="elevate agen", refractory_period=3.0, recognizer=None
+        self, wake_word="elevate agent", refractory_period=3.0, recognizer=None
     ):
         self.wake_word = wake_word
         self.refractory_period = refractory_period
@@ -34,7 +34,7 @@ class WakeWordDetector:
             self.recognizer = KaldiRecognizer(
                 self.model,
                 16000,
-                json.dumps(["elevate agent", "elevate agen", "[unk]"]),
+                json.dumps(["elevate agent", "[unk]"]),
             )
             self.sample_rate = sample_rate
             return True
@@ -52,12 +52,7 @@ class WakeWordDetector:
         stamp = timestamp if timestamp is not None else time.time()
         words = " ".join(re.findall(r"\w+", str(text).casefold()))
         phrase = re.escape(self.wake_word.casefold()).replace(r"\ ", r"\s+")
-        # 'agent' is a phonetic transcription variant; the two-word prefix is required.
-        pattern = (
-            r"\belevate\s+agen(?:t)?\b"
-            if self.wake_word.casefold() == "elevate agen"
-            else r"\b" + phrase + r"\b"
-        )
+        pattern = r"\b" + phrase + r"\b"
         if stamp - self.last_trigger_time < self.refractory_period or not re.search(
             pattern, words
         ):

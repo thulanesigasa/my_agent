@@ -381,7 +381,7 @@ class ClapLauncher:
             # 1. Check Clap Sound Trigger
             clap_triggered = self.detector.process_audio_chunk(mono_data)
 
-            # 2. Check "elevate agen" Voice Command Trigger
+            # 2. Check "elevate agent" Voice Command Trigger
             voice_triggered = False
             if wake_word_detector:
                 v_trig, is_authed, speaker_name = (
@@ -393,7 +393,7 @@ class ClapLauncher:
                 logger.info("👏 CLAP SOUND TRIGGER DETECTED!")
                 self.trigger_action()
             elif voice_triggered:
-                logger.info("🗣️ VOICE ACTIVATION COMMAND DETECTED ('elevate agen')!")
+                logger.info("🗣️ VOICE ACTIVATION COMMAND DETECTED ('elevate agent')!")
                 self.trigger_action()
 
         mode_desc = "SINGLE clap" if self.detector.single_clap else "DOUBLE clap"
@@ -413,11 +413,11 @@ class ClapLauncher:
             f"{GREEN}============================================================{RESET}"
         )
         print(
-            f"{CYAN}  Listening for hand claps ({mode_desc}) OR 'elevate agen' voice command...{RESET}\n"
+            f"{CYAN}  Listening for hand claps ({mode_desc}) OR 'elevate agent' voice command...{RESET}\n"
         )
 
         logger.info(
-            "Listening on default microphone for hand claps OR 'elevate agen' voice command..."
+            "Listening on default microphone for hand claps OR 'elevate agent' voice command..."
         )
 
         try:
