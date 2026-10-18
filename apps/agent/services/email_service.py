@@ -239,6 +239,7 @@ class GmailServiceAdapter:
                 "status": "sending",
                 "rfc_message_id": rfc_id,
                 "approval_id": approval_id,
+                "send_controls_version": 1,
                 "followup_of": (
                     (store.get("approvals", approval_id) or {}).get("followup_of")
                     if approval_id
@@ -278,6 +279,9 @@ class GmailServiceAdapter:
                             from services.lead_service import ensure_qualified
 
                             ensure_qualified(lead_id, to)
+                    from services.send_controls import reserve
+
+                    reserve(profile["emailAddress"].lower(), purpose, record_id)
                     return (
                         self.client.users()
                         .messages()
