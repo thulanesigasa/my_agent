@@ -41,6 +41,7 @@ DEFAULT = {
     "local_time": "09:00",
     "weekdays_only": True,
     "weekly_report_email": True,
+    "qualification_enabled": True,
 }
 
 
@@ -57,6 +58,7 @@ class AutomationInput(BaseModel):
     local_time: str = Field(default="09:00", pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
     weekdays_only: bool = True
     weekly_report_email: bool = True
+    qualification_enabled: bool = True
 
     @model_validator(mode="after")
     def target(self):
@@ -70,9 +72,10 @@ class AutomationInput(BaseModel):
 
 
 def config(mailbox):
-    return store.get("automation_config", mailbox or "") or {
+    return {
         **DEFAULT,
         "id": mailbox or "",
+        **(store.get("automation_config", mailbox or "") or {}),
     }
 
 
@@ -407,6 +410,7 @@ async def tick(stop=lambda: False):
                         saved["research_results"],
                         saved["research_requests"],
                         job_id=job_id,
+                        auto_qualify=saved["qualification_enabled"],
                     )
                     run["results"].append(
                         {"stage": "research", "status": job["status"], "job_id": job_id}

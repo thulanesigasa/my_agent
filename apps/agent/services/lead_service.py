@@ -460,6 +460,9 @@ def ensure_qualified(record_id, recipient=None, *, require_consent=True):
         )
     if recipient and normalize_email(recipient) != review["email"]:
         raise EligibilityError("Draft recipient no longer matches the reviewed lead")
+    from services.qualification import validate as validate_qualification
+
+    validate_qualification(lead)
     if require_consent:
         ensure_eligible(review["email"], "outreach")
     return lead
@@ -567,6 +570,16 @@ def draft_lead(
             "lead_revision": lead["revision"],
             "client_name": lead["name"],
             "lead_data": {"id": record_id, "name": lead["name"]},
+            **(
+                {
+                    "qualification_evidence": store.get(
+                        "qualification_evidence",
+                        lead["review"]["qualification_evidence_id"],
+                    )
+                }
+                if lead["review"].get("origin") == "automation"
+                else {}
+            ),
             **({"proposal_snapshot": snapshot} if snapshot else {}),
             **({"campaign_source": campaign_source} if campaign_source else {}),
         },
