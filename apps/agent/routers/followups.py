@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from core.security import verify_api_key
 from core.store import ConflictError
-from services import followups
+from services import followups, followup_schedule
 from services.contacts import EligibilityError
 from services.email_service import email_service
 
@@ -29,6 +29,23 @@ def run(call):
 @router.get("")
 def candidates():
     return followups.list_candidates(email_service.expected_email)
+
+
+@router.get("/schedule")
+def schedule():
+    return followup_schedule.listing(email_service.expected_email)
+
+
+@router.patch("/schedule")
+def save_schedule(payload: followup_schedule.ScheduleInput):
+    return run(lambda: followup_schedule.update(payload, email_service.expected_email))
+
+
+@router.post("/schedule/run")
+def run_schedule():
+    return run(
+        lambda: followup_schedule.run_batch(email_service.expected_email, manual=True)
+    )
 
 
 @router.post("/{outbound_id}/preview")
