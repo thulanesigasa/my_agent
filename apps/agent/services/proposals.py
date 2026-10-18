@@ -132,8 +132,8 @@ def match_projects(lead, catalog):
     ][:2]
 
 
-def create_preview(lead_id, mailbox):
-    lead = ensure_qualified(lead_id)
+def compose_qualified_proposal(lead, mailbox):
+    """Read-only composition from an already-qualified lead; callers own eligibility checks."""
     if not mailbox:
         raise EligibilityError("Connect Gmail before creating outreach drafts")
     catalog = portfolio()
@@ -157,21 +157,24 @@ def create_preview(lead_id, mailbox):
         f"Best,\n{agency}\n{CONTACT_EMAIL} | {CONTACT_PHONE}\n\n"
         "If you'd prefer no further outreach, reply 'unsubscribe'."
     )
+    return {
+        "lead_id": lead["id"],
+        "lead_revision": lead["revision"],
+        "sender_mailbox": mailbox,
+        "recipient_email": lead["review"]["email"],
+        "portfolio_version": catalog["version"],
+        "portfolio_url": catalog["portfolio_url"],
+        "projects": projects,
+        "subject": f"Website enquiry for {name}",
+        "body": body,
+        "template_version": 1,
+    }
+
+
+def create_preview(lead_id, mailbox):
+    lead = ensure_qualified(lead_id)
     return store.put(
-        "proposal_previews",
-        uuid4().hex,
-        {
-            "lead_id": lead_id,
-            "lead_revision": lead["revision"],
-            "sender_mailbox": mailbox,
-            "recipient_email": lead["review"]["email"],
-            "portfolio_version": catalog["version"],
-            "portfolio_url": catalog["portfolio_url"],
-            "projects": projects,
-            "subject": f"Website enquiry for {name}",
-            "body": body,
-            "template_version": 1,
-        },
+        "proposal_previews", uuid4().hex, compose_qualified_proposal(lead, mailbox)
     )
 
 

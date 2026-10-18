@@ -62,6 +62,7 @@ from routers import (
     followups,
     send_controls,
     campaigns,
+    pilot,
 )
 from services.contacts import EligibilityError
 from scheduler import agent_scheduler
@@ -105,6 +106,7 @@ app.include_router(portfolio.router)
 app.include_router(followups.router)
 app.include_router(send_controls.router)
 app.include_router(campaigns.router)
+app.include_router(pilot.router)
 
 
 @app.get("/", response_class=HTMLResponse)
