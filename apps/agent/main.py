@@ -68,6 +68,7 @@ from services.contacts import EligibilityError
 from scheduler import agent_scheduler
 from services.research_jobs import research_job_runner
 from services.campaigns import campaign_runner
+from services.followup_schedule import followup_schedule_runner
 
 # Logging Setup
 logging.basicConfig(
@@ -295,6 +296,8 @@ async def on_startup():
         research_job_runner.start()
     if settings.CAMPAIGNS_ENABLED:
         campaign_runner.start()
+    if settings.FOLLOWUP_SCHEDULES_ENABLED:
+        followup_schedule_runner.start()
     try:
         if settings.ENABLE_SCHEDULER:
             agent_scheduler.start()
@@ -310,6 +313,7 @@ async def on_shutdown():
     logger.info("Shutting down background services...")
     await research_job_runner.stop()
     await campaign_runner.stop()
+    await followup_schedule_runner.stop()
     try:
         agent_scheduler.shutdown()
     except Exception as e:

@@ -360,9 +360,10 @@ def run_due(stop=lambda: False):
 
 
 class CampaignRunner:
-    def __init__(self):
+    def __init__(self, tick=None):
         self.task = None
         self.stopping = None
+        self.tick = tick
 
     def start(self):
         if not self.task or self.task.done():
@@ -372,9 +373,9 @@ class CampaignRunner:
     async def loop(self):
         while not self.stopping.is_set():
             try:
-                await asyncio.to_thread(run_due, self.stopping.is_set)
+                await asyncio.to_thread(self.tick or run_due, self.stopping.is_set)
             except Exception as exc:
-                logger.warning("Campaign draft tick failed (%s)", type(exc).__name__)
+                logger.warning("Local draft tick failed (%s)", type(exc).__name__)
             with suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(self.stopping.wait(), timeout=30)
 
