@@ -2,7 +2,7 @@
 
 A Python/FastAPI + LangGraph backend and Next.js dashboard for a local business website outreach workflow.
 
-## Current milestone: Phase 6 sending controls
+## Current milestone: Phase 6 campaign drafting schedules
 
 Phase 1 persists workflow records and approvals. Phase 2 adds a local OAuth connection helper, account verification, MIME message parsing, paginated history sync, reply threading, contact eligibility/suppression, uncertain-send reconciliation and connected Gmail dashboard controls.
 
@@ -20,7 +20,9 @@ Controlled follow-up drafts are available in Outreach Logs: one after seven days
 
 Phase 6 now includes persistent business-send pause controls and atomic daily attempt limits in Settings. The default is five attempts per mailbox per SAST day, adjustable from 1 to 25. See [SENDING_CONTROLS.md](SENDING_CONTROLS.md).
 
-Voice features are retained. Broader reply interpretation, campaign scheduling and autonomous campaigns remain later work.
+Campaign schedules now prepare bounded portfolio proposals from explicitly selected eligible leads. New campaigns start paused; daily batches stop at fixed membership and shared drafting limits, and all messages remain in Approvals. See [CAMPAIGNS.md](CAMPAIGNS.md).
+
+Voice features are retained. Broader reply interpretation, scheduled live discovery and automatic sending remain later work.
 
 ## Roadmap
 
@@ -29,7 +31,7 @@ Voice features are retained. Broader reply interpretation, campaign scheduling a
 3. **Reporting (implemented):** actual reply outcomes, reporting periods, dashboard trends, Excel exports and attachments.
 4. **Research and qualification (implemented):** supported sources, identity checks, website evidence and reviewed contact details.
 5. **Outreach and conversation management (controlled workflow implemented):** portfolio matching, proposal/response templates, conservative reply suggestions, confirmed outcomes and a single approval-controlled no-response follow-up are available. Broader interpretation remains an improvement area.
-6. **Controlled autonomy (in progress):** business-send pause/daily limits are implemented; campaign schedules, additional spending controls and a small pilot remain.
+6. **Controlled autonomy (in progress):** business-send pause/daily limits and approval-only campaign schedules are implemented; broader automation, additional spending controls and a live pilot remain.
 
 Reports use only provider-confirmed submissions and matched incoming records from this installation. Tests are excluded by default. Reply rates count unique conversations and are blank when no conversations were sent. Interested/declined/won outcomes require an operator note and a synced human response. Unsubscribe blocks further contact. Gmail acceptance does not prove inbox delivery or opening. Scheduled reports are opt-in and queue a draft for approval; they never send themselves.
 
