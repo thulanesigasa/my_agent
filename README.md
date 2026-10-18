@@ -16,7 +16,9 @@ Phase 5 now adds the supplied TS Industries portfolio, RBP Tech and Rhyma Music 
 
 Phase 5 also provides local reply suggestions, editable response templates, explicit report-outcome confirmation and checks against answering an older synced message. See [REPLY_HANDLING.md](REPLY_HANDLING.md). Sync-time templates remain opt-in and approval-controlled. Incoming email text no longer enters the general command/LLM workflow through the inbox processor.
 
-Voice features are retained. Broader reply interpretation, follow-ups and autonomous campaigns remain later work.
+Controlled follow-up drafts are available in Outreach Logs: one after seven days with no recorded reply, current qualification/permission, a recent Gmail sync and explicit approval. See [FOLLOWUPS.md](FOLLOWUPS.md). They are not scheduled or sent automatically.
+
+Voice features are retained. Broader reply interpretation, campaign scheduling and autonomous campaigns remain later work.
 
 ## Roadmap
 
@@ -24,7 +26,7 @@ Voice features are retained. Broader reply interpretation, follow-ups and autono
 2. **Email integration (implemented; operator must authorise and run the live test):** full message parsing, Gmail history synchronisation, threading, delivery reconciliation, contact eligibility and suppression.
 3. **Reporting (implemented):** actual reply outcomes, reporting periods, dashboard trends, Excel exports and attachments.
 4. **Research and qualification (implemented):** supported sources, identity checks, website evidence and reviewed contact details.
-5. **Outreach and conversation management (partially implemented):** portfolio matching, proposal/response templates and conservative reply suggestions are available; broader reply interpretation and permitted follow-ups remain.
+5. **Outreach and conversation management (controlled workflow implemented):** portfolio matching, proposal/response templates, conservative reply suggestions, confirmed outcomes and a single approval-controlled no-response follow-up are available. Broader interpretation remains an improvement area.
 6. **Controlled autonomy:** campaign schedules, quotas, spending caps, operational controls and a small pilot.
 
 Reports use only provider-confirmed submissions and matched incoming records from this installation. Tests are excluded by default. Reply rates count unique conversations and are blank when no conversations were sent. Interested/declined/won outcomes require an operator note and a synced human response. Unsubscribe blocks further contact. Gmail acceptance does not prove inbox delivery or opening. Scheduled reports are opt-in and queue a draft for approval; they never send themselves.

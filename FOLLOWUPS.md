@@ -1,0 +1,19 @@
+# Controlled follow-ups
+
+Open **Outreach Logs → Follow-ups awaiting review** after pulling this update and restarting both servers. No new credentials, requirements, models or paid services are needed.
+
+1. Send eligible initial outreach through the existing Leads and Approvals workflow. Connection-test messages are excluded. Only Gmail-confirmed initial outreach linked to a currently qualified lead can be considered.
+2. Wait seven elapsed days (168 hours) from the recorded initial submission attempt. The dashboard displays the availability time in SAST. This is a fixed pilot limit, with **one follow-up maximum per mailbox/conversation**. Waiting does not trigger any action.
+3. Use **Settings → Gmail → Sync replies**, then return to Outreach Logs and click **Refresh eligibility**. The successful sync must be no more than 15 minutes old, no later than the current time, and after the initial outreach. Sync before preparing and again before approving if necessary. The app only knows about replies it has downloaded.
+4. Select an eligible conversation and click **Prepare follow-up draft**. Read and edit the message. It uses a local scope-discussion template and the saved agency portfolio, with no inferred prices or results. The original Gmail thread and Message-ID determine the recipient/thread/subject.
+5. Click **Save for approval**, open **Approvals**, and review the exact saved text before approving. Eligibility is checked when preparing, queueing, approving and immediately before submission. Later portfolio edits do not rewrite queued content. A changed original message, lead review or catalogue invalidates an unqueued preview.
+
+Any recorded incoming message in the conversation blocks this no-response workflow, including automated notices, opt-outs and bounces. Review these conversations through reply handling instead. An explicit interested/declined/won/unsubscribed outcome, suppressed contact, stale/invalid lead review, uncertain/in-progress submission or another active thread draft also blocks it. An initial message without a linked reviewed lead, provider confirmation or original thread/Message-ID is unavailable. Do not import contact guesses to bypass these checks.
+
+Repeated/concurrent queue actions retain one approval and never overwrite its text. Once a follow-up approval exists, use its existing edit, reject or reconciliation controls; generating again does not create a second follow-up. Rejected follow-ups are not recreated. Failed submissions retain the existing explicit retry rules, and uncertain sends require reconciliation. The worker does not schedule, queue or send these follow-ups. This feature adds no campaign runner or new sending permission.
+
+The submitted message keeps `followup_of` provenance. Reports count a successful follow-up as another sent email within the same conversation, so the conversation denominator is not doubled. Existing saved snapshots remain unchanged. Gmail acceptance still does not prove inbox placement, reading or opening.
+
+Your owned-mailbox connection test and acknowledgment replies validate connection/reply handling, but will not appear here. Live follow-up eligibility requires actual qualified outreach with recorded permission and the waiting period. Offline tests cover the timing boundary, fresh sync, blocking evidence, stale previews, once-only queueing/dispatch, source scoping, correct threading and report counts using fake providers. No real business emails were sent for implementation testing.
+
+Private endpoints: `GET /api/followups`, `POST /api/followups/{outbound_id}/preview`, `POST /api/followups/{outbound_id}/draft` with a preview ID and edited body. Existing API-key protection applies; candidates and actions are scoped to the configured mailbox. Legacy approvals retain their earlier checks. Keep the local SQLite database available and backed up; this remains a single-host pilot.

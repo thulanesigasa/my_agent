@@ -6,6 +6,7 @@ import { ReportsDashboard } from "./dashboard/reports";
 import { GmailSettings } from "./dashboard/gmail-settings";
 import { ActivityPanel } from "./dashboard/activity";
 import { AnalyticsDashboard } from "./dashboard/analytics";
+import { FollowupsDashboard } from "./dashboard/followups";
 import { EmailLogsTable } from "./dashboard/email-logs";
 import { ApprovalQueueDashboard } from "./dashboard/approval_queue";
 import { MemoryViewer } from "./dashboard/memory-viewer";
@@ -18,7 +19,7 @@ export function Dashboard() {
       {tab === "overview" && <><AnalyticsDashboard /><ActivityPanel /><EmailLogsTable /></>}
       {tab === "leads" && <LeadsDashboard />}
       {tab === "reports" && <ReportsDashboard />}
-      {tab === "logs" && <EmailLogsTable />}
+      {tab === "logs" && <><FollowupsDashboard /><EmailLogsTable /></>}
       {tab === "approvals" && <ApprovalQueueDashboard />}
       {tab === "memory" && <MemoryViewer />}
       {tab === "settings" && <GmailSettings />}
