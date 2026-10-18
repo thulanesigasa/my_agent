@@ -61,7 +61,7 @@ export function GmailSettings() {
   return <section className="space-y-6 max-w-5xl">
     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}
-    <div className="rounded-xl border border-slate-200 p-5 space-y-3">
+    <div id="gmail-connection" className="rounded-xl border border-slate-200 p-5 space-y-3">
       <h2 className="font-semibold">Gmail connection</h2>
       <p className="text-sm">{status ? `${status.configured ? "Credentials loaded" : "Not configured"} · ${status.connection?.status || "Not verified yet"} ${status.connection?.email || ""}` : "Loading connection status…"}</p>
       <p className="text-sm text-slate-600">Uses the Gmail credentials configured on your computer. If you need to reconnect, follow <code>GMAIL_SETUP.md</code>.</p>

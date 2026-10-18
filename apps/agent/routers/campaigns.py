@@ -66,3 +66,10 @@ def run(campaign_id: str):
     return operation(
         lambda: campaigns.run_campaign(campaign_id, email_service.expected_email)
     )
+
+
+@router.get("/{campaign_id}/dry-run")
+def dry_run(campaign_id: str):
+    from services.pilot import dry_run as preview
+
+    return operation(lambda: preview(campaign_id, email_service.expected_email))

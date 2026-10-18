@@ -3,6 +3,7 @@ import React, { useContext } from "react";
 import { TabContext } from "@/components/app-shell";
 import { LeadsDashboard } from "./dashboard/leads";
 import { ReportsDashboard } from "./dashboard/reports";
+import { PilotReadiness } from "./dashboard/pilot-readiness";
 import { SendingControls } from "./dashboard/sending-controls";
 import { GmailSettings } from "./dashboard/gmail-settings";
 import { ActivityPanel } from "./dashboard/activity";
@@ -23,7 +24,7 @@ export function Dashboard() {
       {tab === "logs" && <><FollowupsDashboard /><EmailLogsTable /></>}
       {tab === "approvals" && <ApprovalQueueDashboard />}
       {tab === "memory" && <MemoryViewer />}
-      {tab === "settings" && <><SendingControls /><GmailSettings /></>}
+      {tab === "settings" && <><PilotReadiness /><SendingControls /><GmailSettings /></>}
     </div>
   );
 }

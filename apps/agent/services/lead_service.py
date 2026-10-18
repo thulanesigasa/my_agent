@@ -502,27 +502,16 @@ def lead_view(lead):
     return lead
 
 
-def draft_lead(
-    record_id, subject, body, mailbox, proposal_preview_id=None, campaign_source=None
-):
-    if not subject.strip() or not body.strip() or "\r" in subject or "\n" in subject:
-        raise ValueError("Provide a non-empty message and a single-line subject")
+def initial_outreach_state(lead, mailbox):
+    """Read-only duplicate/history checks shared by queueing and dry runs."""
     if not mailbox:
         raise EligibilityError("Connect Gmail before creating outreach drafts")
-    lead = ensure_qualified(record_id)
     email = lead["review"]["email"]
-    snapshot = None
-    if proposal_preview_id:
-        from services.proposals import preview_snapshot
-
-        snapshot = preview_snapshot(proposal_preview_id, lead, mailbox, subject, body)
-    from agents.human_approval import queue_approval
-
     # One initial outreach per mailbox/contact. Repeat discovery cannot queue duplicate sends.
     key = "outreach_" + hashlib.sha256(f"{mailbox}:{email}".encode()).hexdigest()[:24]
     existing = store.get("approvals", key)
     if existing:
-        return existing
+        return key, existing
     prior_submissions = [
         m
         for m in store.list("messages")
@@ -543,6 +532,28 @@ def draft_lead(
         raise EligibilityError(
             "Initial outreach already exists for this mailbox/contact; review its history instead of creating a duplicate"
         )
+    return key, None
+
+
+def draft_lead(
+    record_id, subject, body, mailbox, proposal_preview_id=None, campaign_source=None
+):
+    if not subject.strip() or not body.strip() or "\r" in subject or "\n" in subject:
+        raise ValueError("Provide a non-empty message and a single-line subject")
+    if not mailbox:
+        raise EligibilityError("Connect Gmail before creating outreach drafts")
+    lead = ensure_qualified(record_id)
+    email = lead["review"]["email"]
+    snapshot = None
+    if proposal_preview_id:
+        from services.proposals import preview_snapshot
+
+        snapshot = preview_snapshot(proposal_preview_id, lead, mailbox, subject, body)
+    from agents.human_approval import queue_approval
+
+    key, existing = initial_outreach_state(lead, mailbox)
+    if existing:
+        return existing
     return queue_approval(
         key,
         {
