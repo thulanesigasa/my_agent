@@ -45,7 +45,9 @@ def mutate_job(job_id, update):
     return job
 
 
-def create_job(location, industry, limit=2, max_requests=3, *, job_id=None):
+def create_job(
+    location, industry, limit=2, max_requests=3, *, job_id=None, auto_qualify=False
+):
     if (
         not location.strip()
         or not industry.strip()
@@ -84,6 +86,7 @@ def create_job(location, industry, limit=2, max_requests=3, *, job_id=None):
         "created_at": now(),
         "updated_at": now(),
         "inflight": None,
+        "auto_qualify": auto_qualify,
     }
     with store.connect() as db:
         db.execute("BEGIN IMMEDIATE")
@@ -276,6 +279,20 @@ async def advance(job):
     lead = store.get("leads", lead_id)
     if not lead:
         raise ValueError("Saved candidate is missing; review this job")
+    if job["stage"].startswith("qualify_"):
+        from services import qualification
+
+        outcome = await qualification.advance(lead, job["stage"])
+        if outcome.get("next_stage"):
+            finish(
+                job["id"],
+                stage=outcome["next_stage"],
+                status="queued",
+                message="Automatic qualification: checking corroborating evidence",
+            )
+            return
+        _complete_candidate(job, store.get("leads", lead_id), qualification=outcome)
+        return
     review = lead.get("review") or {}
     # Known unsuitable candidates do not consume extraction requests.
     exception = None
@@ -291,7 +308,36 @@ async def advance(job):
         except (SourceInspectionFailed, ValueError) as exc:
             exception = str(exc)
         lead = store.get("leads", lead_id)
+    if job.get("auto_qualify") and not exception:
+        from services import qualification
+
+        current = store.get("research_jobs", job["id"])
+        outcome = qualification.start(
+            lead, current["max_requests"] - current["requests_used"]
+        )
+        if outcome.get("next_stage"):
+            finish(
+                job["id"],
+                stage=outcome["next_stage"],
+                status="queued",
+                message="Automatic qualification: searching for website and a corroborating source",
+            )
+            return
+        _complete_candidate(job, lead, qualification=outcome)
+        return
+    _complete_candidate(job, lead, exception=exception)
+
+
+def _complete_candidate(job, lead, *, exception=None, qualification=None):
     result = assess(lead)
+    if qualification:
+        result["qualification"] = qualification
+        result["reason"] = qualification["reason"]
+        result["bucket"] = (
+            "automatically_qualified"
+            if qualification["decision"] == "qualified"
+            else qualification["decision"]
+        )
     if exception:
         result.update(
             bucket="needs_review", reason="Source inspection needs manual review"
@@ -301,6 +347,7 @@ async def advance(job):
     finish(
         job["id"],
         cursor=cursor,
+        stage="inspect",
         results=job["results"] + [result],
         status="completed" if cursor == len(job["lead_ids"]) else "queued",
         message=f"Assessed {cursor} / {len(job['lead_ids'])} sources; findings require review",

@@ -2,7 +2,7 @@
 
 A Python/FastAPI + LangGraph backend and Next.js dashboard for a local business website outreach workflow.
 
-## Current milestone: Phase 6 approval-only automation coordinator
+## Current milestone: Phase 6 evidence-bound automatic qualification
 
 Phase 1 persists workflow records and approvals. Phase 2 adds a local OAuth connection helper, account verification, MIME message parsing, paginated history sync, reply threading, contact eligibility/suppression, uncertain-send reconciliation and connected Gmail dashboard controls.
 
@@ -24,9 +24,9 @@ Campaign schedules now prepare bounded portfolio proposals from explicitly selec
 
 Read-only pilot evidence is available in Settings, with next-batch campaign previews in Leads. These checks show current recipients/content/blockers without changing quotas or queueing drafts. See [PILOT.md](PILOT.md) for the operator-reviewed live pilot.
 
-A single opt-in automation mode now coordinates Gmail polling, bounded daily research, eligible initial/reply/follow-up drafts and weekly report snapshots/email drafts. Configure it once in Settings and review outgoing messages in Approvals. Missing verification or permission is skipped, never invented; newly researched businesses are not automatically qualified. See [AUTOMATION.md](AUTOMATION.md) for setup, budgets and remaining limits.
+A single opt-in automation mode now coordinates Gmail polling, bounded daily research, eligible initial/reply/follow-up drafts and weekly report snapshots/email drafts. Configure it once in Settings and review outgoing messages in Approvals. A conservative automatic qualifier can now qualify supported structured source records after corroboration and a website search; missing evidence or recipient permission is still skipped, never invented. See [QUALIFICATION.md](QUALIFICATION.md) for supported evidence and budgets. See [AUTOMATION.md](AUTOMATION.md) for setup, budgets and remaining limits.
 
-Voice features are retained. Broader reply interpretation, evidence-backed automatic qualification and automatic sending remain later work.
+Voice features are retained. Broader source adapters, reply interpretation and automatic sending remain later work.
 
 ## Roadmap
 

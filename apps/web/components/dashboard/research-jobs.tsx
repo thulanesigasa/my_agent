@@ -7,7 +7,7 @@ export type ResearchJob = { id: string; location: string; industry: string; limi
 type Start = { location: string; industry: string; limit: number; max_requests: number };
 const field = "mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const button = "rounded-lg bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50";
-const labels: Record<string, string> = { excluded: "Excluded by operator evidence", website_found: "Website recorded", website_signal: "Possible existing website · review", potential_client: "Potential match · review", needs_review: "Uncertain · review" };
+const labels: Record<string, string> = { excluded: "Excluded by recorded evidence", automatically_qualified: "Automatically qualified · permission checked separately", operator_review: "Operator decision preserved", website_found: "Website recorded", website_signal: "Possible existing website · review", potential_client: "Potential match · review", needs_review: "Uncertain · review" };
 
 export function ResearchJobs({ jobs, available, workerEnabled, busy, clock, onStart, onControl, onSelect }: {
   jobs: ResearchJob[]; available: boolean; workerEnabled: boolean; busy: boolean; clock: number;

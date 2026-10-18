@@ -203,6 +203,12 @@ async def inspect_source(lead_id):
             "findings": parse_evidence(text, url, lead["location"]),
             "warning": "Unverified literal page findings. Directory contacts and linked websites may belong to other businesses. Dates and closure phrases need context. No finding proves current activity, website absence or contact permission.",
         }
+        from services.qualification import listing_fields
+
+        try:
+            inspection["qualification_fields"] = listing_fields(text)
+        except ValueError as exc:
+            inspection["qualification_fields"] = {"error": str(exc)}
         inspection = normalize_inspection(inspection)
         save_inspection(lead_id, fingerprint, inspection, fresh=True)
         store.put(

@@ -168,6 +168,16 @@ def compose_qualified_proposal(lead, mailbox):
         "subject": f"Website enquiry for {name}",
         "body": body,
         "template_version": 1,
+        **(
+            {
+                "qualification_evidence": store.get(
+                    "qualification_evidence",
+                    lead["review"]["qualification_evidence_id"],
+                )
+            }
+            if lead["review"].get("origin") == "automation"
+            else {}
+        ),
     }
 
 
