@@ -43,7 +43,8 @@ def test_wake_word_detector():
     detected, authed, speaker = wake_word_detector.process_audio_chunk(
         audio_block, timestamp=t0 + 0.10
     )
-    assert detected is True
+    assert detected is False  # Loudness alone cannot establish spoken words.
+    assert wake_word_detector.process_transcript("elevate agen", timestamp=t0 + 1)[0]
 
 
 def test_sandbox_clean_code_execution():

@@ -235,7 +235,7 @@ async def test_pause_during_sync_stops_later_work_and_pauses_owned_research(prov
 
 
 @pytest.mark.asyncio
-async def test_crash_after_queue_pauses_and_recovery_never_overwrites_approval(
+async def test_crash_after_queue_recovers_without_overwriting_approval(
     monkeypatch,
 ):
     qualified()
@@ -249,14 +249,13 @@ async def test_crash_after_queue_pauses_and_recovery_never_overwrites_approval(
     monkeypatch.setattr(auto, "draft_lead", crash)
     with pytest.raises(RuntimeError):
         await auto.tick()
-    assert auto.config(email_service.expected_email)["paused"]
+    assert not auto.config(email_service.expected_email)["paused"]
     approval = store.list("approvals")[0]
     run = store.list("automation_runs")[0]
     store.put("automation_runs", run["id"], {**run, "status": "running"})
-    enable()
     allow_next_tick()
-    assert await auto.tick() is None
-    assert auto.config(email_service.expected_email)["paused"]
+    assert (await auto.tick())["status"] == "completed"
+    assert not auto.config(email_service.expected_email)["paused"]
     assert store.get("automation_runs", run["id"])["status"] == "interrupted"
     assert store.list("approvals") == [approval]
 

@@ -334,7 +334,8 @@ async def tick(stop=lambda: False):
         saved = config(mailbox)
         if not _active(mailbox, saved, stop):
             return None
-        # No automatic replay after an interrupted provider/local step.
+        # All coordinator stages are non-dispatching and use stable keys/reservations.
+        # Recover abandoned bookkeeping; admitted draft attempts are never replayed.
         interrupted = [
             r for r in store.list("automation_runs") if r["status"] == "running"
         ]
@@ -342,16 +343,6 @@ async def tick(stop=lambda: False):
             store.put(
                 "automation_runs", previous["id"], {**previous, "status": "interrupted"}
             )
-            current = config(previous["mailbox"])
-            if current.get("version"):
-                update(
-                    AutomationInput(
-                        **{k: current[k] for k in DEFAULT} | {"paused": True}
-                    ),
-                    previous["mailbox"],
-                )
-        if interrupted:
-            return None
         runtime = store.get("automation_runtime", mailbox) or {}
         at = datetime.now(timezone.utc)
         if (next_at := instant(runtime.get("next_tick_at"))) and next_at > at:
@@ -360,6 +351,7 @@ async def tick(stop=lambda: False):
             "automation_runtime",
             mailbox,
             {
+                **runtime,
                 "next_tick_at": (at + timedelta(minutes=2)).isoformat(),
                 "last_started_at": now(),
             },
@@ -383,6 +375,46 @@ async def tick(stop=lambda: False):
                     return
 
         heartbeat = asyncio.create_task(renew())
+        for approval in store.list("approvals"):
+            if not _active(mailbox, saved, stop):
+                break
+            if approval.get("sender_mailbox") != mailbox or approval.get(
+                "status"
+            ) not in ("sending", "delivery_unknown"):
+                continue
+            updated = instant(approval.get("updated_at") or approval.get("created_at"))
+            if not updated or (at - updated).total_seconds() < 300:
+                continue
+            attempt = store.get("automation_reconciliation", approval["id"]) or {}
+            if (last := instant(attempt.get("attempted_at"))) and (
+                at - last
+            ).total_seconds() < 900:
+                continue
+            if sum(r["stage"] == "reconciliation" for r in run["results"]) >= 2:
+                break
+            store.put(
+                "automation_reconciliation",
+                approval["id"],
+                {"mailbox": mailbox, "attempted_at": now()},
+            )
+            try:
+                reconciled = await email_service.reconcile(approval["id"])
+                run["results"].append(
+                    {
+                        "stage": "reconciliation",
+                        "status": reconciled["status"],
+                        "approval_id": approval["id"],
+                    }
+                )
+            except Exception as exc:
+                run["results"].append(
+                    {
+                        "stage": "reconciliation",
+                        "status": "held",
+                        "approval_id": approval["id"],
+                        "reason": f"Provider evidence unavailable ({type(exc).__name__}); no resend attempted",
+                    }
+                )
         synced = False
         try:
             await process_inbox_batch()
@@ -444,15 +476,31 @@ async def tick(stop=lambda: False):
             run["results"].append(result)
         run["status"] = "completed" if _active(mailbox, saved, stop) else "stopped"
         store.put("automation_runs", run["id"], run)
+        current_runtime = store.get("automation_runtime", mailbox) or {}
+        store.put(
+            "automation_runtime",
+            mailbox,
+            {**current_runtime, "consecutive_failures": 0},
+        )
         return run
     except BaseException:
         if run:
             store.put("automation_runs", run["id"], {**run, "status": "failed"})
-            current = config(mailbox)
-            update(
-                AutomationInput(**{k: current[k] for k in DEFAULT} | {"paused": True}),
+            runtime = store.get("automation_runtime", mailbox) or {}
+            failures = runtime.get("consecutive_failures", 0) + 1
+            store.put(
+                "automation_runtime",
                 mailbox,
+                {**runtime, "consecutive_failures": failures},
             )
+            if failures >= 3:
+                current = config(mailbox)
+                update(
+                    AutomationInput(
+                        **{k: current[k] for k in DEFAULT} | {"paused": True}
+                    ),
+                    mailbox,
+                )
         raise
     finally:
         if heartbeat:

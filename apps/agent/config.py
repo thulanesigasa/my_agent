@@ -62,6 +62,7 @@ class Settings(BaseSettings):
 
     # Audio Voice Output
     DEFAULT_TTS_VOICE: str = "en-US-AriaNeural"
+    WAKE_MODEL_PATH: str = ""
 
     # Tools: Gmail & WhatsApp/Twilio
     GMAIL_TOKEN_PATH: str = os.path.join(

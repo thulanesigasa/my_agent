@@ -7,6 +7,7 @@ import asyncio
 import logging
 import json
 import sys
+from uuid import uuid4
 from typing import Dict, Any, Optional
 
 # Force UTF-8 on Windows so logging of Unicode LLM responses never raises UnicodeEncodeError
@@ -42,7 +43,7 @@ from services.email_service import email_service, EmailUnavailable, DeliveryUnkn
 from core.graph import agent_workflow
 from core.memory import memory_manager
 from core.security import limiter, verify_api_key, verify_websocket_api_key
-from services.audio_service import audio_service
+from services.audio_service import audio_service, TranscriptionUnavailable
 from services.whatsapp_service import whatsapp_service
 from services.sandbox_service import sandbox_service
 from tools.procedural_tools import list_available_skills
@@ -642,13 +643,24 @@ async def websocket_audio_endpoint(websocket: WebSocket):
 
     await websocket.accept()
     logger.info("Real-time Audio WebSocket connected at /ws/audio.")
+    voice_thread = "voice_" + uuid4().hex
 
     try:
         while True:
             message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                break
 
             if "bytes" in message and message["bytes"]:
                 audio_bytes = message["bytes"]
+                if len(audio_bytes) > 4_000_000:
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "message": "Voice recording is too long. No command was submitted.",
+                        }
+                    )
+                    continue
                 await websocket.send_json(
                     {"type": "state_change", "state": "processing"}
                 )
@@ -658,7 +670,7 @@ async def websocket_audio_endpoint(websocket: WebSocket):
                     await websocket.send_json(
                         {"type": "transcription", "text": transcription}
                     )
-                    config = {"configurable": {"thread_id": "ws_audio_thread"}}
+                    config = {"configurable": {"thread_id": voice_thread}}
                     state: AgentState = {
                         "messages": [{"role": "user", "content": transcription}],
                         "approval_status": "none",
@@ -688,6 +700,13 @@ async def websocket_audio_endpoint(websocket: WebSocket):
                     )
                     if speech_bytes:
                         await websocket.send_bytes(speech_bytes)
+                    else:
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "message": "Speech output is unavailable. Your response is available as text.",
+                            }
+                        )
 
                 await websocket.send_json({"type": "state_change", "state": "idle"})
 
@@ -695,6 +714,21 @@ async def websocket_audio_endpoint(websocket: WebSocket):
                 data = json.loads(message["text"])
                 if data.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
+                elif data.get("type") == "configure":
+                    value = data.get("thread_id")
+                    if (
+                        isinstance(value, str)
+                        and 0 < len(value) <= 100
+                        and all(c.isalnum() or c in "_-" for c in value)
+                    ):
+                        voice_thread = value
+                    else:
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "message": "Invalid voice conversation ID.",
+                            }
+                        )
 
     except WebSocketDisconnect:
         logger.info("Audio WebSocket client disconnected.")
@@ -708,7 +742,11 @@ async def websocket_audio_endpoint(websocket: WebSocket):
             await websocket.send_json(
                 {
                     "type": "error",
-                    "message": f"Agent workflow failed: {str(e)}",
+                    "message": (
+                        str(e)
+                        if isinstance(e, TranscriptionUnavailable)
+                        else "Voice request failed. Check configuration or use text chat."
+                    ),
                 }
             )
 

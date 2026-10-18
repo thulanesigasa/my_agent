@@ -1,6 +1,7 @@
 """
 Audio Processing Pipeline: Groq Whisper Speech-to-Text (STT) and ElevenLabs / Edge-TTS Speech Synthesis.
 """
+
 import logging
 import os
 import tempfile
@@ -10,28 +11,34 @@ from config import settings
 
 logger = logging.getLogger("agent.audio_service")
 
+
+class TranscriptionUnavailable(RuntimeError):
+    """Audio could not be transcribed; never substitute an invented instruction."""
+
+
 # ElevenLabs voice — Arnold (deep, powerful, commanding)
 # Browse voices at https://elevenlabs.io/voice-library
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "VR6AewLTigWG4xSOukaG")  # Arnold
-ELEVENLABS_MODEL    = "eleven_flash_v2_5"  # lowest latency model
+ELEVENLABS_MODEL = "eleven_flash_v2_5"  # lowest latency model
 
 
 import re
+
 
 def clean_text_for_speech(raw_text: str) -> str:
     """Clean markdown tags, URLs, and emojis so speech synthesis reads clean, natural prose."""
     if not raw_text:
         return ""
     # Strip markdown links [label](url) -> label
-    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', raw_text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", raw_text)
     # Strip markdown bold/italic asterisks **bold** -> bold
-    text = re.sub(r'\*{1,2}([^*]+)\*{1,2}', r'\1', text)
+    text = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", text)
     # Convert bullet points at line starts to smooth natural pauses
-    text = re.sub(r'^\s*[-•]\s*', '. ', text, flags=re.MULTILINE)
+    text = re.sub(r"^\s*[-•]\s*", ". ", text, flags=re.MULTILINE)
     # Remove raw emojis so TTS engine doesn't stutter or read emoji codes
-    text = re.sub(r'[\U00010000-\U0010ffff\u2600-\u27ff\u2300-\u23ff]', '', text)
+    text = re.sub(r"[\U00010000-\U0010ffff\u2600-\u27ff\u2300-\u23ff]", "", text)
     # Normalize extra spaces
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 
@@ -52,8 +59,9 @@ class AudioService:
             return ""
 
         if not settings.GROQ_API_KEY:
-            logger.warning("GROQ_API_KEY missing for Whisper STT. Utilizing mock transcription.")
-            return "Please recall my project status from memory and prepare an update draft."
+            raise TranscriptionUnavailable(
+                "Server speech recognition is not configured. Use browser voice or text chat, or configure Groq locally."
+            )
 
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
             tmp.write(audio_bytes)
@@ -67,13 +75,17 @@ class AudioService:
                 with open(tmp_path, "rb") as f:
                     files = {"file": ("speech.webm", f, "audio/webm")}
                     data = {"model": settings.GROQ_WHISPER_MODEL}
-                    response = await client.post(url, headers=headers, files=files, data=data)
+                    response = await client.post(
+                        url, headers=headers, files=files, data=data
+                    )
                     response.raise_for_status()
                     res_json = response.json()
                     return res_json.get("text", "")
         except Exception as e:
-            logger.error(f"Groq Whisper transcription error: {e}")
-            return "Can you check my email context and summarize key actions?"
+            logger.warning("Speech transcription failed (%s)", type(e).__name__)
+            raise TranscriptionUnavailable(
+                "Speech recognition failed. No command was submitted; try again or use text chat."
+            ) from e
         finally:
             if os.path.exists(tmp_path):
                 try:
@@ -128,6 +140,7 @@ class AudioService:
         selected_voice = settings.DEFAULT_TTS_VOICE
         try:
             import edge_tts
+
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
                 tmp_path = tmp.name
             communicate = edge_tts.Communicate(clean_text[:3000], selected_voice)
