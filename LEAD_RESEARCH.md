@@ -1,0 +1,202 @@
+# Phase 4: business research and qualification
+
+## Update and open Leads
+
+Stop the API and dashboard, then run from the same repository directory:
+
+```powershell
+git pull --ff-only
+.\.venv\Scripts\python.exe -m pip install -r apps/agent/requirements.txt
+npm --prefix apps/web ci
+.\.venv\Scripts\python.exe -m uvicorn main:app --app-dir apps/agent --host 127.0.0.1 --port 8000
+```
+
+In a second terminal at the repository root:
+
+```powershell
+npm --prefix apps/web run dev
+```
+
+Open http://localhost:3000/dashboard and choose **Leads**. Keep your existing `.env`, Gmail credentials and SQLite data. No new API key or hosted database is required for the default workflow.
+
+## Independent-source research (recommended starting point)
+
+Leads offers automatic Tavily web discovery alongside independent entry and manual research searches. Enter the town and business type (or a known name); the links open ordinary web searches, including searches for public business social pages. Follow the original business page and confirm the exact branch. The app does not fetch search results, scrape profiles or auto-import Google Maps listings. Save business details from independently reviewed business sources, owner-provided details or your own observations. The manual workflow needs no Google API key, billing account or new dependencies. Automatic web searches use the separately configured Tavily pilot below.
+
+In **Add an independently sourced business**, enter the original source URL, select the source type and write a note explaining where the details came from. Source types are `business_owned_page`, `public_business_social`, `owner_provided`, `local_observation` and `other`. For a visit or owner confirmation, use an identifying public branch link and explain the independently obtained facts in the note. Source provenance stays with the observation and its history; it is not qualification, contact verification or marketing permission. The operator still performs the dated activity, website and contact review below.
+
+Candidate source filters separate **Manual / CSV research** from OpenStreetMap and optional Tavily entries. A successful add/import selects the saved record and clears search/status filters so it remains visible. Old candidates remain in the ledger.
+
+## Optional OpenStreetMap discovery
+
+1. Open https://www.openstreetmap.org and search for your target town. Zoom to the part of town you want to research.
+2. The map URL contains `#map=zoom/latitude/longitude`. Copy its latitude and longitude numbers into Leads. Latitude is first; South African latitude is negative. The location label is for your own records; it does not geocode or constrain the coordinates.
+3. Start with a 1 km radius and 25 results. Choose shops, food, trades/offices, or all supported categories. The maximum radius is 5 km and the maximum result count is 50.
+4. Click **Discover candidates**. Results are business observations from the public Overpass API, persisted in your local ledger. The default provider is Private.coffee, whose public service permits commercial projects without registration. The UI reports if results were capped; narrow your search if so.
+5. Select a candidate and open its source page. A business may have an independent website even if OpenStreetMap has no website tag. Likewise, a missing email tag means the source did not provide an email, not that the business has none.
+
+The public service has incomplete coverage and can be unavailable or rate limited. An empty result is not proof that there are no businesses. Source retrieval time is not proof of current business activity. No Google Maps scraping, private profiles, page crawling, address guessing, email sending, or LLM call occurs in the free discovery request.
+
+New queries have a persistent 2-minute cooldown and a default daily allowance of 20 per installation, reset by the Africa/Johannesburg calendar day. Identical queries use a provider-specific 24-hour cache, including empty results. A new-query failure consumes a request slot to avoid hammering the public service. Requests use one of two fixed HTTPS endpoints, bounded timeout, memory/output limits, no redirects, no retries and no paid fallback. API and worker share the same SQLite limits and query lease. Coordinates/radius are sent to the selected public Overpass provider; Gmail tokens and API keys are not sent with them.
+
+Optional configuration in your existing `.env`:
+
+```dotenv
+OSM_DAILY_QUERY_LIMIT=20
+OSM_PROVIDER=private_coffee
+ALLOW_TAVILY_RESEARCH=false
+```
+
+The limit accepts 1–100, but leave the conservative default for this small pilot. Tavily web research is disabled unless both `ALLOW_TAVILY_RESEARCH=true` and `TAVILY_API_KEY` are configured. It uses the bounded service described below, including when called by the core research tool. The provider account may have free or paid credits; the app cannot control account billing or usage by other installations. No automatic fallback enables it.
+
+Sources: [Overpass public-service guidance](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html), [Overpass query/output documentation](https://dev.overpass-api.de/output_formats.html), and [OpenStreetMap attribution and licensing](https://www.openstreetmap.org/copyright). OpenStreetMap-derived data is © OpenStreetMap contributors and is available under the ODbL. Keep its source references and attribution when sharing derived data; the Leads screen includes the attribution link.
+
+## Manual entry and CSV import
+
+Use public business sources that you have reviewed yourself. Manual entry requires a business name, location label and public source URL. Optional fields are address/branch, phone, listed email, listed website, industry, source_kind and source_note. The manual UI requires a source type and note; API/CSV requests without these fields remain backward compatible, with provenance shown as not recorded. A selected source kind requires a nonblank note. Existing evidence and permission checks still apply to every candidate. Enter standard `https://` URLs. Imports cannot set verification, qualification or consent.
+
+CSV header:
+
+```csv
+name,location,source_url,address,phone,email,website,industry,source_kind,source_note
+```
+
+Only `name`, `location` and `source_url` are required columns. Paste CSV or select a file, up to 100 rows per request and 200 KB in the file picker. The complete CSV is validated before any row is written. A batch can still be interrupted by an unexpected system/storage failure; reimport safely to recover. No email is inferred from a business name/domain, and multiple possible email addresses must be reviewed rather than guessed.
+
+OpenStreetMap records deduplicate by stable node/way/relation ID. Manual/Tavily records use normalised name, location, address and phone (plus source URL when both address and phone are missing); changing branch details can create a distinct candidate. Same-name entries in one location are flagged as possible duplicates, not automatically merged. Reject duplicates after checking the address/branch. The draft ledger also prevents repeated initial outreach to the same mailbox/contact, including previous recorded outreach.
+
+## Evidence review
+
+1. **Identity and activity:** verify that sources identify this business and branch, confirm it is active, and record a source URL and note. Choose dated public business activity, direct confirmation, or personally observing the branch operating. Enter the date of that evidence (within the last 30 days by the SAST calendar), not the date you looked up an old listing. Public activity evidence must use a source other than OpenStreetMap, such as a dated business post. For a call or visit, describe the confirmation/observation in the note; the identity URL can still point to the branch listing. Missing, future or expired activity dates block qualification and dispatch, including previously saved qualifications. Saving a review again does not renew the activity evidence date.
+2. **Website research:** search the exact name with its town/address, inspect public listings and social profiles, and record the searches/sources and any conflicting evidence. Choose one finding:
+
+| Finding | Can qualify as a potential website client? |
+| --- | --- |
+| Not checked | No |
+| Independent website found | No; record the URL, then keep for review or reject |
+| No independent website found after review | Yes, with complete evidence; this is not proof of absence |
+| Owner confirmed no website | Yes, with recorded evidence |
+| Only social profiles found after review | Yes, with complete evidence; independent-site absence is still uncertain |
+| Uncertain / conflicting evidence | No |
+
+3. **Contact evidence:** record one exact published business email, its source page and how it matches this business. Tick verification only after checking it. Saving complete contact verification preserves existing consent and any do-not-contact status.
+4. Choose Needs more review, Qualified, or Rejected. Qualification requires all identity/activity, website and contact evidence. Rejection requires a reason. Reviews use a revision check: if another process changed the record, reload it before saving.
+5. **Permission is separate.** A qualified lead can remain blocked from drafting because permission has not been recorded. Use Settings → Contact eligibility to record actual permission and its evidence. Do not mark permission granted just because an email address is public. Keep verification selected when updating a verified contact in Settings.
+6. Evidence expires for dispatch after 30 days. Recheck the actual sources, then save an updated review; do not merely renew the timestamp without checking.
+
+Source observations keep the most recent 20 changed snapshots. Operator review history is append-only in the local ledger. Rediscovery does not replace your review with provider claims. Changed source details invalidate qualification until a new review; a rejected lead stays rejected. A source update does not change marketing consent or clear suppression.
+
+## Preparing an outreach draft
+
+The candidate must have current complete qualification, a verified email and recorded permission, and must not be suppressed. Connect Gmail first. Write a subject and message in the candidate's draft form, then **Save for approval**. This action sends nothing. Initial business outreach starts in Leads; Gmail Settings retains the connection test and reply forms.
+
+Use wording supported by the evidence, such as “I couldn't find your website,” when appropriate. Portfolio matching, campaign templates, sales interpretation and follow-ups remain Phase 5. The free manual draft flow makes no LLM call. Existing conversational outreach can compose only after the same qualification and contact checks pass; any configured model provider remains subject to that provider's quota/cost.
+
+Draft identity is stable per connected mailbox/contact, so repeated requests return the existing draft rather than overwrite reviewed content or resend it. Sent/rejected drafts are not resurrected. Prior held or sent initial outreach blocks a fresh duplicate; follow-up/campaign policies are later phases. Review the recipient, subject and body in Approvals and explicitly send. Eligibility is checked before claiming and again immediately before Gmail submission. A changed source, stale review, changed email or revoked permission blocks a previously queued lead-linked draft. Delivery-unknown sends still require reconciliation rather than resending.
+
+Old unlinked approvals remain subject to their existing contact/consent gate; imports do not create such approvals. New lead-driven/core outreach and the Gmail outreach API use the reviewed lead path. Replies and report/test emails retain their existing separate purposes.
+
+No business emails are sent automatically by Phase 4. The implementation is a bounded single-host pilot using SQLite, not a distributed crawler. For very large datasets, paginated storage/UI and dedicated data infrastructure belong in the later scaling work.
+
+
+## Search provider errors and cooldown
+
+The default `OSM_PROVIDER=private_coffee` uses `https://overpass.private.coffee/api/interpreter`. Its operator explicitly permits commercial use and requires no registration or API key; see [the provider's service information, terms and privacy policy](https://overpass.private.coffee/). `main` selects the original `https://overpass-api.de/api/interpreter`; review its operator's current usage policy before choosing it. Arbitrary endpoint URLs are not accepted.
+
+There is no automatic endpoint rotation or failover. Provider selection does not reset the shared daily budget, cooldown or a provider-requested backoff. Cache entries are scoped to the selected provider. Only an operator-initiated search makes a request.
+
+The Leads form shows the selected provider and a countdown, and disables discovery until the waiting period ends. The countdown makes no requests and does not automatically retry. A page reload restores the remaining wait from the backend. HTTP 502/503/504 is reported as provider unavailability, HTTP 429 as rate limiting, HTTP 400 as a rejected query, and connection failures as network/provider reachability problems. Failure diagnostics never expose the upstream HTML body. The API returns retry seconds plus Retry-After for cooldown/provider-backoff errors.
+
+After repeated 502s from the original main endpoint, pull this update and restart the backend and dashboard. With no OSM_PROVIDER override, the backend will select Private.coffee automatically; if your `.env` explicitly sets `main`, change that one setting to `private_coffee`. Wait for the countdown, then try one small query. Keep existing coordinates and Gmail credentials. Both providers are external public services: availability still requires a live test on your network. A provider change is not an assurance of successful discovery.
+
+## Outdated or closed listings
+
+OpenStreetMap is a source of candidates, not a current business directory. Different Overpass providers serve the same underlying source. The screen now distinguishes the last map edit, the mapper’s check/survey tag (when supplied), and the date this app retrieved the listing. Map edits over a year old receive an additional warning. Even a recent edit may have changed only an unrelated detail; neither an edit nor a mapper tag proves the business is trading. Unknown dates stay unknown. Older stored results remain usable for review without a database migration; run discovery after the cooldown to retrieve metadata. The cache version changes once for this update, without resetting request limits.
+
+If you know a branch has closed, select **Inactive / closed**, **Rejected / duplicate / unsuitable**, enter a decision note explaining your knowledge, and **Save review**. No contact or website evidence is needed for rejection. Rediscovery preserves that rejection. Check the branch/address before rejecting a same-name business elsewhere. Use **Needs review** to focus on unreviewed candidates.
+
+For missing or inaccurate map coverage, use **Add a business manually** or **Import CSV** with sourced businesses you have researched. No additional paid provider or API key is introduced. The app records operator evidence; it does not automatically authenticate posts, phone calls or visits. Current operation is verified separately from whether the business lacks a website and whether contact permission exists.
+
+## Why this update does not integrate Google Places
+
+Google Maps may provide more useful local listings than OpenStreetMap, but it is not a drop-in source for this durable outreach ledger. The standard [Maps Platform terms, section 3.2.3](https://cloud.google.com/maps-platform/terms) restrict exporting/storing Maps business content and using the services to create or augment advertising products. The [Places policies](https://developers.google.com/maps/documentation/places/web-service/policies) also limit storage, with exceptions such as place IDs. A place-ID exception does not by itself authorize copying listings into an outreach database. Google API discovery would require a separate licensing/design assessment before implementation.
+
+The selected alternative saves independently sourced operator evidence. No Google API setting, key or billing setup is required. Search links are navigation aids and do not import search-engine snippets or Maps content. Source classification is an operator statement, not automated authentication or a license grant for third-party content.
+
+## Automatic web discovery pilot (Tavily)
+
+1. Pull this update and stop/restart both servers. No new dependencies are required.
+2. Create a free Tavily account and keep paid/pay-as-you-go usage disabled. Keep the key local; do not share it or screenshots of it. In your existing backend `.env`, set:
+
+```dotenv
+TAVILY_API_KEY=your_local_key
+ALLOW_TAVILY_RESEARCH=true
+TAVILY_DAILY_QUERY_LIMIT=5
+TAVILY_MONTHLY_QUERY_LIMIT=100
+```
+
+3. Restart the backend after editing `.env`. In Leads, open **Automatic web discovery · Tavily**. The panel shows whether the key is configured and research is enabled, but never returns the key. Enter `Standerton, Mpumalanga`, `plumbers`, and 5 source results; click **Discover web candidates** once. Only the town/type query is sent to Tavily, not Gmail credentials or conversation content.
+4. Returned candidates appear in the **Tavily** source filter. Open each original source and verify the business/branch. Search titles may be directory headings, not business names: qualification additionally requires a **Confirmed business and branch name**. A result does not establish current activity, website absence, a contact email, or consent. Emails are never guessed or extracted from snippets.
+5. Discard unrelated/directory results with a rejection reason, or manually enter separately verified individual businesses. Complete the existing dated activity, website and exact contact review, then record actual contact permission before preparing outreach. Searching never sends emails.
+
+Every new search query makes at most one fixed-endpoint basic search with auto-parameters, provider answers, raw content and images disabled. The separate source-inspection action below uses basic extraction for one saved URL. Neither action crawls links, calls an LLM, retries or falls back to another provider. Results are limited to 1–10, with a 40-second total network deadline, no redirects, and a 2 MB response limit. Invalid source links/results are skipped. Only bounded titles, source links and operator evidence are saved; snippets/raw responses/keys are not stored in the lead ledger. Source URLs deduplicate Tavily results across queries and title changes, including previous records; a title/query change can invalidate qualification but cannot resurrect rejection. Confirmed operator names survive rediscovery.
+
+Search and source inspection share local limits defaulting to 5 new attempts per SAST day and 100 per SAST calendar month (configurable up to 20/day and 500/month), shared by API and worker through SQLite. A 2-minute persisted cooldown and shared lease prevent concurrent bursts. Attempts are reserved before network I/O: failures and interrupted attempts count conservatively. Identical town/type/limit searches use a 24-hour cache, including empty results; cached reads consume no extra attempt and remain available after local budgets are reached. Disabling research or removing the key blocks new research calls, including cache access, without deleting saved leads. These are local attempted-request counters, not the provider's remaining-credit balance. Calendar resets may differ from the provider's credit cycle. Check the Tavily dashboard and other API-key usage separately.
+
+Provider HTTP 401/403 reports a credential/access problem without leaking upstream bodies; 429 honors an integer Retry-After (at least two minutes, capped at one day); 432/433 reports provider account limits. No error enables paid usage. Failed attempts still consume a local slot; the panel restores cooldown/counters after reload. The default basic-search credit expectation is based on [Tavily's current credit documentation](https://docs.tavily.com/documentation/api-credits), not a guarantee of perpetual free service. Review the [provider terms](https://www.tavily.com/terms) and original sources; API access does not grant unrestricted rights to third-party pages.
+
+The tests use fake responses and no external credentials. Successful local offline tests do not establish live coverage or availability in Standerton. Test a small query on your own account before scaling. For account-wide cost control, keep paid usage disabled at the provider; local limits cannot prevent charges caused by other clients or account settings.
+
+## Inspecting a saved source
+
+After pulling this update and restarting both servers, select a Tavily or manually sourced candidate and click **Inspect this source**. Existing `TAVILY_API_KEY` and `ALLOW_TAVILY_RESEARCH=true` settings are sufficient; no new dependency or key is needed. Wait for the shared two-minute cooldown after a search. Inspection is explicitly initiated for one selected source, not automatically run across all search results. The research worker can use the same path with `inspect_lead_id=<saved lead id>`.
+
+The backend requests basic Tavily extraction of that exact saved URL through the fixed provider endpoint. It does not directly fetch arbitrary sites, follow discovered links, upgrade to advanced extraction, render browser pages, supply login cookies or run an LLM. Map listings/shortened map links are not accepted as inspection sources. Public social pages may be unavailable to basic extraction; failure remains unknown and requires manual review. A provider response naming a different URL is held for manual review rather than assigned to the original source.
+
+The response is bounded to 2 MB in transit and 200,000 extracted characters. Literal pattern matching proposes up to ten candidates per category: published email addresses, South African phone patterns, public web links (including same-site relative markdown links), ISO-style dates and closure phrases. Each has a short surrounding excerpt (up to 220 characters) and the original source link/time. Dates can be footer or unrelated dates; closure phrases can be negated. Town text appearing on a page is only a textual hint. No current activity, website absence, contact ownership or permission is automatically inferred. Directory emails/links may belong to the directory or other businesses. Page instructions are inert text and cannot invoke tools.
+
+Full page bodies, images and provider error bodies are not retained. The latest successful inspection and a 24-hour cache retain only bounded findings and excerpts. Cached reads consume no new attempt; failed/blocked/oversized/redirected attempts count conservatively toward the existing shared request limits. Inspecting a source takes one local request reservation regardless of Tavily's potentially different credit calculation; counters are not an account credit balance. Keep paid usage off at the provider. See [Tavily extraction documentation](https://docs.tavily.com/documentation/api-reference/endpoint/extract) and [current credit pricing](https://docs.tavily.com/documentation/api-credits).
+
+**Use email in review** fills the unsaved email/source/evidence fields and explicitly leaves contact verification unchecked. Select the exact business's address only after reading the evidence. **Record as website found after checking ownership** fills an unsaved positive website finding; this blocks no-website qualification until you resolve the finding. No suggestion button saves a review, grants consent or sends mail. Phone/date/closure suggestions are shown as evidence for your review, not applied as business facts.
+
+Inspecting does not overwrite an operator's review or contact record. A successful fresh inspection of the current source requires the operator to review the findings and save the evidence again before a previously qualified lead can draft/send, including an already queued approval. New source observations invalidate the inspection fingerprint and label earlier findings stale. Inspection results older than 24 hours are also labeled stale, and their suggestion buttons are disabled. Merely rediscovering the same observation or reading the cache does not renew evidence dates. A source changed during an in-flight inspection causes a conflict instead of storing mismatched findings.
+
+This is automated extraction after one explicit source selection. It does not fully automate business identification, establish that no website exists, guarantee that a business is operating, or perform bulk enrichment. Live extraction availability and quality still need a small test on your own account.
+
+### Cleaning inspection suggestions
+
+South African phone variants such as `072 760 5595`, `+27 72 760 5595` and a `tel:` link normalize to one `+27727605595` suggestion. Recognized image, script, font, media, archive and PDF paths are omitted from website suggestions. Same-site pages and external references appear separately; external articles/suppliers/advertisers have no one-click website-finding action. This host grouping does not establish business ownership.
+
+If the inspected page itself is the business’s existing website, use **Mark this inspected page as the business website after checking ownership**, then save the review with **Independent website found** and reject it for no-website outreach. That action only edits the unsaved review; it does not assume the business serves the target town.
+
+Formatting cleanup also applies to older saved/cached findings on read. Pull and restart to see cleaned results without spending another extraction attempt or renewing the inspection/review timestamp. Unsupported or dynamic asset URLs may still need operator review.
+
+## Automatic research jobs
+
+Use **Leads → Automatic research jobs** to run discovery, source inspection and assessment from one start action. Pull the update and restart both servers; no new dependencies or credentials are required. Keep the existing local Tavily key, `ALLOW_TAVILY_RESEARCH=true`, and paid usage disabled at the provider. `RESEARCH_JOBS_ENABLED=true` is the default. The API starts a lightweight job runner independently of the Gmail/report scheduler; it makes no provider request without a queued job. Set the flag to false and restart the backend to disable this runner.
+
+1. Enter the town and business type, up to 10 source results (default 2), and a **total job request budget** of 1–10 (default 3).
+2. Click **Start research** once. Only one job can be active at a time; pause an existing job before starting another.
+3. The job discovers sources, then inspects and assesses each saved candidate. It handles the shared cooldown automatically. A budget of 3 normally allows one new search and two new source inspections. Cached steps use no request allowance. Both per-job and installation daily/monthly budgets apply; creating/resuming a job does not reset either counter.
+4. Follow the status and saved progress, or close the dashboard while the backend stays running. Active progress polls the local API every five seconds; polling consumes no Tavily requests. **Pause job** stops subsequent steps; an already in-flight request can finish and save its result.
+5. At a local/provider budget or provider authorization/network/service error, the job pauses. Fix the issue or wait for the relevant allowance, then use **Resume saved job**. You may raise its total job budget, up to 10; this does not raise shared quotas. The budget includes requests already spent, not just future requests. No provider error automatically upgrades a plan, enables payment or triggers a retry.
+6. An unreadable source (HTTP-200 per-URL extraction failure, mismatched returned URL, empty/oversized content) or unsupported map source goes to the review queue, then the job continues to other candidates. A rate limit or service-wide error pauses the job rather than repeatedly retrying. Previously rejected, closed or operator-recorded website candidates skip inspection to avoid wasted requests.
+7. Open candidates from the assessment table. Review identity, current activity, website ownership/absence and exact contact evidence, then record genuine contact permission separately. This job neither qualifies leads nor creates drafts, approvals, contacts or sends. Portfolio-based drafting and controlled outreach remain separate work.
+
+| Assessment | Meaning |
+| --- | --- |
+| Excluded by operator evidence | An existing human review rejected the candidate or recorded closure |
+| Website recorded | An existing review records an independent website |
+| Possible existing website · review | A published email domain matches the inspected source host; ownership still needs checking |
+| Potential match · review | Existing operator website research supports further consideration, or email and town text appeared without a website/closure signal; this is not proof of website absence, activity or eligibility |
+| Uncertain · review | Insufficient, conflicting or unreadable source evidence |
+
+Assessments are rule-based snapshots with explicit exception flags, not LLM-generated confidence scores. They do not alter lead decisions, contact verification or consent. A recent inspection continues to require a subsequent review before an existing qualified lead can send. Matched town text can describe a service area or an unrelated branch; same-domain email can belong to a directory. Both require review.
+
+Jobs, cursors, request reservations and in-flight markers are saved in the local SQLite ledger. An atomic reservation charges each new provider request against both the job and shared budget before network I/O; failures count conservatively. API/manual searches, inspections and the worker share the same quota, lease and caches. A runner lease prevents two API workers from advancing the same job simultaneously.
+
+Queued/waiting jobs survive a backend restart and continue once due. If the backend stops during an in-flight step, recovery pauses it for operator review after any abandoned lease expires (up to about two minutes). The provider may have completed the request before the app stopped. Resume uses saved caches where available, but an interrupted uncached step may need another reserved request; it is not replayed automatically. **Pause the job before stopping the backend** if you do not want a queued/waiting job to resume on the next launch. Closing the dashboard does not pause a job.
+
+The dashboard lists up to 20 recently updated jobs, prioritizing any active job. Completed-job assessments remain historical snapshots; opening a candidate shows its current review/evidence. A completed research job does not mean outreach eligibility is complete or that an email was sent. Keep the backend and local database available for this single-host pilot; there is no cloud-hosted research worker.
+
+Offline tests cover shared/per-job quota reservations, cached free steps, cooldown waits, pause during requests, restart/cancellation recovery, multiple-worker exclusion, API authorization, unreadable-source continuation and absence of contacts/drafts/sends. Live research coverage and source availability still require a small test on the configured account.
