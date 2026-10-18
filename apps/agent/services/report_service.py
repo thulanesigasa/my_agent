@@ -19,6 +19,7 @@ DEFINITIONS = {
     "period_replies": "Human reply messages received during the selected dates, including replies to older tracked conversations.",
     "awaiting": "Cohort conversations with neither a human reply nor a recorded bounce by the snapshot time; no waiting-time threshold is implied.",
     "outcomes": "Interested, declined and won are operator-recorded. Unsubscribe is also detected from incoming opt-outs. Unclassified means no explicit outcome was recorded.",
+    "reply_suggestions": "Automatic local-rule suggestions for the latest human reply in each cohort conversation. Suggestions are not confirmed outcomes or sales. Ambiguous wording stays needs_review. Saved snapshots retain their original suggestions.",
     "time": "Dates are inclusive in Africa/Johannesburg. Gmail internalDate dates replies; old records without it use local ingestion time.",
 }
 
@@ -61,6 +62,8 @@ def period(start=None, end=None):
 def build_report(
     start=None, end=None, *, mailbox=None, include_tests=False, as_of=None
 ):
+    from services.reply_service import assess_reply
+
     start, end = period(start, end)
     as_of = as_of or datetime.now(timezone.utc)
     left = datetime.combine(start, time.min, TZ)
@@ -129,6 +132,9 @@ def build_report(
             outcome = "unsubscribed"
             latest_optout = max(optouts, key=lambda item: item[1])[0]
             outcome_note = "Recorded incoming opt-out: " + latest_optout["id"]
+        latest_human = (
+            max(human, key=lambda item: (item[1], item[0]["id"]))[0] if human else None
+        )
         rows.append(
             {
                 "id": first["id"],
@@ -151,6 +157,9 @@ def build_report(
                 ),
                 "outcome": outcome,
                 "outcome_note": outcome_note,
+                "reply_suggestion": (
+                    assess_reply(latest_human)["category"] if latest_human else None
+                ),
             }
         )
     cohort_replies = sum(bool(r["reply_count"]) for r in rows)
@@ -201,6 +210,9 @@ def build_report(
             "human_replies_received": len(period_human),
             "automated_messages_received": len(period_auto),
             "outcomes": {o: counts.get(o, 0) for o in OUTCOMES},
+            "reply_suggestions": dict(
+                Counter(r["reply_suggestion"] for r in rows if r["reply_suggestion"])
+            ),
             "recorded_leads": len(data["leads"]),
         },
         "conversations": rows,
@@ -277,7 +289,8 @@ def workbook(report):
     for key, value in report["summary"].items():
         if isinstance(value, dict):
             for outcome, count in value.items():
-                summary.append([f"outcome_{outcome}", count])
+                prefix = "outcome" if key == "outcomes" else key
+                summary.append([f"{prefix}_{outcome}", count])
         else:
             summary.append([key, value])
     sheet = wb.create_sheet("Conversations")
@@ -295,6 +308,7 @@ def workbook(report):
         "bounced",
         "outcome",
         "outcome_note",
+        "reply_suggestion",
     )
     sheet.append(list(columns))
     for row in report["conversations"]:

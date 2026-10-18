@@ -49,6 +49,13 @@ export const ApprovalQueueDashboard: React.FC = () => {
     fetchApprovals();
   }, []);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!busy && !editingId && document.visibilityState === "visible") void fetchApprovals();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [busy, editingId]);
+
   const handleAction = async (threadId: string, action: "approve" | "edit" | "reject") => {
     setBusy(threadId);
     setError("");

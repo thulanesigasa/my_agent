@@ -63,12 +63,14 @@ from routers import (
     send_controls,
     campaigns,
     pilot,
+    automation,
 )
 from services.contacts import EligibilityError
 from scheduler import agent_scheduler
 from services.research_jobs import research_job_runner
 from services.campaigns import campaign_runner
 from services.followup_schedule import followup_schedule_runner
+from services.automation import automation_runner
 
 # Logging Setup
 logging.basicConfig(
@@ -108,6 +110,7 @@ app.include_router(followups.router)
 app.include_router(send_controls.router)
 app.include_router(campaigns.router)
 app.include_router(pilot.router)
+app.include_router(automation.router)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -298,6 +301,8 @@ async def on_startup():
         campaign_runner.start()
     if settings.FOLLOWUP_SCHEDULES_ENABLED:
         followup_schedule_runner.start()
+    if settings.AUTOMATION_ENABLED:
+        automation_runner.start()
     try:
         if settings.ENABLE_SCHEDULER:
             agent_scheduler.start()
@@ -314,6 +319,7 @@ async def on_shutdown():
     await research_job_runner.stop()
     await campaign_runner.stop()
     await followup_schedule_runner.stop()
+    await automation_runner.stop()
     try:
         agent_scheduler.shutdown()
     except Exception as e:
