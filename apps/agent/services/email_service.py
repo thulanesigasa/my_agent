@@ -239,6 +239,11 @@ class GmailServiceAdapter:
                 "status": "sending",
                 "rfc_message_id": rfc_id,
                 "approval_id": approval_id,
+                "followup_of": (
+                    (store.get("approvals", approval_id) or {}).get("followup_of")
+                    if approval_id
+                    else None
+                ),
             },
         )
         if approval_id:
@@ -255,6 +260,12 @@ class GmailServiceAdapter:
                         from services.reply_service import validate_queued_reply
 
                         validate_queued_reply(
+                            store.get("approvals", approval_id) or {},
+                            self.expected_email,
+                        )
+                        from services.followups import validate as validate_followup
+
+                        validate_followup(
                             store.get("approvals", approval_id) or {},
                             self.expected_email,
                         )
