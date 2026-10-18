@@ -8,7 +8,7 @@ Usage in Terminal:
     python start_agent.py
 
 Displays vibrant green 'AGENT ACTIVE' status banner and starts real-time microphone
-listening for EITHER hand claps OR the 'Agent' voice command trigger.
+listening for EITHER hand claps OR the 'elevate agen' voice command trigger.
 """
 
 import os
@@ -37,7 +37,7 @@ def print_active_banner():
 {GREEN}============================================================{RESET}
 {GREEN_BOLD}  [+] AGENT ACTIVE{RESET}
 {GREEN}============================================================{RESET}
-{CYAN}  Listening for hand claps OR 'Agent' voice command...{RESET}
+{CYAN}  Listening for hand claps OR 'elevate agen' voice command...{RESET}
   Press Ctrl+C to stop the listener.
 """
     print(banner)
@@ -49,12 +49,13 @@ if __name__ == "__main__":
 
     # ── Start backend + frontend immediately on launch ──────────────────
     import threading
+
     print(f"{CYAN}  Starting backend (port 8000) and frontend (port 3000)...{RESET}")
     t_back = threading.Thread(target=launcher.start_backend_async, daemon=True)
     t_front = threading.Thread(target=launcher.start_frontend_async, daemon=True)
     t_back.start()
     t_front.start()
-    t_back.join()   # brief wait so backend is up before listening begins
+    t_back.join()  # brief wait so backend is up before listening begins
     t_front.join()
 
     launcher.listen()

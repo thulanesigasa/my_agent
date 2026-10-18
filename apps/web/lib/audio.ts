@@ -48,6 +48,7 @@ export class AudioStreamManager {
   private restartTimer: number | null = null;
   private muted = false;
   private sendCurrentRecording = true;
+  private captureGeneration = 0;
   private currentAudioSource: AudioBufferSourceNode | null = null;
 
   constructor(callbacks: AudioStreamCallbacks = {}) {
@@ -58,26 +59,31 @@ export class AudioStreamManager {
    * Connect to backend audio streaming WebSocket at /ws/audio.
    * Resolves true when socket reaches WebSocket.OPEN.
    */
-  public async connect(url?: string): Promise<boolean> {
+  public async connect(url?: string, threadId?: string): Promise<boolean> {
     this.disposed = false;
-    const wsUrl =
+    const backend = new URL(process.env.NEXT_PUBLIC_AGENT_API_URL || `http://${window.location.hostname}:8000`);
+    backend.protocol = backend.protocol === "https:" ? "wss:" : "ws:";
+    backend.pathname = "/ws/audio";
+    const target = new URL(
       url ||
       process.env.NEXT_PUBLIC_AGENT_AUDIO_WS_URL ||
-      "ws://127.0.0.1:8000/ws/audio";
+      backend.toString());
+    if (process.env.NEXT_PUBLIC_AGENT_API_KEY) target.searchParams.set("api_key", process.env.NEXT_PUBLIC_AGENT_API_KEY);
 
     return new Promise<boolean>((resolve) => {
       try {
-        this.socket = new WebSocket(wsUrl);
+        this.socket = new WebSocket(target);
         this.socket.binaryType = "arraybuffer";
 
         const timeoutId = setTimeout(() => {
-          console.warn("WebSocket connection timeout to", wsUrl);
+          this.socket?.close();
           resolve(false);
         }, 5000);
 
         this.socket.onopen = () => {
           clearTimeout(timeoutId);
-          console.log("Connected to Audio Streaming WebSocket at", wsUrl);
+          if (this.disposed) { this.socket?.close(); resolve(false); return; }
+          if (threadId) this.socket?.send(JSON.stringify({ type: "configure", thread_id: threadId }));
           resolve(true);
         };
 
@@ -110,7 +116,8 @@ export class AudioStreamManager {
         };
 
         this.socket.onclose = () => {
-          console.log("Audio WebSocket disconnected.");
+          clearTimeout(timeoutId);
+          if (!this.disposed) { this.callbacks.onError?.("Voice connection closed. Text chat remains available."); resolve(false); }
         };
       } catch (e) {
         console.error("Failed to establish WebSocket connection:", e);
@@ -155,7 +162,13 @@ export class AudioStreamManager {
    */
   public async startStreaming(): Promise<boolean> {
     try {
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (this.disposed || !this.socket || this.socket.readyState !== WebSocket.OPEN) return false;
+      this.stopStreaming(false);
+      const generation = this.captureGeneration;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (this.disposed || generation !== this.captureGeneration) { stream.getTracks().forEach((track) => track.stop()); return false; }
+      this.mediaStream = stream;
+      this.sendCurrentRecording = true;
       this.mediaStream.getAudioTracks().forEach((track) => {
         track.enabled = !this.muted;
       });
@@ -183,9 +196,10 @@ export class AudioStreamManager {
       };
 
       this.mediaRecorder.onstop = async () => {
+        if (generation !== this.captureGeneration) return;
         this.stopVAD();
-        const shouldSend = this.sendCurrentRecording;
-        this.sendCurrentRecording = true;
+        const shouldSend = this.sendCurrentRecording && generation === this.captureGeneration;
+        if (generation === this.captureGeneration) this.sendCurrentRecording = true;
 
         if (!shouldSend || this.disposed) {
           return;
@@ -194,7 +208,7 @@ export class AudioStreamManager {
         const fullBlob = new Blob(chunks, { type: mimeType || "audio/webm" });
         const arrayBuffer = await fullBlob.arrayBuffer();
 
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        if (!this.disposed && generation === this.captureGeneration && this.socket && this.socket.readyState === WebSocket.OPEN) {
           this.callbacks.onStateChange?.("processing");
           this.socket.send(arrayBuffer);
         } else {
@@ -313,6 +327,7 @@ export class AudioStreamManager {
    * Stop recording and optionally transmit captured audio over the open WebSocket.
    */
   public stopStreaming(sendRecording: boolean = true): void {
+    if (!sendRecording) this.captureGeneration++;
     this.stopVAD();
     this.sendCurrentRecording = sendRecording;
 
@@ -330,6 +345,8 @@ export class AudioStreamManager {
    */
   private async playAudioBuffer(buffer: ArrayBuffer): Promise<void> {
     try {
+      if (this.disposed) return;
+      const generation = this.captureGeneration;
       this.stopSpeech();
 
       if (!this.audioContext) {
@@ -338,6 +355,7 @@ export class AudioStreamManager {
 
       this.callbacks.onStateChange?.("speaking");
       const decodedData = await this.audioContext.decodeAudioData(buffer.slice(0));
+      if (this.disposed || generation !== this.captureGeneration) return;
       const source = this.audioContext.createBufferSource();
       source.buffer = decodedData;
       source.connect(this.audioContext.destination);
