@@ -24,9 +24,10 @@ from test_automation_phase6 import enable, allow_next_tick
         ("agen", False),
         ("Hey Agent", False),
         ("elevate agency", False),
-        ("elevate agen", True),
+        ("elevate agen", False),
+        ("elevate agent", True),
         ("Elevate agent", True),
-        ("please elevate agen", True),
+        ("please elevate agent", True),
     ],
 )
 def test_full_wake_phrase_required_and_not_an_authentication_claim(text, expected):

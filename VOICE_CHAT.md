@@ -1,4 +1,4 @@
-# Elevate agen: text and voice conversations
+# elevate agent: text and voice conversations
 
 The redesigned interaction screen is **http://localhost:3000/**. The outreach dashboard remains at `/dashboard`; its layout and sending approval flow are retained. Pull and restart both servers after updating. No new mandatory dependency is needed for text or browser voice.
 
@@ -12,7 +12,7 @@ Type a message and press Enter or Send. Shift+Enter inserts a new line. Response
 
 Click **Voice conversation**, allow microphone/speech permission, then speak. Where supported, browser speech recognition sends the real recognized text through the same chat endpoint, and browser speech synthesis reads the returned answer. Recognition stops while processing or speaking, then resumes for your next turn. End voice stops the conversation microphone. Interrupt stops response playback and returns to listening. Every recognized turn and agent text response appears in the chat history.
 
-Click **Enable wake phrase** to opt in to standby listening. Say **elevate agen** to enter voice conversation; you can also say the phrase followed by a command. The recognizer may transcribe the name as **elevate agent**, which is accepted as a phonetic variant. Bare **agen**, **agent** or **Hey Agent** does not activate. Ambient standby speech is not submitted to the agent as a command. Disable wake listening when finished. If wake listening remains enabled, ending a conversation returns to standby; it does not pretend the microphone is completely off.
+Click **Enable wake phrase** to opt in to standby listening. Say **elevate agent** to enter voice conversation; you can also say the phrase followed by a command. Bare **agen**, **agent** or **Hey Agent** does not activate. Ambient standby speech is not submitted to the agent as a command. Disable wake listening when finished. If wake listening remains enabled, ending a conversation returns to standby; it does not pretend the microphone is completely off.
 
 Browser recognition is not universally supported. Some browsers use a remote speech service and require internet access; this is not advertised as offline recognition or speaker authentication. The app checks capability and surfaces permission/service errors. See the [MDN SpeechRecognition reference](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition). Use headphones if room playback is picked up by your microphone. Real hardware/accent/environment accuracy must be tested on your PC.
 

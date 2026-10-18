@@ -8,7 +8,7 @@ Usage in Terminal:
     python start_agent.py
 
 Displays vibrant green 'AGENT ACTIVE' status banner and starts real-time microphone
-listening for EITHER hand claps OR the 'elevate agen' voice command trigger.
+listening for EITHER hand claps OR the 'elevate agent' voice command trigger.
 """
 
 import os
@@ -37,7 +37,7 @@ def print_active_banner():
 {GREEN}============================================================{RESET}
 {GREEN_BOLD}  [+] AGENT ACTIVE{RESET}
 {GREEN}============================================================{RESET}
-{CYAN}  Listening for hand claps OR 'elevate agen' voice command...{RESET}
+{CYAN}  Listening for hand claps OR 'elevate agent' voice command...{RESET}
   Press Ctrl+C to stop the listener.
 """
     print(banner)

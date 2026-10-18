@@ -19,16 +19,16 @@ function fixture() {
   const say = (text, instance = instances.at(-1)) => instance.onresult?.({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: text } }] });
   return { voice, wakeCommand, instances, states, finals, errors, utterances, say, activations: () => activations };
 }
-test('requires the two-word phrase and accepts phonetic agent spelling', () => {
+test('requires the exact two-word elevate agent phrase', () => {
   const f = fixture();
-  for (const text of ['agen', 'agent', 'Hey Agent', 'elevate agency', 'elevate']) assert.equal(f.wakeCommand(text), null);
-  assert.equal(f.wakeCommand('Elevate agen, show my progress'), 'show my progress');
+  for (const text of ['agen', 'agent', 'elevate agen', 'Hey Agent', 'elevate agency', 'elevate']) assert.equal(f.wakeCommand(text), null);
+  assert.equal(f.wakeCommand('elevate agent, show my progress'), 'show my progress');
   assert.equal(f.wakeCommand('elevate agent'), '');
 });
 test('microphone recognition is opt-in and ambient speech is never sent as a command', () => {
   const f = fixture(); assert.equal(f.instances.length, 0);
   f.voice.setWake(true); f.say('hello agent'); assert.equal(f.finals.length, 0); assert.equal(f.activations(), 0);
-  f.say('elevate agen'); assert.equal(f.activations(), 1); assert.equal(f.finals.length, 0);
+  f.say('elevate agent'); assert.equal(f.activations(), 1); assert.equal(f.finals.length, 0);
   f.say('Show my pending approvals'); assert.deepEqual(f.finals, ['Show my pending approvals']); assert.equal(f.states.at(-1), 'processing');
 });
 test('wake command suffix is submitted exactly once and stale recognition events are ignored', () => {
