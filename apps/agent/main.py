@@ -52,7 +52,16 @@ from agents.human_approval import (
     reject_or_edit_draft,
 )
 from agents.learner import learner_node
-from routers import health, webhooks, gmail, reports, leads, portfolio, followups
+from routers import (
+    health,
+    webhooks,
+    gmail,
+    reports,
+    leads,
+    portfolio,
+    followups,
+    send_controls,
+)
 from services.contacts import EligibilityError
 from scheduler import agent_scheduler
 from services.research_jobs import research_job_runner
@@ -92,6 +101,7 @@ app.include_router(reports.router)
 app.include_router(leads.router)
 app.include_router(portfolio.router)
 app.include_router(followups.router)
+app.include_router(send_controls.router)
 
 
 @app.get("/", response_class=HTMLResponse)

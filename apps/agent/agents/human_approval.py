@@ -79,6 +79,9 @@ async def approve_draft(thread_id):
     from services.followups import validate as validate_followup
 
     validate_followup(item, email_service.expected_email)
+    from services.send_controls import check_available
+
+    check_available(email_service.expected_email, item.get("purpose", "outreach"))
     lead_id = item.get("lead_id") or (item.get("lead_data") or {}).get("id")
     if item.get("purpose") == "outreach" and lead_id:
         from services.lead_service import ensure_qualified
