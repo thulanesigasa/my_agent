@@ -45,7 +45,7 @@ def mutate_job(job_id, update):
     return job
 
 
-def create_job(location, industry, limit=2, max_requests=3):
+def create_job(location, industry, limit=2, max_requests=3, *, job_id=None):
     if (
         not location.strip()
         or not industry.strip()
@@ -87,6 +87,22 @@ def create_job(location, industry, limit=2, max_requests=3):
     }
     with store.connect() as db:
         db.execute("BEGIN IMMEDIATE")
+        if job_id:
+            row = db.execute(
+                "SELECT data FROM records WHERE kind='research_jobs' AND id=?",
+                (job_id,),
+            ).fetchone()
+            if row:
+                existing = json.loads(row[0])
+                if (
+                    existing["location"],
+                    existing["industry"],
+                    existing["limit"],
+                    existing["max_requests"],
+                ) != (location.strip(), industry.strip(), limit, max_requests):
+                    raise ConflictError("Saved research job has different settings")
+                return existing
+            job["id"] = job_id
         rows = db.execute(
             "SELECT data FROM records WHERE kind='research_jobs'"
         ).fetchall()

@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     RESEARCH_JOBS_ENABLED: bool = True
     CAMPAIGNS_ENABLED: bool = True
     FOLLOWUP_SCHEDULES_ENABLED: bool = True
+    AUTOMATION_ENABLED: bool = True
     TAVILY_DAILY_QUERY_LIMIT: int = Field(default=5, ge=1, le=20)
     TAVILY_MONTHLY_QUERY_LIMIT: int = Field(default=100, ge=1, le=500)
     OSM_DAILY_QUERY_LIMIT: int = Field(default=20, ge=1, le=100)

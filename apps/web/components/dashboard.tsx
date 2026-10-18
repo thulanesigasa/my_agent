@@ -4,6 +4,7 @@ import { TabContext } from "@/components/app-shell";
 import { LeadsDashboard } from "./dashboard/leads";
 import { ReportsDashboard } from "./dashboard/reports";
 import { PilotReadiness } from "./dashboard/pilot-readiness";
+import { AutomationPanel } from "./dashboard/automation";
 import { SendingControls } from "./dashboard/sending-controls";
 import { GmailSettings } from "./dashboard/gmail-settings";
 import { ActivityPanel } from "./dashboard/activity";
@@ -19,13 +20,13 @@ export function Dashboard() {
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 space-y-6 text-slate-800">
       <h1 className="font-semibold text-lg">Email Outreach Command Centre</h1>
-      {tab === "overview" && <><AnalyticsDashboard /><ActivityPanel /><EmailLogsTable /></>}
+      {tab === "overview" && <><AutomationPanel compact /><AnalyticsDashboard /><ActivityPanel /><EmailLogsTable /></>}
       {tab === "leads" && <LeadsDashboard />}
       {tab === "reports" && <ReportsDashboard />}
       {tab === "logs" && <><FollowupSchedule /><FollowupsDashboard /><EmailLogsTable /></>}
       {tab === "approvals" && <ApprovalQueueDashboard />}
       {tab === "memory" && <MemoryViewer />}
-      {tab === "settings" && <><PilotReadiness /><SendingControls /><GmailSettings /></>}
+      {tab === "settings" && <><AutomationPanel /><PilotReadiness /><SendingControls /><GmailSettings /></>}
     </div>
   );
 }
