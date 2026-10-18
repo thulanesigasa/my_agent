@@ -61,10 +61,12 @@ from routers import (
     portfolio,
     followups,
     send_controls,
+    campaigns,
 )
 from services.contacts import EligibilityError
 from scheduler import agent_scheduler
 from services.research_jobs import research_job_runner
+from services.campaigns import campaign_runner
 
 # Logging Setup
 logging.basicConfig(
@@ -102,6 +104,7 @@ app.include_router(leads.router)
 app.include_router(portfolio.router)
 app.include_router(followups.router)
 app.include_router(send_controls.router)
+app.include_router(campaigns.router)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -288,6 +291,8 @@ async def on_startup():
     logger.info("Initializing application startup services...")
     if settings.RESEARCH_JOBS_ENABLED:
         research_job_runner.start()
+    if settings.CAMPAIGNS_ENABLED:
+        campaign_runner.start()
     try:
         if settings.ENABLE_SCHEDULER:
             agent_scheduler.start()
@@ -302,6 +307,7 @@ async def on_shutdown():
     """
     logger.info("Shutting down background services...")
     await research_job_runner.stop()
+    await campaign_runner.stop()
     try:
         agent_scheduler.shutdown()
     except Exception as e:

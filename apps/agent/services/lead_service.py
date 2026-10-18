@@ -502,7 +502,9 @@ def lead_view(lead):
     return lead
 
 
-def draft_lead(record_id, subject, body, mailbox, proposal_preview_id=None):
+def draft_lead(
+    record_id, subject, body, mailbox, proposal_preview_id=None, campaign_source=None
+):
     if not subject.strip() or not body.strip() or "\r" in subject or "\n" in subject:
         raise ValueError("Provide a non-empty message and a single-line subject")
     if not mailbox:
@@ -555,5 +557,6 @@ def draft_lead(record_id, subject, body, mailbox, proposal_preview_id=None):
             "client_name": lead["name"],
             "lead_data": {"id": record_id, "name": lead["name"]},
             **({"proposal_snapshot": snapshot} if snapshot else {}),
+            **({"campaign_source": campaign_source} if campaign_source else {}),
         },
     )

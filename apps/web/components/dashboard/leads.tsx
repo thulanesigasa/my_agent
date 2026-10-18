@@ -3,6 +3,7 @@
 import { FormEvent, useContext, useEffect, useState } from "react";
 import { apiRequest, ApiError } from "@/lib/api";
 import { ResearchJobs, ResearchJob } from "@/components/dashboard/research-jobs";
+import { Campaigns } from "@/components/dashboard/campaigns";
 import { PortfolioEditor, ProposalPreview } from "@/components/dashboard/portfolio";
 import { TabContext } from "@/components/app-shell";
 
@@ -190,6 +191,7 @@ export function LeadsDashboard() {
     <div><h2 className="text-xl font-semibold">Business research</h2><p className="mt-1 text-sm text-slate-500">Find candidates, review evidence, and prepare eligible outreach. Discovery never sends emails.</p></div>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
+    <Campaigns leads={leads} />
     <PortfolioEditor />
     <ResearchJobs jobs={jobs} available={Boolean(webStatus?.enabled && webStatus?.configured)} workerEnabled={workerEnabled} busy={busy} clock={clock} onStart={(payload) => void act(async () => { await apiRequest("/api/leads/jobs", { method: "POST", body: JSON.stringify(payload) }); await refresh(); setNotice("Research job started. Progress is saved; cooldown waits are automatic. No email will be drafted or sent."); }, "tavily")} onControl={(id, action, budget) => void act(async () => { await apiRequest(`/api/leads/jobs/${id}`, { method: "PATCH", body: JSON.stringify({ action, ...(budget === undefined ? {} : { max_requests: budget }) }) }); await refresh(); }, "tavily")} onSelect={(id) => { setSelected(id); setFilter("all"); setSourceFilter("all"); setSearch(""); document.getElementById("lead-candidates")?.scrollIntoView({ behavior: "smooth" }); }} />
     <div className="grid items-start gap-5 xl:grid-cols-2">
