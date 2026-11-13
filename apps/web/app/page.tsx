@@ -39,6 +39,10 @@ export default function Home() {
   const [state, setState] = useState<VoiceState>("idle");
   const [transcript, setTranscript] = useState("");
   const [supported, setSupported] = useState(false);
+  const [voiceReady, setVoiceReady] = useState(false);
+  const [voiceProvider, setVoiceProvider] = useState("browser");
+  const voiceConfig = useRef({ provider: "browser", stt_provider: "groq" });
+  const [historyReady, setHistoryReady] = useState(false);
   const [copied, setCopied] = useState("");
   const browser = useRef<BrowserVoice | null>(null);
   const server = useRef<AudioStreamManager | null>(null);
@@ -51,7 +55,15 @@ export default function Home() {
   const sendRef = useRef<(text: string, spoken?: boolean) => Promise<void>>(async () => {});
   const agent = agents.find((a) => a.id === active)!;
   const messages = conversations[active] || [];
-  function thread(id: string) { return threads.current[id] ||= `${id}_${crypto.randomUUID()}`; }
+  function thread(id: string) {
+    if (threads.current[id]) return threads.current[id];
+    let saved = "";
+    try { saved = localStorage.getItem(`elevate.thread.${id}`) || ""; } catch {}
+    const value = /^[A-Za-z0-9_-]{1,100}$/.test(saved) ? saved : `${id}_${crypto.randomUUID()}`;
+    threads.current[id] = value;
+    try { localStorage.setItem(`elevate.thread.${id}`, value); } catch {}
+    return value;
+  }
   function append(id: string, role: Message["role"], text: string, spoken = false) {
     setConversations((old) => ({ ...old, [id]: [...(old[id] || []), { id: crypto.randomUUID(), role, text, voice: spoken }] }));
   }
@@ -59,23 +71,45 @@ export default function Home() {
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length, busy, transcript]);
   useEffect(() => {
     setSupported(BrowserVoice.supported());
+    let disposed = false;
+    void fetch("/api/voice/status", { cache: "no-store" }).then(async (r) => {
+      if (!r.ok) throw new Error("Voice configuration unavailable");
+      const data = await r.json(); if (!disposed) { voiceConfig.current = data; setVoiceProvider(data.provider); setVoiceReady(true); }
+    }).catch(() => { if (!disposed) setError("Voice configuration unavailable. Check the backend before enabling voice."); });
     const manager = new BrowserVoice({
       state: setState, transcript: setTranscript,
+      speech: async (text, signal) => {
+        if (voiceConfig.current.provider !== "elevenlabs") return null;
+        const r = await fetch("/api/voice/speech", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text.slice(0, 3000) }), signal });
+        if (!r.ok) throw new Error("Speech unavailable");
+        return r.blob();
+      },
       activated: () => { voiceOn.current = true; setVoice(true); setError(""); },
       final: (text) => { setTranscript(""); void sendRef.current(text, true); },
       error: (message) => { setError(message); setVoice(false); setWake(false); voiceOn.current = false; manager.setWake(false); manager.stop(); },
     });
     browser.current = manager;
-    return () => { manager.dispose(); server.current?.disconnect(); request.current?.abort(); };
+    return () => { disposed = true; manager.dispose(); server.current?.disconnect(); request.current?.abort(); };
   }, []);
+  useEffect(() => {
+    let cancelled = false; setHistoryReady(false);
+    const id = thread(active);
+    void fetch(`/api/voice/history/${id}`, { cache: "no-store" }).then(async (r) => {
+      if (!r.ok) throw new Error("Saved conversation unavailable");
+      const data = await r.json();
+      if (!cancelled && threads.current[active] === id) setConversations((old) => ({ ...old, [active]: data.messages }));
+    }).catch(() => { if (!cancelled) setError("Saved conversation could not be loaded. Retry by selecting this space again."); })
+      .finally(() => { if (!cancelled) setHistoryReady(true); });
+    return () => { cancelled = true; };
+  }, [active]);
   function stopVoice() {
     voiceOn.current = false; setVoice(false); setTranscript("");
     server.current?.disconnect(); server.current = null; browser.current?.stop();
   }
   async function startVoice() {
-    if (busy) return;
+    if (busy || !historyReady || !voiceReady) return;
     setError(""); voiceOn.current = true; setVoice(true);
-    if (BrowserVoice.supported()) { try { browser.current?.start(); } catch (e) { stopVoice(); setError(e instanceof Error ? e.message : "Could not start voice."); } return; }
+    if (BrowserVoice.supported() && voiceConfig.current.stt_provider !== "elevenlabs") { try { browser.current?.start(); } catch (e) { stopVoice(); setError(e instanceof Error ? e.message : "Could not start voice."); } return; }
     const workspace = activeRef.current;
     const manager = new AudioStreamManager({
       onStateChange: setState,
@@ -90,7 +124,7 @@ export default function Home() {
   }
   async function send(text: string, spoken = false) {
     const value = text.trim();
-    if (!value || pending.current) return;
+    if (!value || pending.current || !historyReady) return;
     pending.current = true; setBusy(true); setError(""); setInput("");
     const workspace = activeRef.current;
     append(workspace, "user", value, spoken);
@@ -110,8 +144,8 @@ export default function Home() {
     } finally { clearTimeout(timeout); pending.current = false; setBusy(false); request.current = null; }
   }
   sendRef.current = send;
-  function select(id: string) { if (busy || voice) return; setActive(id); activeRef.current = id; setMobileOpen(false); setError(""); setInput(""); }
-  function newChat() { if (busy || voice) return; threads.current[active] = `${active}_${crypto.randomUUID()}`; setConversations((old) => ({ ...old, [active]: [] })); setError(""); setInput(""); }
+  function select(id: string) { if (busy || voice) return; browser.current?.stop(); setActive(id); activeRef.current = id; setMobileOpen(false); setError(""); setInput(""); }
+  function newChat() { if (busy || voice) return; browser.current?.stop(); threads.current[active] = `${active}_${crypto.randomUUID()}`; try { localStorage.setItem(`elevate.thread.${active}`, threads.current[active]); } catch {} setHistoryReady(true); setConversations((old) => ({ ...old, [active]: [] })); setError(""); setInput(""); }
   function toggleWake() {
     try { browser.current?.setWake(!wake); setWake(!wake); setError(""); }
     catch (e) { setError(e instanceof Error ? e.message : "Wake phrase unavailable."); }
@@ -125,18 +159,18 @@ export default function Home() {
       <button className={styles.newChat} onClick={newChat} disabled={busy || voice}><Plus size={17} /> New conversation <span>↗</span></button>
       <div className={styles.sectionLabel}>YOUR AGENT SPACES</div>
       <nav className={styles.agentList} aria-label="Agent spaces">{agents.map((a) => <button key={a.id} aria-pressed={active === a.id} disabled={busy || voice} onClick={() => select(a.id)} className={active === a.id ? styles.agentActive : styles.agentButton}><span className={styles.agentMark}>{a.mark}</span><span><strong>{a.name}</strong><small>{a.role}</small></span>{active === a.id && <span className={styles.activeDot} />}</button>)}</nav>
-      <div className={styles.sidebarBottom}><div className={styles.wakeCard}><span className={styles.sectionLabel}>A LITTLE MORE HANDS-FREE</span><p>Say <strong>“elevate agent”</strong><br />to start a conversation.</p><button onClick={toggleWake} disabled={!supported || busy || voice} className={wake ? styles.wakeOn : styles.wakeButton}><Mic size={14} />{wake ? "Wake listening on" : "Enable wake phrase"}</button><small>Opt-in microphone access. Double-clap desktop launch is kept.</small></div><Link href="/dashboard" className={styles.dashboardLink}><ShieldCheck size={16} /> Outreach workspace <ArrowUpRight size={15} /></Link><div className={styles.profile}><span>TS</span><div>TS Industries<small>Local agent workspace</small></div><span className={styles.profileDot} /></div></div>
+      <div className={styles.sidebarBottom}><div className={styles.wakeCard}><span className={styles.sectionLabel}>A LITTLE MORE HANDS-FREE</span><p>Say <strong>“elevate agent”</strong><br />to start a conversation.</p><button onClick={toggleWake} disabled={!supported || busy || voice || !voiceReady || voiceConfig.current.stt_provider === "elevenlabs"} className={wake ? styles.wakeOn : styles.wakeButton}><Mic size={14} />{wake ? "Wake listening on" : "Enable wake phrase"}</button><small>Opt-in microphone access. Double-clap desktop launch is kept.</small></div><Link href="/dashboard" className={styles.dashboardLink}><ShieldCheck size={16} /> Outreach workspace <ArrowUpRight size={15} /></Link><div className={styles.profile}><span>TS</span><div>TS Industries<small>Local agent workspace</small></div><span className={styles.profileDot} /></div></div>
     </aside>
     <main className={styles.main}>
       <header className={styles.header}><div className={styles.headerLeft}><button className={styles.mobileMenu} aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Menu size={21} /></button><span>{agent.name}</span><ChevronDown size={14} /><span className={styles.headerDivider} /><span className={styles.headerCaption}>A conversation with your team</span></div><Link href="/dashboard?tab=approvals" className={styles.approvals}><ShieldCheck size={15} /> Approvals <ArrowUpRight size={14} /></Link></header>
       <div className={styles.scrollArea}>
-        {!messages.length ? <section className={styles.welcome}><div className={styles.orbit}><span /><Sparkles size={35} strokeWidth={1.3} /></div><div className={styles.eyebrow}>LESS BUSYWORK. MORE POSSIBILITY.</div><h1>{agent.prompt}</h1><p>Talk it through, make a plan, or put your agents to work.<br className={styles.desktopBreak} /> Start with a message. Take it further with your voice.</p><div className={styles.suggestions}>{agent.suggestions.map((suggestion, i) => <button key={suggestion} onClick={() => void send(suggestion)} disabled={busy}><span>{i === 0 ? <Search size={17} /> : i === 1 ? <Sparkles size={17} /> : <ArrowUpRight size={17} />}</span>{suggestion}<ArrowUpRight size={14} /></button>)}</div></section> : <div className={styles.messages} aria-live="polite" aria-relevant="additions">{messages.map((message) => <article key={message.id} className={message.role === "user" ? styles.userMessage : styles.assistantMessage}>{message.role === "assistant" && <span className={styles.replyMark}><Sparkles size={17} /></span>}<div className={styles.messageBody}><div className={styles.messageMeta}>{message.role === "user" ? "You" : agent.name}{message.voice && <Mic size={11} />}</div><Formatted text={message.text} />{message.role === "assistant" && <div className={styles.messageActions}><button aria-label="Copy response" onClick={() => { void navigator.clipboard.writeText(message.text).then(() => { setCopied(message.id); setTimeout(() => setCopied(""), 1800); }).catch(() => setError("Clipboard access unavailable. Select and copy the response text.")); }}>{copied === message.id ? <Check size={14} /> : <Copy size={14} />}</button><button aria-label="Read response aloud" disabled={busy || voice} onClick={() => browser.current?.speak(message.text)}><Volume2 size={14} /></button></div>}</div></article>)}{busy && <div className={styles.thinking} role="status"><span /><span /><span /> Working on your message</div>}<div ref={bottom} /></div>}
+        {!messages.length ? <section className={styles.welcome}><button type="button" aria-label={voice ? "End voice conversation" : "Talk to Elevate"} onClick={() => voice ? stopVoice() : void startVoice()} disabled={busy || !historyReady || !voiceReady} className={styles.orbit}><span /><Sparkles size={35} strokeWidth={1.3} /></button><div className={styles.eyebrow}>LESS BUSYWORK. MORE POSSIBILITY.</div><h1>{agent.prompt}</h1><p>Talk it through, make a plan, or put your agents to work.<br className={styles.desktopBreak} /> Start with a message. Take it further with your voice.</p><div className={styles.suggestions}>{agent.suggestions.map((suggestion, i) => <button key={suggestion} onClick={() => void send(suggestion)} disabled={busy}><span>{i === 0 ? <Search size={17} /> : i === 1 ? <Sparkles size={17} /> : <ArrowUpRight size={17} />}</span>{suggestion}<ArrowUpRight size={14} /></button>)}</div></section> : <div className={styles.messages} aria-live="polite" aria-relevant="additions">{messages.map((message) => <article key={message.id} className={message.role === "user" ? styles.userMessage : styles.assistantMessage}>{message.role === "assistant" && <span className={styles.replyMark}><Sparkles size={17} /></span>}<div className={styles.messageBody}><div className={styles.messageMeta}>{message.role === "user" ? "You" : agent.name}{message.voice && <Mic size={11} />}</div><Formatted text={message.text} />{message.role === "assistant" && <div className={styles.messageActions}><button aria-label="Copy response" onClick={() => { void navigator.clipboard.writeText(message.text).then(() => { setCopied(message.id); setTimeout(() => setCopied(""), 1800); }).catch(() => setError("Clipboard access unavailable. Select and copy the response text.")); }}>{copied === message.id ? <Check size={14} /> : <Copy size={14} />}</button><button aria-label="Read response aloud" disabled={busy || voice} onClick={() => void browser.current?.speak(message.text)}><Volume2 size={14} /></button></div>}</div></article>)}{busy && <div className={styles.thinking} role="status"><span /><span /><span /> Working on your message</div>}<div ref={bottom} /></div>}
       </div>
       <div className={styles.composerArea}>
         {error && <div className={styles.error} role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError("")}><X size={15} /></button></div>}
         {(voice || wake || state === "speaking") && <div className={styles.voiceBar}><span className={styles.voicePulse} /><span>{status}{transcript ? ` · ${transcript}` : ""}</span>{state === "speaking" && <button onClick={() => { server.current?.interrupt(); browser.current?.resume(); window.speechSynthesis?.cancel(); }}>Interrupt</button>}{voice && <button onClick={stopVoice}>End voice <X size={13} /></button>}</div>}
-        <form className={styles.composer} onSubmit={submit}><label className={styles.inputLabel} htmlFor="chat-message">Message {agent.name}</label><textarea disabled={voice && !supported} id="chat-message" aria-label={`Message ${agent.name}`} value={input} maxLength={20000} placeholder={`Message ${agent.name}…`} rows={2} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!busy) void send(input); } }} /><div className={styles.composerBottom}><div className={styles.composerTools}><button type="button" title={voice ? "End voice conversation" : "Start voice conversation"} aria-label={voice ? "End voice conversation" : "Start voice conversation"} className={voice ? styles.voiceButtonActive : styles.voiceButton} disabled={busy} onClick={() => voice ? stopVoice() : void startVoice()}><Headphones size={17} /> <span>{voice ? "Voice on" : "Voice conversation"}</span></button><span className={styles.modelLabel}>elevate agent</span></div>{busy ? <button type="button" className={styles.send} aria-label="Stop waiting" onClick={() => request.current?.abort()}><Square size={15} fill="currentColor" /></button> : <button type="submit" className={styles.send} aria-label="Send message" disabled={!input.trim() || (voice && !supported)}><ArrowUp size={19} /></button>}</div></form>
-        <div className={styles.footerNote}><span>Text or voice. One conversation.</span><span>Outgoing emails always need your approval.</span></div>
+        <form className={styles.composer} onSubmit={submit}><label className={styles.inputLabel} htmlFor="chat-message">Message {agent.name}</label><textarea disabled={voice && !supported} id="chat-message" aria-label={`Message ${agent.name}`} value={input} maxLength={20000} placeholder={`Message ${agent.name}…`} rows={2} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!busy) void send(input); } }} /><div className={styles.composerBottom}><div className={styles.composerTools}><button type="button" title={voice ? "End voice conversation" : "Start voice conversation"} aria-label={voice ? "End voice conversation" : "Start voice conversation"} className={voice ? styles.voiceButtonActive : styles.voiceButton} disabled={busy || !historyReady || !voiceReady} onClick={() => voice ? stopVoice() : void startVoice()}><Headphones size={17} /> <span>{voice ? "Voice on" : "Voice conversation"}</span></button><span className={styles.modelLabel}>{voiceProvider === "elevenlabs" ? "ElevenLabs voice" : "Browser voice"}</span></div>{busy ? <button type="button" className={styles.send} aria-label="Stop waiting" onClick={() => request.current?.abort()}><Square size={15} fill="currentColor" /></button> : <button type="submit" className={styles.send} aria-label="Send message" disabled={!input.trim() || (voice && !supported)}><ArrowUp size={19} /></button>}</div></form>
+        <div className={styles.footerNote}><span>Text or voice. Saved on this backend.</span><span>Outgoing emails always need your approval.</span></div>
       </div>
     </main>
   </div>;

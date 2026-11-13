@@ -155,7 +155,8 @@ def test_sast_boundaries_and_provider_timestamp_not_sync_time():
     assert data["daily"][-1]["sent"] == 1
 
 
-def test_future_replies_do_not_change_snapshot_and_missing_dates_fallback():
+def test_future_replies_do_not_change_snapshot_and_missing_dates_fallback(monkeypatch):
+    monkeypatch.setattr("core.store.now", lambda: "2026-10-18T10:00:00+00:00")
     sent()
     reply(when="2026-10-21T08:00:00+00:00")
     assert report()["summary"]["conversations_replied"] == 0
@@ -164,7 +165,8 @@ def test_future_replies_do_not_change_snapshot_and_missing_dates_fallback():
     assert report()["reply_timestamp_fallbacks"] == 1
 
 
-def test_outcome_is_explicit_and_optout_overrides_older_classification():
+def test_outcome_is_explicit_and_optout_overrides_older_classification(monkeypatch):
+    monkeypatch.setattr("core.store.now", lambda: "2026-10-18T10:00:00+00:00")
     sent()
     reply()
     assert report()["summary"]["outcomes"]["unclassified"] == 1

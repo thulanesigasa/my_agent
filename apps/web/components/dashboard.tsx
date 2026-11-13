@@ -4,6 +4,7 @@ import { TabContext } from "@/components/app-shell";
 import { LeadsDashboard } from "./dashboard/leads";
 import { ReportsDashboard } from "./dashboard/reports";
 import { PilotReadiness } from "./dashboard/pilot-readiness";
+import { VoiceCallingPanel } from "./dashboard/voice-calling";
 import { AutomationPanel } from "./dashboard/automation";
 import { SendingControls } from "./dashboard/sending-controls";
 import { GmailSettings } from "./dashboard/gmail-settings";
@@ -26,7 +27,7 @@ export function Dashboard() {
       {tab === "logs" && <><FollowupSchedule /><FollowupsDashboard /><EmailLogsTable /></>}
       {tab === "approvals" && <ApprovalQueueDashboard />}
       {tab === "memory" && <MemoryViewer />}
-      {tab === "settings" && <><AutomationPanel /><PilotReadiness /><SendingControls /><GmailSettings /></>}
+      {tab === "settings" && <><AutomationPanel /><VoiceCallingPanel /><PilotReadiness /><SendingControls /><GmailSettings /></>}
     </div>
   );
 }

@@ -2,7 +2,9 @@
 
 A Python/FastAPI + LangGraph backend and Next.js dashboard for a local business website outreach workflow.
 
-## Current milestone: elevate agent chat and voice workspace
+## Current milestone: monthly town targets and ElevenLabs/OpenAI voice
+
+See [ELEVENLABS_SETUP.md](ELEVENLABS_SETUP.md) for monthly town/country targeting, explicit OpenAI selection, ElevenLabs blob speech, durable text/voice conversation history and the approval-controlled SIP calling pilot. Provider accounts and a compatible phone connection still require local setup; no live call is made by installation.
 
 Phase 1 persists workflow records and approvals. Phase 2 adds a local OAuth connection helper, account verification, MIME message parsing, paginated history sync, reply threading, contact eligibility/suppression, uncertain-send reconciliation and connected Gmail dashboard controls.
 

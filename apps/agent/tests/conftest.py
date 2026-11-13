@@ -10,6 +10,12 @@ for name in (
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
     "GROQ_API_KEY",
+    "OPENAI_API_KEY",
+    "ELEVENLABS_API_KEY",
+    "ELEVENLABS_LLM_SECRET",
+    "ELEVENLABS_AGENT_ID",
+    "ELEVENLABS_PHONE_NUMBER_ID",
+    "ELEVENLABS_LLM_URL",
     "GEMINI_API_KEY",
     "OPENROUTER_API_KEY",
     "TAVILY_API_KEY",
@@ -27,6 +33,10 @@ for name in (
 os.environ["GMAIL_TOKEN_PATH"] = str(
     Path(tempfile.mkdtemp(prefix="agent-test-oauth-")) / "absent.json"
 )
+os.environ["LLM_PROVIDER"] = "legacy"
+os.environ["VOICE_PROVIDER"] = "browser"
+os.environ["STT_PROVIDER"] = "groq"
+os.environ["ELEVENLABS_CALLS_ENABLED"] = "false"
 os.environ["GMAIL_DRAFT_REPLIES"] = "false"
 os.environ["ENV"] = "test"
 os.environ["ENABLE_SCHEDULER"] = "false"

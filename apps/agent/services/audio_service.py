@@ -18,8 +18,6 @@ class TranscriptionUnavailable(RuntimeError):
 
 # ElevenLabs voice — Arnold (deep, powerful, commanding)
 # Browse voices at https://elevenlabs.io/voice-library
-ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "VR6AewLTigWG4xSOukaG")  # Arnold
-ELEVENLABS_MODEL = "eleven_flash_v2_5"  # lowest latency model
 
 
 import re
@@ -57,6 +55,34 @@ class AudioService:
         """
         if not audio_bytes or len(audio_bytes) < 100:
             return ""
+
+        if settings.STT_PROVIDER == "elevenlabs":
+            import json
+            from services.elevenlabs import request, VoiceUnavailable
+            from services.spend import reserve
+
+            if not settings.ELEVENLABS_API_KEY:
+                raise TranscriptionUnavailable(
+                    "ElevenLabs speech recognition is not configured"
+                )
+            try:
+                reserve("elevenlabs-stt", settings.SPEECH_REQUEST_RESERVE_PENCE)
+                raw = await request(
+                    "POST",
+                    "speech-to-text",
+                    files={
+                        "file": ("speech.webm", audio_bytes, "application/octet-stream")
+                    },
+                    data={"model_id": settings.ELEVENLABS_STT_MODEL},
+                )
+                value = json.loads(raw).get("text")
+                if not isinstance(value, str):
+                    raise ValueError("Invalid transcript")
+                return value[:20000]
+            except (VoiceUnavailable, ValueError) as exc:
+                raise TranscriptionUnavailable(
+                    "Speech recognition failed. No command was submitted; use text or try again."
+                ) from exc
 
         if not settings.GROQ_API_KEY:
             raise TranscriptionUnavailable(
@@ -106,35 +132,23 @@ class AudioService:
         if not clean_text:
             return b""
 
-        elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
+        if settings.VOICE_PROVIDER == "elevenlabs":
+            from services.elevenlabs import request, identifier
+            from services.spend import reserve
 
-        # ── ElevenLabs (primary) ──────────────────────────────────────────
-        if elevenlabs_key:
-            voice_id = voice or ELEVENLABS_VOICE_ID
-            url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-            headers = {
-                "xi-api-key": elevenlabs_key,
-                "Content-Type": "application/json",
-                "Accept": "audio/mpeg",
-            }
-            payload = {
-                "text": clean_text[:3000],
-                "model_id": ELEVENLABS_MODEL,
-                "voice_settings": {
-                    "stability": 0.5,
-                    "similarity_boost": 0.75,
-                    "style": 0.0,
-                    "use_speaker_boost": True,
+            # Validate before reserving. Fail visibly; never switch voices/providers silently.
+            if not settings.ELEVENLABS_API_KEY:
+                raise RuntimeError("ELEVENLABS_API_KEY is not configured")
+            voice_id = identifier(voice or settings.ELEVENLABS_VOICE_ID)
+            reserve("elevenlabs-tts", settings.SPEECH_REQUEST_RESERVE_PENCE)
+            return await request(
+                "POST",
+                f"text-to-speech/{voice_id}?output_format=mp3_44100_128",
+                json={
+                    "text": clean_text[:3000],
+                    "model_id": settings.ELEVENLABS_TTS_MODEL,
                 },
-            }
-            try:
-                async with httpx.AsyncClient(timeout=20.0) as client:
-                    response = await client.post(url, headers=headers, json=payload)
-                    response.raise_for_status()
-                    logger.info(f"ElevenLabs TTS: {len(response.content)} bytes")
-                    return response.content
-            except Exception as e:
-                logger.warning(f"ElevenLabs TTS error, falling back to Edge-TTS: {e}")
+            )
 
         # ── Edge-TTS fallback ─────────────────────────────────────────────
         selected_voice = settings.DEFAULT_TTS_VOICE

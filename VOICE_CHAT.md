@@ -1,3 +1,5 @@
+For ElevenLabs/OpenAI provider setup, saved conversation history and the SIP phone pilot, see [ELEVENLABS_SETUP.md](ELEVENLABS_SETUP.md). The provider-enabled mode supersedes the earlier in-tab-only history/browser-only speech description below.
+
 # elevate agent: text and voice conversations
 
 The redesigned interaction screen is **http://localhost:3000/**. The outreach dashboard remains at `/dashboard`; its layout and sending approval flow are retained. Pull and restart both servers after updating. No new mandatory dependency is needed for text or browser voice.

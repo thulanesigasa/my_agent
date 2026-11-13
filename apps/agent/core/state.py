@@ -18,6 +18,7 @@ class AgentState(TypedDict, total=False):
 
     # Node identifier of the current active worker or user (e.g. 'triage', 'drafter', 'learner')
     sender: str
+    conversation_context: str
 
     # Optional email context payload ({'sender': ..., 'subject': ..., 'body': ..., 'thread_id': ...})
     email_input: Optional[Dict[str, Any]]

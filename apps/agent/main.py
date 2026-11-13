@@ -67,6 +67,8 @@ from routers import (
     automation,
 )
 from services.contacts import EligibilityError
+from services.conversations import run_turn
+from routers import voice_workspace, calls
 from scheduler import agent_scheduler
 from services.research_jobs import research_job_runner
 from services.campaigns import campaign_runner
@@ -112,6 +114,8 @@ app.include_router(send_controls.router)
 app.include_router(campaigns.router)
 app.include_router(pilot.router)
 app.include_router(automation.router)
+app.include_router(voice_workspace.router)
+app.include_router(calls.router)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -459,17 +463,10 @@ async def chat_endpoint(
     Process incoming chat messages through the LangGraph state machine workflow.
     """
     thread_id = payload.thread_id or "session_001"
-    config = {"configurable": {"thread_id": thread_id}}
-
-    initial_state: AgentState = {
-        "messages": [{"role": "user", "content": payload.message}],
-        "email_input": payload.email_input,
-        "approval_status": "none",
-        "needs_human_approval": False,
-    }
-
     try:
-        final_state = await agent_workflow.ainvoke(initial_state, config=config)
+        final_state = await run_turn(
+            agent_workflow, payload.message, thread_id, payload.email_input
+        )
         output_text = (
             final_state.get("final_output")
             or final_state.get("draft_response")
@@ -670,13 +667,9 @@ async def websocket_audio_endpoint(websocket: WebSocket):
                     await websocket.send_json(
                         {"type": "transcription", "text": transcription}
                     )
-                    config = {"configurable": {"thread_id": voice_thread}}
-                    state: AgentState = {
-                        "messages": [{"role": "user", "content": transcription}],
-                        "approval_status": "none",
-                    }
-
-                    final_state = await agent_workflow.ainvoke(state, config=config)
+                    final_state = await run_turn(
+                        agent_workflow, transcription, voice_thread
+                    )
                     output_text = (
                         final_state.get("final_output")
                         or final_state.get("draft_response")

@@ -48,6 +48,29 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_MODEL: str = "anthropic/claude-3.5-sonnet"
 
+    # Explicit provider selection; paid providers never silently fall back.
+    LLM_PROVIDER: Literal["legacy", "openai"] = "legacy"
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4.1-mini"
+    VOICE_PROVIDER: Literal["browser", "elevenlabs"] = "browser"
+    STT_PROVIDER: Literal["groq", "elevenlabs"] = "groq"
+    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_VOICE_ID: str = ""
+    ELEVENLABS_TTS_MODEL: str = "eleven_flash_v2_5"
+    ELEVENLABS_STT_MODEL: str = "scribe_v2"
+    ELEVENLABS_AGENT_ID: str = ""
+    ELEVENLABS_PHONE_NUMBER_ID: str = ""
+    ELEVENLABS_LLM_SECRET: str = ""
+    ELEVENLABS_LLM_URL: str = ""
+    ELEVENLABS_CALLS_ENABLED: bool = False
+    # Local reservations in GBP pence, not provider billing enforcement.
+    MONTHLY_BUDGET_PENCE: int = Field(default=4000, ge=1, le=4000)
+    FIXED_COST_RESERVE_PENCE: int = Field(default=1500, ge=0, le=4000)
+    MODEL_REQUEST_RESERVE_PENCE: int = Field(default=10, ge=1, le=100)
+    SPEECH_REQUEST_RESERVE_PENCE: int = Field(default=10, ge=1, le=100)
+    CALL_RESERVE_PENCE: int = Field(default=100, ge=1, le=1000)
+    CALL_MAX_SECONDS: int = Field(default=180, ge=60, le=300)
+
     # Lead Discovery / Web Search
     TAVILY_API_KEY: Optional[str] = None
     ALLOW_TAVILY_RESEARCH: bool = False

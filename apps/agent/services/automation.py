@@ -7,6 +7,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from uuid import uuid4
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from config import settings
@@ -33,6 +34,10 @@ DEFAULT = {
     "version": 0,
     "paused": True,
     "location": "",
+    "country": "",
+    "region": "",
+    "target_month": "",
+    "time_zone": "Africa/Johannesburg",
     "industry": "",
     "research_enabled": False,
     "research_results": 2,
@@ -50,6 +55,10 @@ class AutomationInput(BaseModel):
     version: int = Field(ge=0)
     paused: bool
     location: str = Field(default="", max_length=200)
+    country: str = Field(default="", max_length=80)
+    region: str = Field(default="", max_length=80)
+    target_month: str = Field(default="", pattern=r"^(?:|[0-9]{4}-(?:0[1-9]|1[0-2]))$")
+    time_zone: str = Field(default="Africa/Johannesburg", max_length=80)
     industry: str = Field(default="", max_length=200)
     research_enabled: bool = False
     research_results: int = Field(default=2, ge=1, le=5)
@@ -64,11 +73,39 @@ class AutomationInput(BaseModel):
     def target(self):
         self.location = self.location.strip()
         self.industry = self.industry.strip()
+        self.country = self.country.strip()
+        self.region = self.region.strip()
+        try:
+            ZoneInfo(self.time_zone)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError("Choose a valid IANA time zone") from exc
+        if self.target_month and (
+            not self.country or not self.location or not self.industry
+        ):
+            raise ValueError(
+                "Monthly targeting needs one town, country and business type"
+            )
+        if len(target_label(self.model_dump())) > 200:
+            raise ValueError(
+                "Combined town, region and country must be at most 200 characters"
+            )
         if self.research_enabled and (not self.location or not self.industry):
             raise ValueError(
                 "Set a target town and business type for automatic research"
             )
         return self
+
+
+def target_label(saved):
+    return ", ".join(
+        v.strip()
+        for v in (
+            saved.get("location", ""),
+            saved.get("region", ""),
+            saved.get("country", ""),
+        )
+        if v.strip()
+    )
 
 
 def config(mailbox):
@@ -96,6 +133,16 @@ def update(payload, mailbox):
             raise ConflictError("Automation settings changed; refresh before saving")
         value = {**payload.model_dump(), "id": mailbox, "version": payload.version + 1}
         _write(db, "automation_config", value)
+        if payload.target_month:
+            _write(
+                db,
+                "monthly_targets",
+                {
+                    **value,
+                    "id": mailbox + ":" + payload.target_month,
+                    "mailbox": mailbox,
+                },
+            )
         db.execute(
             "INSERT INTO activity VALUES (?,?,?,?,?)",
             (
@@ -106,13 +153,12 @@ def update(payload, mailbox):
                 json.dumps(payload.model_dump()),
             ),
         )
-    if payload.paused:
-        for job in store.list("research_jobs"):
-            if (
-                job["id"].startswith(research_prefix(mailbox))
-                and job["status"] in research_jobs.ACTIVE
-            ):
-                research_jobs.control_job(job["id"], "pause")
+    for job in store.list("research_jobs"):
+        if (
+            job["id"].startswith(research_prefix(mailbox))
+            and job["status"] in research_jobs.ACTIVE
+        ):
+            research_jobs.control_job(job["id"], "pause")
     return value
 
 
@@ -136,6 +182,10 @@ def listing(mailbox):
     return {
         "config": config(mailbox),
         "budget": usage(mailbox),
+        "targets": [
+            t for t in store.list("monthly_targets") if t.get("mailbox") == mailbox
+        ],
+        "target_label": target_label(config(mailbox)),
         "runtime": store.get("automation_runtime", mailbox or ""),
         "runs": [
             r
@@ -188,7 +238,9 @@ def _active(mailbox, saved, stop):
 
 
 def _window(saved, at):
-    local = at.astimezone(TZ)
+    local = at.astimezone(ZoneInfo(saved.get("time_zone", "Africa/Johannesburg")))
+    if saved.get("target_month") and local.strftime("%Y-%m") != saved["target_month"]:
+        return False
     return (not saved["weekdays_only"] or local.weekday() < 5) and local.strftime(
         "%H:%M"
     ) >= saved["local_time"]
@@ -258,7 +310,7 @@ def _initial(mailbox, saved, run, stop):
         if not _active(mailbox, saved, stop):
             return
         # Target labels constrain new initial drafts; empty labels allow all saved leads.
-        location = " ".join(saved["location"].casefold().split())
+        location = " ".join(target_label(saved).casefold().split())
         candidate_location = " ".join(candidate.get("location", "").casefold().split())
         industry = saved["industry"].strip().casefold()
         if location and location != candidate_location:
@@ -437,7 +489,7 @@ async def tick(stop=lambda: False):
                     job = store.get(
                         "research_jobs", job_id
                     ) or research_jobs.create_job(
-                        saved["location"],
+                        target_label(saved),
                         saved["industry"],
                         saved["research_results"],
                         saved["research_requests"],
