@@ -1,0 +1,8 @@
+{
+  "agency_name": "TS Industries",
+  "portfolio_url": "https://ts-industries.co.za/",
+  "projects": [
+    {"id": "rbp-tech", "name": "RBP Tech", "url": "https://rbptech.co.za/", "description": "", "tags": [], "active": true},
+    {"id": "rhyma-music", "name": "Rhyma Music", "url": "https://rhymamusic.co.za/", "description": "", "tags": [], "active": true}
+  ]
+}

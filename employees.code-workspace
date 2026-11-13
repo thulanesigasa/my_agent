@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"name": "my_agent (Core & Web UI)",
+			"path": "."
+		},
+		{
+			"name": "reports_agent",
+			"path": "../reports_agent"
+		},
+		{
+			"name": "email_agent",
+			"path": "../email_agent"
+		},
+		{
+			"name": "project_manager",
+			"path": "../project_manager"
+		},
+		{
+			"name": "research_agent",
+			"path": "../research_agent"
+		}
+	],
+	"settings": {}
+}

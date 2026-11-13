@@ -1,0 +1,3 @@
+# Optional, only for desktop wake recognition before a browser is open.
+# Download an English Vosk model separately and set WAKE_MODEL_PATH locally.
+vosk>=0.3.45,<0.4
