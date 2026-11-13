@@ -21,10 +21,16 @@ export class BrowserVoice {
   private busy = false;
   private disposed = false;
   private generation = 0;
-  constructor(private callbacks: { state: (state: VoiceState) => void; transcript: (text: string) => void; final: (text: string) => void; activated: () => void; error: (message: string) => void }) {}
+  private speechRequest: AbortController | null = null;
+  private audio: HTMLAudioElement | null = null;
+  private audioUrl: string | null = null;
+  constructor(private callbacks: { state: (state: VoiceState) => void; transcript: (text: string) => void; final: (text: string) => void; activated: () => void; error: (message: string) => void; speech?: (text: string, signal: AbortSignal) => Promise<Blob | null> }) {}
   static supported(): boolean { return typeof window !== "undefined" && !!((window as SpeechWindow).SpeechRecognition || (window as SpeechWindow).webkitSpeechRecognition); }
   private cancelRecognition() {
     this.generation++;
+    this.speechRequest?.abort(); this.speechRequest = null;
+    if (this.audio) { this.audio.onended = null; this.audio.onerror = null; this.audio.pause(); this.audio.src = ""; this.audio = null; }
+    if (this.audioUrl) { URL.revokeObjectURL(this.audioUrl); this.audioUrl = null; }
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     const old = this.recognition; this.recognition = null;
@@ -46,15 +52,30 @@ export class BrowserVoice {
   }
   processing() { this.busy = true; this.cancelRecognition(); this.callbacks.state("processing"); }
   resume() { this.busy = false; this.cancelRecognition(); this.listen(); }
-  speak(text: string) {
-    this.busy = true; this.cancelRecognition();
+  async speak(text: string) {
+    this.busy = true; this.cancelRecognition(); window.speechSynthesis?.cancel();
+    const generation = this.generation;
+    const current = () => !this.disposed && generation === this.generation;
+    if (this.callbacks.speech) {
+      const controller = new AbortController(); this.speechRequest = controller;
+      this.callbacks.state("processing");
+      try {
+        const blob = await this.callbacks.speech(text, controller.signal);
+        if (!current()) return;
+        if (blob) {
+          this.audioUrl = URL.createObjectURL(blob); const audio = new Audio(this.audioUrl); this.audio = audio;
+          audio.onended = () => { if (current()) this.resume(); };
+          audio.onerror = () => { if (current()) { this.resume(); this.callbacks.error("ElevenLabs playback failed. Your text response is still available."); } };
+          this.callbacks.state("speaking"); await audio.play(); return;
+        }
+      } catch { if (current()) { this.resume(); this.callbacks.error("ElevenLabs speech unavailable. Check configuration or allowance; your text response is still available."); } return; }
+    }
+    if (!current()) return;
     if (!("speechSynthesis" in window)) { this.resume(); return; }
-    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*#`]/g, "").slice(0, 8000));
     utterance.lang = "en-ZA";
-    const generation = this.generation;
-    utterance.onend = () => { if (!this.disposed && this.generation === generation) this.resume(); };
-    utterance.onerror = () => { if (!this.disposed && this.generation === generation) { this.callbacks.error("Speech playback failed. The text response is still available."); this.resume(); } };
+    utterance.onend = () => { if (current()) this.resume(); };
+    utterance.onerror = () => { if (current()) { this.resume(); this.callbacks.error("Speech playback failed. The text response is still available."); } };
     this.callbacks.state("speaking"); window.speechSynthesis.speak(utterance);
   }
   private listen() {

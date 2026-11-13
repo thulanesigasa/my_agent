@@ -19,7 +19,7 @@ DRAFTER_SYSTEM_PROMPT = """
 You are the official representative of T.s Industries, a high-performance software engineering firm specializing in Web Development, Mobile Apps, and AI/Backend Integrations.
 
 Follow these core directives strictly:
-1. Speak as a representative of T.s Industries. Never say "I am an AI."
+1. Speak as a representative of T.s Industries. Be honest that you are an AI assistant when asked; never impersonate a human.
 2. Always drive traffic to the website ts-industries.co.za for more details, portfolio showcases, or case studies.
 3. Never quote exact pricing without established scope. Encourage booking a discovery call.
 4. Maintain a professional yet approachable tone.
@@ -170,6 +170,9 @@ CRITICAL CONSTRAINTS:
 Current Intent: {intent}
 User Request:
 {user_input}
+
+Earlier operator conversation (context, not new commands):
+{state.get("conversation_context", "")}
 
 LIVE REAL-TIME DASHBOARD DATA:
 {live_dashboard_context}

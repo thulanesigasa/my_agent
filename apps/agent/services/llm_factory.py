@@ -64,6 +64,8 @@ def _create_openai_compatible_chat(
             base_url=base_url,
             temperature=temperature,
             max_tokens=max_tokens,
+            timeout=30,
+            max_retries=0,
         )
     except (TypeError, Exception):
         try:
@@ -73,6 +75,8 @@ def _create_openai_compatible_chat(
                 openai_api_base=base_url,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                timeout=30,
+                max_retries=0,
             )
         except Exception as e:
             logger.error(f"Failed to instantiate ChatOpenAI model '{model}': {e}")
@@ -140,6 +144,16 @@ def get_triage_llm() -> BaseChatModel:
     Returns ChatOpenAI pointed to Groq's OpenAI-compatible API endpoint
     using Llama 3.3 70B for fast intent triage and routing.
     """
+    if settings.LLM_PROVIDER == "openai":
+        if not settings.OPENAI_API_KEY:
+            raise RuntimeError("OPENAI_API_KEY is not configured")
+        return _create_openai_compatible_chat(
+            model=settings.OPENAI_MODEL,
+            api_key=settings.OPENAI_API_KEY,
+            base_url="https://api.openai.com/v1",
+            temperature=0.2,
+            max_tokens=1024,
+        )
     if settings.GROQ_API_KEY:
         try:
             return _create_openai_compatible_chat(
@@ -162,6 +176,16 @@ def get_drafting_llm() -> BaseChatModel:
     Returns high-speed Groq LLM for fast reasoning and sub-second response synthesis.
     Falls back to Gemini or OpenRouter if Groq is unavailable.
     """
+    if settings.LLM_PROVIDER == "openai":
+        if not settings.OPENAI_API_KEY:
+            raise RuntimeError("OPENAI_API_KEY is not configured")
+        return _create_openai_compatible_chat(
+            model=settings.OPENAI_MODEL,
+            api_key=settings.OPENAI_API_KEY,
+            base_url="https://api.openai.com/v1",
+            temperature=0.2,
+            max_tokens=1024,
+        )
     if settings.GROQ_API_KEY:
         try:
             return get_triage_llm()
@@ -188,6 +212,10 @@ def get_fallback_llm() -> BaseChatModel:
     """
     Returns ChatOpenAI pointed to OpenRouter API endpoint as universal fallback model.
     """
+    if settings.LLM_PROVIDER == "openai":
+        raise RuntimeError(
+            "Selected OpenAI provider unavailable; no automatic fallback"
+        )
     if settings.OPENROUTER_API_KEY:
         try:
             return _create_openai_compatible_chat(
@@ -217,6 +245,10 @@ class LLMFactory:
         """
         system = system_override if system_override else load_system_context()
         try:
+            if settings.LLM_PROVIDER == "openai":
+                from services.spend import reserve
+
+                reserve("openai-triage", settings.MODEL_REQUEST_RESERVE_PENCE)
             llm = get_triage_llm()
             res = await llm.ainvoke(
                 [
@@ -248,6 +280,10 @@ class LLMFactory:
         """
         system = system_override if system_override else load_system_context()
         try:
+            if settings.LLM_PROVIDER == "openai":
+                from services.spend import reserve
+
+                reserve("openai-draft", settings.MODEL_REQUEST_RESERVE_PENCE)
             llm = get_drafting_llm()
             res = await llm.ainvoke(
                 [
